@@ -1,1477 +1,1640 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Flux Board | 動態任務看板</title>
-    <style>
-      /* Ensure the HTML `hidden` attribute always wins over display rules */
-      [hidden] { display: none !important; }
-
-      :root {
-        color-scheme: light;
-        --ink-strong: #13223a;
-        --ink-soft: #44546c;
-        --line-heavy: rgba(19, 34, 58, 0.14);
-        --line-soft: rgba(19, 34, 58, 0.08);
-        --paper: rgba(251, 252, 255, 0.9);
-        --panel: rgba(255, 255, 255, 0.82);
-        --amber: #ff8b3d;
-        --teal: #0da99b;
-        --blue: #2a7fff;
-        --rose: #f15d7d;
-        --mint: #d7fff4;
-        --sand: #fff4da;
-        --sky: #e4f0ff;
-        --shadow: 0 24px 60px rgba(14, 32, 64, 0.14);
-        --radius-xl: 28px;
-        --radius-lg: 22px;
-        --radius-md: 18px;
-        --radius-sm: 12px;
-        --ease: 220ms ease;
-        font-family: "Avenir Next", "SF Pro Display", "PingFang TC", "Segoe UI",
-          sans-serif;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        color: var(--ink-strong);
-        background:
-          radial-gradient(circle at top left, rgba(42, 127, 255, 0.24), transparent 34%),
-          radial-gradient(circle at 85% 10%, rgba(241, 93, 125, 0.18), transparent 24%),
-          radial-gradient(circle at 75% 85%, rgba(13, 169, 155, 0.18), transparent 30%),
-          linear-gradient(135deg, #f4f7fb 0%, #eef4ff 44%, #fdf3e8 100%);
-        position: relative;
-        overflow-x: hidden;
-      }
-
-      body::before {
-        content: "";
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        background-image:
-          linear-gradient(rgba(19, 34, 58, 0.035) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(19, 34, 58, 0.035) 1px, transparent 1px);
-        background-size: 34px 34px;
-        mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.92), transparent 90%);
-      }
-
-      h1, h2, h3, p { margin: 0; }
-      button, input, textarea { font: inherit; }
-      button { cursor: pointer; border: 0; }
-
-      .page-shell {
-        width: min(1380px, calc(100% - 32px));
-        margin: 0 auto;
-        padding: 24px 0 32px;
-        position: relative;
-        z-index: 1;
-      }
-
-      .glass-panel {
-        background: linear-gradient(180deg, var(--panel), rgba(255, 255, 255, 0.72));
-        border: 1px solid rgba(255, 255, 255, 0.9);
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(18px);
-      }
-
-      .hero-panel {
-        display: grid;
-        grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
-        gap: 20px;
-        padding: 24px;
-        border-radius: var(--radius-xl);
-      }
-
-      .hero-copy { padding: 8px 2px; }
-
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(19, 34, 58, 0.08);
-        font-size: 0.8rem;
-        font-weight: 700;
-        letter-spacing: 0.12em;
-      }
-
-      .eyebrow::before {
-        content: "";
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--blue), var(--teal));
-        box-shadow: 0 0 0 4px rgba(42, 127, 255, 0.1);
-      }
-
-      .hero-copy h1 {
-        margin-top: 18px;
-        font-size: clamp(1.35rem, 1.9vw, 1.5rem);
-        line-height: 1.22;
-        letter-spacing: -0.02em;
-      }
-
-      .today-chip {
-        margin-top: 14px;
-        display: inline-grid;
-        gap: 10px;
-        align-items: start;
-        padding: 12px 14px 14px;
-        border-radius: 20px;
-        background: rgba(19, 34, 58, 0.04);
-        border: 1px solid rgba(19, 34, 58, 0.06);
-        color: var(--ink-soft);
-      }
-
-      .today-chip-label {
-        font-size: 0.73rem;
-        font-weight: 700;
-        letter-spacing: 0.09em;
-      }
-
-      .today-chip-grid {
-        display: grid;
-        grid-template-columns: 1.5fr 1fr;
-        gap: 12px;
-        align-items: stretch;
-      }
-
-      .today-unit {
-        min-width: 0;
-        padding: 11px 13px 12px;
-        border-radius: 15px;
-        border: 1px solid rgba(19, 34, 58, 0.1);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.68));
-      }
-
-      .today-unit-label {
-        display: block;
-        font-size: 0.66rem;
-        letter-spacing: 0.1em;
-        font-weight: 700;
-        color: var(--ink-soft);
-      }
-
-      .today-date-main, .today-weekday, .today-time-main {
-        display: block;
-        color: var(--ink-strong);
-        line-height: 1.15;
-        font-weight: 800;
-      }
-
-      .today-date-main {
-        margin-top: 4px;
-        font-size: clamp(1.75rem, 3.2vw, 2.2rem);
-        letter-spacing: 0.01em;
-        font-family: "SF Pro Display", "PingFang TC", "Noto Sans TC", sans-serif;
-      }
-
-      .today-weekday {
-        margin-top: 4px;
-        font-size: clamp(1rem, 1.7vw, 1.2rem);
-        letter-spacing: 0.08em;
-        color: #32435f;
-      }
-
-      .today-time-main {
-        margin-top: 8px;
-        font-size: clamp(2rem, 3.8vw, 2.7rem);
-        font-variant-numeric: tabular-nums;
-        font-feature-settings: "tnum" 1;
-        letter-spacing: 0.06em;
-        font-family: "SF Mono", "Menlo", "Monaco", "ui-monospace", monospace;
-      }
-
-      .today-unit-time .today-unit-label { text-align: center; }
-      .today-unit-time .today-time-main  { text-align: center; }
-
-      body[data-time-layout="clock"] .today-chip {
-        padding: 14px 16px 16px;
-        min-width: min(520px, 100%);
-      }
-      body[data-time-layout="clock"] .today-chip-label { font-size: 0.65rem; letter-spacing: 0.12em; }
-      body[data-time-layout="clock"] .today-chip-grid  { grid-template-columns: 1fr; gap: 8px; }
-      body[data-time-layout="clock"] .today-unit       { border: 0; background: transparent; padding: 0; }
-      body[data-time-layout="clock"] .today-unit-time  { order: 1; }
-      body[data-time-layout="clock"] .today-unit-time .today-unit-label { text-align: left; }
-      body[data-time-layout="clock"] .today-time-main {
-        margin-top: 2px;
-        text-align: left;
-        font-size: clamp(2.9rem, 7.6vw, 4.8rem);
-        letter-spacing: 0.09em;
-        line-height: 1;
-      }
-      body[data-time-layout="clock"] .today-unit-date  { order: 2; display: flex; align-items: center; gap: 8px; }
-      body[data-time-layout="clock"] .today-unit-date .today-unit-label { display: none; }
-      body[data-time-layout="clock"] .today-date-main,
-      body[data-time-layout="clock"] .today-weekday {
-        margin-top: 0;
-        font-size: clamp(1rem, 1.8vw, 1.2rem);
-        letter-spacing: 0.03em;
-        color: #3f506a;
-      }
-      body[data-time-layout="clock"] .today-date-main::after {
-        content: "·";
-        margin-left: 8px;
-        color: rgba(63, 80, 106, 0.7);
-      }
-
-      .hero-stats { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 16px; }
-
-      .card-block {
-        padding: 18px;
-        border-radius: var(--radius-lg);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.68));
-        border: 1px solid var(--line-soft);
-      }
-
-      .dial-card { display: grid; place-items: center; align-content: center; gap: 12px; }
-
-      .dial {
-        width: 118px;
-        aspect-ratio: 1;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        background:
-          radial-gradient(circle at center, rgba(255, 255, 255, 0.95) 0 57%, transparent 58%),
-          conic-gradient(var(--teal) 0deg, rgba(19, 34, 58, 0.08) 0deg);
-        box-shadow:
-          inset 0 0 0 1px rgba(19, 34, 58, 0.08),
-          0 12px 24px rgba(14, 32, 64, 0.08);
-        transition: background 360ms ease;
-      }
-
-      .dial span { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.04em; }
-      .dial-card p { font-size: 0.9rem; color: var(--ink-soft); }
-
-      .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-
-      .metric { min-height: 92px; display: grid; gap: 8px; }
-      .metric small { font-size: 0.78rem; font-weight: 700; color: var(--ink-soft); letter-spacing: 0.08em; }
-      .metric strong { font-size: clamp(1.7rem, 2vw, 2.4rem); line-height: 1; letter-spacing: -0.04em; }
-      .metric span { font-size: 0.82rem; color: var(--ink-soft); line-height: 1.35; }
-
-      .workspace-grid {
-        margin-top: 22px;
-        display: grid;
-        grid-template-columns: minmax(0, 1.7fr) minmax(320px, 0.9fr);
-        gap: 20px;
-        align-items: start;
-      }
-
-      .board-panel, .insight-panel { border-radius: var(--radius-xl); padding: 20px; }
-
-      .panel-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: end;
-        margin-bottom: 18px;
-      }
-
-      .panel-head h2 { font-size: clamp(1.4rem, 2.2vw, 2.1rem); letter-spacing: -0.03em; }
-      .panel-head p { color: var(--ink-soft); line-height: 1.45; max-width: 38ch; }
-
-      .board-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-
-      .lane {
-        border-radius: var(--radius-lg);
-        border: 1px solid var(--line-heavy);
-        background:
-          linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.56)),
-          linear-gradient(180deg, rgba(19, 34, 58, 0.02), transparent);
-        overflow: hidden;
-      }
-
-      .lane-header {
-        padding: 16px;
-        border-bottom: 1px solid var(--line-soft);
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-      }
-
-      .lane-title { display: flex; align-items: center; gap: 10px; font-weight: 700; }
-      .lane-dot { width: 10px; height: 10px; border-radius: 50%; }
-
-      .lane-count {
-        min-width: 34px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        text-align: center;
-        font-size: 0.9rem;
-        font-weight: 700;
-        background: rgba(19, 34, 58, 0.06);
-      }
-
-      .lane-body {
-        min-height: 560px;
-        padding: 14px;
-        display: grid;
-        align-content: start;
-        gap: 14px;
-        background-image:
-          linear-gradient(rgba(19, 34, 58, 0.02) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(19, 34, 58, 0.02) 1px, transparent 1px);
-        background-size: 16px 16px;
-      }
-
-      .lane-body.is-drop-target {
-        background-color: rgba(42, 127, 255, 0.06);
-        box-shadow: inset 0 0 0 2px rgba(42, 127, 255, 0.18);
-      }
-
-      .task-card {
-        padding: 16px;
-        border-radius: var(--radius-md);
-        border: 1px solid rgba(19, 34, 58, 0.08);
-        background: rgba(255, 255, 255, 0.92);
-        box-shadow: 0 16px 28px rgba(14, 32, 64, 0.08);
-        position: relative;
-        overflow: hidden;
-        animation: rise-in 320ms ease both;
-      }
-
-      .task-card::before {
-        content: "";
-        position: absolute;
-        inset: 0 auto auto 0;
-        width: 100%;
-        height: 4px;
-        background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
-      }
-
-      .task-top { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
-
-      .priority-pill {
-        padding: 5px 10px;
-        border-radius: 999px;
-        font-size: 0.76rem;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-      }
-
-      .priority-pill.critical { color: #8c3411; background: #ffe1d4; }
-      .priority-pill.high     { color: #8b5a00; background: #fff0bd; }
-      .priority-pill.medium   { color: #005a64; background: #d9fff8; }
-
-      .task-card h3 { margin-top: 14px; font-size: 1.15rem; line-height: 1.25; }
-
-      .task-note {
-        margin-top: 6px;
-        color: var(--ink-soft);
-        line-height: 1.45;
-        font-size: 0.9rem;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-
-      .task-meta {
-        margin-top: 12px;
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 8px;
-        color: var(--ink-soft);
-        font-size: 0.82rem;
-      }
-
-      .task-meta strong { color: var(--ink-strong); }
-
-      .task-meta span {
-        padding: 8px 10px;
-        border-radius: 12px;
-        background: rgba(19, 34, 58, 0.04);
-      }
-
-      .task-card[draggable="true"] { cursor: grab; }
-      .task-card.is-dragging { opacity: 0.5; transform: rotate(1.2deg) scale(0.985); }
-
-      .card-menu-wrap { position: relative; }
-
-      .card-menu-trigger {
-        min-width: 32px;
-        height: 32px;
-        border-radius: 10px;
-        border: 1px solid rgba(19, 34, 58, 0.08);
-        background: rgba(19, 34, 58, 0.04);
-        color: var(--ink-soft);
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        transition: background var(--ease), color var(--ease), border-color var(--ease);
-      }
-
-      .task-card:hover .card-menu-trigger,
-      .task-card.menu-open .card-menu-trigger {
-        background: rgba(19, 34, 58, 0.1);
-        color: var(--ink-strong);
-        border-color: rgba(19, 34, 58, 0.12);
-      }
-
-      .card-menu {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        min-width: 130px;
-        padding: 6px;
-        border-radius: 12px;
-        border: 1px solid rgba(19, 34, 58, 0.1);
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: 0 16px 30px rgba(14, 32, 64, 0.14);
-        display: none;
-        z-index: 7;
-      }
-
-      .task-card.menu-open .card-menu { display: grid; gap: 4px; }
-
-      .card-menu-item {
-        width: 100%;
-        text-align: left;
-        padding: 8px 10px;
-        border-radius: 8px;
-        background: transparent;
-        color: var(--ink-strong);
-        font-size: 0.82rem;
-        font-weight: 700;
-      }
-
-      .card-menu-item:hover { background: rgba(19, 34, 58, 0.07); }
-      .card-menu-item.danger { color: #8f2f17; }
-
-      .insight-stack { display: grid; gap: 16px; }
-
-      .composer, .archive-panel { border-radius: var(--radius-lg); }
-
-      .composer {
-        padding: 18px;
-        border: 1px solid var(--line-heavy);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.68));
-      }
-
-      .composer h3, .archive-panel h3 { font-size: 1.05rem; letter-spacing: -0.02em; }
-
-      .composer p, .archive-panel p {
-        margin-top: 6px;
-        color: var(--ink-soft);
-        line-height: 1.45;
-        font-size: 0.84rem;
-      }
-
-      .field-grid { margin-top: 14px; display: grid; gap: 12px; }
-      .field-grid.two-up { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .field { display: grid; gap: 7px; }
-      .field label { font-size: 0.82rem; font-weight: 700; color: var(--ink-soft); }
-
-      .field input, .field textarea, .field select {
-        width: 100%;
-        border: 1px solid rgba(19, 34, 58, 0.1);
-        border-radius: 14px;
-        padding: 12px 14px;
-        background: rgba(255, 255, 255, 0.9);
-        color: var(--ink-strong);
-        outline: none;
-        transition: border-color var(--ease), box-shadow var(--ease);
-      }
-
-      .field textarea { min-height: 84px; resize: vertical; }
-
-      .field input:focus, .field textarea:focus, .field select:focus {
-        border-color: rgba(42, 127, 255, 0.35);
-        box-shadow: 0 0 0 4px rgba(42, 127, 255, 0.08);
-      }
-
-      .submit-btn {
-        margin-top: 14px;
-        width: 100%;
-        padding: 14px;
-        border-radius: 16px;
-        background: linear-gradient(135deg, var(--blue), var(--teal));
-        color: #fff;
-        font-weight: 800;
-        letter-spacing: 0.02em;
-        box-shadow: 0 16px 30px rgba(42, 127, 255, 0.22);
-        transition: transform var(--ease), box-shadow var(--ease);
-      }
-
-      .submit-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 22px 34px rgba(42, 127, 255, 0.28);
-      }
-
-      .cancel-btn {
-        margin-top: 8px;
-        width: 100%;
-        padding: 11px 12px;
-        border-radius: 14px;
-        border: 1px solid rgba(19, 34, 58, 0.14);
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--ink-soft);
-        font-weight: 700;
-      }
-
-      .archive-panel {
-        padding: 18px;
-        border: 1px solid var(--line-heavy);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.68));
-      }
-
-      .archive-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-
-      .archive-count {
-        min-width: 34px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        text-align: center;
-        font-size: 0.85rem;
-        font-weight: 700;
-        background: rgba(19, 34, 58, 0.08);
-      }
-
-      .archive-list { margin-top: 12px; display: grid; gap: 10px; }
-
-      .archive-item {
-        padding: 12px;
-        border-radius: 14px;
-        border: 1px solid rgba(19, 34, 58, 0.1);
-        background: rgba(255, 255, 255, 0.86);
-      }
-
-      .archive-main strong { display: block; font-size: 0.9rem; }
-
-      .archive-main span {
-        display: block;
-        margin-top: 4px;
-        color: var(--ink-soft);
-        font-size: 0.8rem;
-        line-height: 1.4;
-      }
-
-      .archive-actions { margin-top: 10px; display: flex; gap: 8px; }
-
-      .archive-btn {
-        flex: 1;
-        padding: 7px 10px;
-        border-radius: 10px;
-        background: rgba(19, 34, 58, 0.06);
-        color: var(--ink-strong);
-        font-size: 0.8rem;
-        font-weight: 800;
-      }
-
-      .archive-btn.danger { color: #8f2f17; background: #ffe4dc; }
-
-      .empty-state {
-        padding: 22px 16px;
-        border-radius: 16px;
-        border: 1px dashed rgba(19, 34, 58, 0.12);
-        color: var(--ink-soft);
-        text-align: center;
-        background: rgba(255, 255, 255, 0.52);
-      }
-
-      @keyframes rise-in {
-        from { opacity: 0; transform: translateY(10px) scale(0.985); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
-      }
-
-      /* ── Login overlay ──────────────────────────────────────────────────── */
-
-      .login-overlay {
-        position: fixed;
-        inset: 0;
-        display: grid;
-        place-items: center;
-        padding: 16px;
-        background: rgba(14, 25, 45, 0.5);
-        backdrop-filter: blur(16px);
-        z-index: 200;
-      }
-
-      .login-panel {
-        width: min(380px, 100%);
-        padding: 36px 32px 32px;
-        border-radius: var(--radius-xl);
-        display: grid;
-        gap: 20px;
-      }
-
-      .login-panel h2 {
-        font-size: clamp(1.3rem, 3vw, 1.6rem);
-        letter-spacing: -0.025em;
-      }
-
-      .login-panel .login-sub {
-        margin-top: 4px;
-        color: var(--ink-soft);
-        font-size: 0.88rem;
-        line-height: 1.5;
-      }
-
-      .login-error {
-        padding: 10px 14px;
-        border-radius: 12px;
-        background: #ffe4dc;
-        color: #8f2f17;
-        font-size: 0.84rem;
-        font-weight: 700;
-        text-align: center;
-      }
-
-      /* ── Responsive ─────────────────────────────────────────────────────── */
-
-      @media (max-width: 1160px) {
-        .hero-panel, .workspace-grid { grid-template-columns: 1fr; }
-        .hero-stats { grid-template-columns: 140px minmax(0, 1fr); }
-      }
-
-      @media (max-width: 880px) {
-        .board-columns { grid-template-columns: 1fr; }
-        .lane-body { min-height: 0; }
-      }
-
-      @media (max-width: 720px) {
-        .page-shell { width: min(100%, calc(100% - 20px)); padding-top: 14px; }
-        .hero-panel, .board-panel, .insight-panel { padding: 16px; }
-        .hero-stats, .field-grid.two-up, .metric-grid { grid-template-columns: 1fr; }
-        .today-chip-grid { grid-template-columns: 1fr; }
-        .today-unit { min-width: 0; }
-        body[data-time-layout="clock"] .today-time-main {
-          font-size: clamp(2.35rem, 12vw, 3.1rem);
-          letter-spacing: 0.06em;
-        }
-        .panel-head { display: grid; gap: 8px; }
-      }
-    </style>
-  </head>
-  <body>
-
-    <!-- ── Login overlay (shown when session cookie is absent / expired) ── -->
-    <div id="loginOverlay" class="login-overlay" hidden>
-      <article class="login-panel glass-panel">
-        <span class="eyebrow">FLUX BOARD</span>
-        <div>
-          <h2>歡迎回來</h2>
-          <p class="login-sub">輸入密碼以進入你的任務看板。<br>登入狀態保留 30 天。</p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flux Board</title>
+  <style>
+    [hidden] { display: none !important; }
+    *, *::before, *::after { box-sizing: border-box; }
+    h1, h2, h3, p { margin: 0; }
+    button, input, textarea, select { font: inherit; }
+    button { cursor: pointer; border: 0; background: none; }
+
+    /* ── Theme tokens ─────────────────────────────────────────────────── */
+    :root {
+      --bg:        #f0f4f8;
+      --surface:   #ffffff;
+      --surface-2: #f6f8fa;
+      --border:    rgba(0,0,0,0.08);
+      --border-2:  rgba(0,0,0,0.14);
+      --text-1:    #111827;
+      --text-2:    #6b7280;
+      --text-3:    #9ca3af;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.09);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
+      --blue:   #3b82f6;
+      --teal:   #14b8a6;
+      --amber:  #f59e0b;
+      --red:    #ef4444;
+      --green:  #10b981;
+      --overdue-bg:  rgba(239,68,68,0.05);
+      --overdue-bdr: rgba(239,68,68,0.18);
+      --today-bg:    rgba(245,158,11,0.05);
+      --today-bdr:   rgba(245,158,11,0.18);
+      --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+      --ease: 180ms ease;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+        "Noto Sans TC", sans-serif;
+      font-size: 15px;
+      color-scheme: light;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface-2: #21262d;
+      --border:    rgba(255,255,255,0.08);
+      --border-2:  rgba(255,255,255,0.14);
+      --text-1:    #e6edf3;
+      --text-2:    #8b949e;
+      --text-3:    #6e7681;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.5);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+      --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
+      --overdue-bg:  rgba(239,68,68,0.1);
+      --overdue-bdr: rgba(239,68,68,0.25);
+      --today-bg:    rgba(245,158,11,0.08);
+      --today-bdr:   rgba(245,158,11,0.22);
+    }
+
+    /* ── Base ─────────────────────────────────────────────────────────── */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text-1);
+      overflow-x: hidden;
+    }
+
+    /* ── Topbar ───────────────────────────────────────────────────────── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      color: var(--text-1);
+      padding-right: 16px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .logo-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--teal));
+      box-shadow: 0 0 8px rgba(59,130,246,0.45);
+      flex-shrink: 0;
+    }
+
+    .topbar-stats {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 0 14px;
+      flex: 1;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .stat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-2);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .stat-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .stat-chip strong { color: var(--text-1); font-weight: 700; }
+    .stat-chip.risk   strong { color: #ef4444; }
+
+    .topbar-progress {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px 0 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .pbar {
+      width: 72px; height: 4px;
+      border-radius: 2px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .pbar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--blue), var(--teal));
+      transition: width 400ms ease;
+      width: 0%;
+    }
+
+    .topbar-clock {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      padding: 0 14px 0 0;
+      border-right: 1px solid var(--border);
+      line-height: 1.25;
+    }
+
+    .clock-time {
+      font-size: 0.85rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-1);
+    }
+
+    .clock-date {
+      font-size: 0.68rem;
+      color: var(--text-2);
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-left: 12px;
+    }
+
+    .btn-icon {
+      width: 32px; height: 32px;
+      border-radius: var(--r-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-2);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      font-size: 0.9rem;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .btn-icon:hover { background: var(--border); color: var(--text-1); }
+
+    .btn-add {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 14px;
+      border-radius: var(--r-sm);
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: background var(--ease), transform var(--ease);
+      white-space: nowrap;
+    }
+
+    .btn-add:hover  { background: #2563eb; }
+    .btn-add:active { transform: scale(0.97); }
+
+    /* ── Board ────────────────────────────────────────────────────────── */
+    .board-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px 20px 40px;
+    }
+
+    .board-columns {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      align-items: start;
+    }
+
+    .lane {
+      border-radius: var(--r-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .lane-header {
+      padding: 11px 12px 11px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .lane-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    .lane-title {
+      flex: 1;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-2);
+    }
+
+    .lane-count {
+      min-width: 20px; height: 20px;
+      padding: 0 6px;
+      border-radius: 999px;
+      text-align: center;
+      line-height: 20px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+    }
+
+    .lane-add {
+      width: 24px; height: 24px;
+      border-radius: var(--r-xs);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-3);
+      font-size: 1.05rem;
+      font-weight: 300;
+      line-height: 1;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .lane-add:hover { background: var(--surface-2); color: var(--text-1); }
+
+    .lane-body {
+      min-height: 380px;
+      padding: 10px;
+      display: grid;
+      align-content: start;
+      gap: 8px;
+    }
+
+    .lane-body.is-drop-target {
+      background: rgba(59,130,246,0.04);
+      box-shadow: inset 0 0 0 2px rgba(59,130,246,0.18);
+    }
+
+    /* ── Task Card ────────────────────────────────────────────────────── */
+    .task-card {
+      padding: 13px 13px 11px 16px;
+      border-radius: var(--r-md);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      animation: rise-in 220ms ease both;
+      transition: box-shadow var(--ease), border-color var(--ease), background var(--ease);
+    }
+
+    .task-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 3px;
+      background: linear-gradient(180deg, var(--accent-a), var(--accent-b));
+    }
+
+    .task-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-2); }
+    .task-card.is-dragging { opacity: 0.35; transform: rotate(1.5deg) scale(0.96); }
+
+    .task-card.is-overdue {
+      background: var(--overdue-bg);
+      border-color: var(--overdue-bdr);
+    }
+
+    .task-card.is-today {
+      background: var(--today-bg);
+      border-color: var(--today-bdr);
+    }
+
+    .task-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .task-badges { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    .pill.critical { color: #dc2626; background: rgba(220,38,38,0.1); }
+    .pill.high     { color: #d97706; background: rgba(217,119,6,0.1); }
+    .pill.medium   { color: #0891b2; background: rgba(8,145,178,0.1); }
+    .pill.overdue  { color: #ef4444; background: rgba(239,68,68,0.1); }
+    .pill.today    { color: #d97706; background: rgba(245,158,11,0.1); }
+    .pill.soon     { color: #92400e; background: rgba(245,158,11,0.08); }
+
+    .task-card h3 {
+      margin-top: 9px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      line-height: 1.3;
+      color: var(--text-1);
+    }
+
+    .task-note {
+      margin-top: 4px;
+      color: var(--text-2);
+      font-size: 0.8rem;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .task-meta {
+      margin-top: 9px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--text-3);
+    }
+
+    .due-overdue { color: #ef4444; }
+    .due-today   { color: #d97706; }
+
+    /* Card context menu */
+    .card-menu-wrap { position: relative; flex-shrink: 0; }
+
+    .card-menu-trigger {
+      width: 26px; height: 26px;
+      border-radius: var(--r-xs);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-3);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      opacity: 0;
+      transition: background var(--ease), color var(--ease), opacity var(--ease);
+    }
+
+    .task-card:hover .card-menu-trigger,
+    .task-card.menu-open .card-menu-trigger { opacity: 1; }
+    .card-menu-trigger:hover { background: var(--surface-2); color: var(--text-1); }
+
+    .card-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      right: 0;
+      min-width: 110px;
+      padding: 4px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border-2);
+      background: var(--surface);
+      box-shadow: var(--shadow-lg);
+      display: none;
+      z-index: 50;
+    }
+
+    .task-card.menu-open .card-menu { display: grid; gap: 2px; }
+
+    .card-menu-item {
+      width: 100%;
+      text-align: left;
+      padding: 7px 10px;
+      border-radius: var(--r-xs);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-1);
+      transition: background var(--ease);
+    }
+
+    .card-menu-item:hover { background: var(--surface-2); }
+    .card-menu-item.danger { color: #ef4444; }
+    .card-menu-item.danger:hover { background: rgba(239,68,68,0.07); }
+
+    .empty-state {
+      padding: 24px 16px;
+      border-radius: var(--r-sm);
+      border: 1px dashed var(--border-2);
+      color: var(--text-3);
+      text-align: center;
+      font-size: 0.8rem;
+    }
+
+    /* ── Archive ──────────────────────────────────────────────────────── */
+    .archive-section {
+      margin-top: 14px;
+      border-radius: var(--r-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .archive-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--text-2);
+      transition: background var(--ease);
+      border-radius: var(--r-lg);
+    }
+
+    .archive-toggle:hover { background: var(--surface-2); }
+
+    .archive-caret {
+      font-size: 0.65rem;
+      transition: transform 180ms ease;
+    }
+
+    .archive-section.open .archive-caret { transform: rotate(90deg); }
+
+    .archive-badge {
+      min-width: 18px; height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      text-align: center;
+      line-height: 18px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text-2);
+    }
+
+    .archive-hint {
+      margin-left: auto;
+      font-weight: 400;
+      font-size: 0.72rem;
+      color: var(--text-3);
+    }
+
+    .archive-body {
+      padding: 0 10px 10px;
+      display: grid;
+      gap: 6px;
+      border-top: 1px solid var(--border);
+    }
+
+    .archive-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+
+    .archive-main { flex: 1; min-width: 0; }
+
+    .archive-main strong {
+      display: block;
+      font-size: 0.83rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .archive-main span {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.71rem;
+      color: var(--text-3);
+    }
+
+    .archive-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
+    .archive-btn {
+      padding: 5px 9px;
+      border-radius: var(--r-xs);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-2);
+      font-size: 0.73rem;
+      font-weight: 600;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .archive-btn:hover { background: var(--surface-2); color: var(--text-1); }
+    .archive-btn.danger { color: #ef4444; }
+    .archive-btn.danger:hover { background: rgba(239,68,68,0.07); }
+
+    /* ── Modal ────────────────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(5px);
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      animation: fade-in 150ms ease both;
+    }
+
+    .modal {
+      width: min(460px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-xl);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: slide-up 180ms ease both;
+    }
+
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-head h2 { font-size: 0.95rem; font-weight: 700; }
+
+    .modal-close {
+      width: 28px; height: 28px;
+      border-radius: var(--r-xs);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-3);
+      font-size: 1rem;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .modal-close:hover { background: var(--surface-2); color: var(--text-1); }
+
+    .modal-body { padding: 18px; }
+
+    .modal-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+
+    /* ── Form fields ──────────────────────────────────────────────────── */
+    .field { display: grid; gap: 5px; }
+    .field + .field,
+    .field-row { margin-top: 12px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    .field label {
+      font-size: 0.74rem;
+      font-weight: 600;
+      color: var(--text-2);
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      padding: 9px 11px;
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-sm);
+      background: var(--surface-2);
+      color: var(--text-1);
+      outline: none;
+      transition: border-color var(--ease), box-shadow var(--ease);
+    }
+
+    .field textarea { min-height: 76px; resize: vertical; }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+
+    .btn-cancel {
+      padding: 8px 14px;
+      border-radius: var(--r-sm);
+      border: 1px solid var(--border-2);
+      color: var(--text-2);
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .btn-cancel:hover { background: var(--surface-2); color: var(--text-1); }
+
+    .btn-submit {
+      padding: 8px 18px;
+      border-radius: var(--r-sm);
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      transition: background var(--ease), transform var(--ease);
+    }
+
+    .btn-submit:hover  { background: #2563eb; }
+    .btn-submit:active { transform: scale(0.97); }
+
+    /* ── Login ────────────────────────────────────────────────────────── */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 300;
+      display: grid;
+      place-items: center;
+      padding: 16px;
+    }
+
+    .login-panel {
+      width: min(340px, 100%);
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--r-xl);
+      padding: 30px 26px 26px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .login-logo {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--text-3);
+      margin-bottom: 22px;
+    }
+
+    .login-panel h2 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .login-sub {
+      margin-top: 5px;
+      font-size: 0.82rem;
+      color: var(--text-2);
+      line-height: 1.5;
+    }
+
+    .login-error {
+      margin-top: 10px;
+      padding: 9px 13px;
+      border-radius: var(--r-sm);
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      color: #ef4444;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .login-form { margin-top: 20px; display: grid; gap: 12px; }
+
+    .btn-login {
+      width: 100%;
+      padding: 11px;
+      border-radius: var(--r-sm);
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      transition: background var(--ease), transform var(--ease);
+    }
+
+    .btn-login:hover  { background: #2563eb; }
+    .btn-login:active { transform: scale(0.98); }
+
+    /* ── Animations ───────────────────────────────────────────────────── */
+    @keyframes rise-in {
+      from { opacity: 0; transform: translateY(7px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes fade-in {
+      from { opacity: 0; } to { opacity: 1; }
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(14px) scale(0.97); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .board-columns { grid-template-columns: 1fr; }
+      .lane-body { min-height: 0; }
+      .topbar-progress { display: none; }
+    }
+
+    @media (max-width: 580px) {
+      .board-wrap { padding: 12px 10px 32px; }
+      .topbar { padding: 0 10px; gap: 0; }
+      .topbar-stats .stat-chip:nth-child(n+3) { display: none; }
+      .btn-add span.btn-add-label { display: none; }
+      .field-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Login ──────────────────────────────────────────────────────────── -->
+  <div id="loginOverlay" class="login-overlay" hidden>
+    <div class="login-panel">
+      <div class="login-logo">
+        <span class="logo-dot"></span>
+        FLUX BOARD
+      </div>
+      <h2>歡迎回來</h2>
+      <p class="login-sub">輸入密碼以進入看板。<br>登入狀態保留 30 天。</p>
+      <form id="loginForm" class="login-form">
+        <div class="field">
+          <label for="passwordInput">密碼</label>
+          <input type="password" id="passwordInput" autocomplete="current-password" required />
         </div>
-        <form id="loginForm">
-          <div class="field-grid">
+        <button class="btn-login" type="submit">進入看板</button>
+      </form>
+      <p id="loginError" class="login-error" hidden>密碼錯誤，請再試一次。</p>
+    </div>
+  </div>
+
+  <!-- ── Task Modal ─────────────────────────────────────────────────────── -->
+  <div id="taskModal" class="modal-backdrop" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 id="modalTitle">新增任務</h2>
+        <button class="modal-close" id="modalCloseBtn" type="button" aria-label="關閉">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="taskForm">
+          <div class="field">
+            <label for="taskTitle">任務名稱</label>
+            <input id="taskTitle" name="title" maxlength="40" required placeholder="輸入任務名稱…" />
+          </div>
+          <div class="field">
+            <label for="taskNote">備註（選填）</label>
+            <textarea id="taskNote" name="note" maxlength="160" placeholder="補充說明…"></textarea>
+          </div>
+          <div class="field-row">
             <div class="field">
-              <label for="passwordInput">密碼</label>
-              <input type="password" id="passwordInput" autocomplete="current-password" required />
+              <label for="taskDue">截止日期</label>
+              <input id="taskDue" name="due" type="date" required />
+            </div>
+            <div class="field">
+              <label for="taskPriority">優先級</label>
+              <select id="taskPriority" name="priority">
+                <option value="critical">🔴 關鍵</option>
+                <option value="high">🟡 高優先</option>
+                <option value="medium" selected>🔵 一般</option>
+              </select>
             </div>
           </div>
-          <button class="submit-btn" type="submit">進入看板</button>
         </form>
-        <p id="loginError" class="login-error" hidden>密碼錯誤，請再試一次。</p>
-      </article>
+      </div>
+      <div class="modal-foot">
+        <button class="btn-cancel" id="cancelEditBtn" type="button">取消</button>
+        <button class="btn-submit" id="submitBtn" type="submit" form="taskForm">建立任務</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Topbar ──────────────────────────────────────────────────────────── -->
+  <nav class="topbar">
+    <div class="topbar-logo">
+      <span class="logo-dot"></span>
+      FLUX BOARD
+    </div>
+    <div class="topbar-stats">
+      <span class="stat-chip">
+        <span class="stat-dot" style="background:#f59e0b"></span>
+        待處理&nbsp;<strong id="metricQueued">0</strong>
+      </span>
+      <span class="stat-chip">
+        <span class="stat-dot" style="background:#3b82f6"></span>
+        進行中&nbsp;<strong id="metricActive">0</strong>
+      </span>
+      <span class="stat-chip">
+        <span class="stat-dot" style="background:#10b981"></span>
+        已完成&nbsp;<strong id="metricDone">0</strong>
+      </span>
+      <span class="stat-chip risk">
+        <span class="stat-dot" style="background:#ef4444"></span>
+        風險&nbsp;<strong id="metricRisk">0</strong>
+      </span>
+    </div>
+    <div class="topbar-progress">
+      <div class="pbar"><div class="pbar-fill" id="pbarFill"></div></div>
+      <span id="overallValue">0%</span>
+    </div>
+    <div class="topbar-clock">
+      <span class="clock-time" id="todayTimeMain">--:--</span>
+      <span class="clock-date" id="todayClock"></span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-icon" id="themeBtn" aria-label="切換主題" title="深色 / 淺色">☾</button>
+      <button class="btn-add" id="openModalBtn" type="button">
+        ＋ <span class="btn-add-label">新增任務</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ── Board ───────────────────────────────────────────────────────────── -->
+  <div class="board-wrap">
+    <div class="board-columns" id="boardColumns">
+
+      <section class="lane">
+        <header class="lane-header">
+          <span class="lane-dot" style="background:#f59e0b"></span>
+          <span class="lane-title">待處理</span>
+          <span class="lane-count" id="queuedCount">0</span>
+          <button class="lane-add" type="button" data-open-modal aria-label="新增任務">＋</button>
+        </header>
+        <div class="lane-body" id="queuedLane" data-status="queued"></div>
+      </section>
+
+      <section class="lane">
+        <header class="lane-header">
+          <span class="lane-dot" style="background:#3b82f6"></span>
+          <span class="lane-title">進行中</span>
+          <span class="lane-count" id="activeCount">0</span>
+        </header>
+        <div class="lane-body" id="activeLane" data-status="active"></div>
+      </section>
+
+      <section class="lane">
+        <header class="lane-header">
+          <span class="lane-dot" style="background:#10b981"></span>
+          <span class="lane-title">已完成</span>
+          <span class="lane-count" id="doneCount">0</span>
+        </header>
+        <div class="lane-body" id="doneLane" data-status="done"></div>
+      </section>
+
     </div>
 
-    <!-- ── Main app ──────────────────────────────────────────────────────── -->
-    <div class="page-shell">
-      <header class="hero-panel glass-panel">
-        <section class="hero-copy">
-          <span class="eyebrow">KANBAN / LIVE TRACKING</span>
-          <h1>動態任務記事看板</h1>
-          <div class="today-chip">
-            <span class="today-chip-label">今日節奏</span>
-            <div class="today-chip-grid">
-              <div class="today-unit today-unit-date">
-                <span class="today-unit-label">日期</span>
-                <span class="today-date-main" id="todayDateMain"></span>
-                <span class="today-weekday" id="todayWeekday"></span>
-              </div>
-              <div class="today-unit today-unit-time">
-                <span class="today-unit-label">現在時間</span>
-                <span class="today-time-main" id="todayTimeMain"></span>
-              </div>
-            </div>
-          </div>
-        </section>
-        <section class="hero-stats">
-          <article class="card-block dial-card">
-            <div class="dial" id="overallDial">
-              <span id="overallValue">0%</span>
-            </div>
-            <p>任務完成率</p>
-          </article>
-          <div class="metric-grid">
-            <article class="card-block metric">
-              <small>QUEUED</small>
-              <strong id="metricQueued">0</strong>
-              <span>未開始</span>
-            </article>
-            <article class="card-block metric">
-              <small>ACTIVE</small>
-              <strong id="metricActive">0</strong>
-              <span>進行中</span>
-            </article>
-            <article class="card-block metric">
-              <small>DONE</small>
-              <strong id="metricDone">0</strong>
-              <span>已完成</span>
-            </article>
-            <article class="card-block metric">
-              <small>NEAR DUE</small>
-              <strong id="metricRisk">0</strong>
-              <span>即將到期</span>
-            </article>
-          </div>
-        </section>
-      </header>
-
-      <main class="workspace-grid">
-        <section class="board-panel glass-panel">
-          <div class="panel-head">
-            <div>
-              <h2>任務泳道</h2>
-              <p>拖拉卡片即可切換狀態。</p>
-            </div>
-          </div>
-          <div class="board-columns" id="boardColumns">
-            <section class="lane">
-              <header class="lane-header">
-                <div class="lane-title">
-                  <span class="lane-dot" style="background: #ff8b3d"></span>
-                  <span>未開始</span>
-                </div>
-                <span class="lane-count" id="queuedCount">0</span>
-              </header>
-              <div class="lane-body" id="queuedLane" data-status="queued"></div>
-            </section>
-            <section class="lane">
-              <header class="lane-header">
-                <div class="lane-title">
-                  <span class="lane-dot" style="background: #2a7fff"></span>
-                  <span>進行中</span>
-                </div>
-                <span class="lane-count" id="activeCount">0</span>
-              </header>
-              <div class="lane-body" id="activeLane" data-status="active"></div>
-            </section>
-            <section class="lane">
-              <header class="lane-header">
-                <div class="lane-title">
-                  <span class="lane-dot" style="background: #0da99b"></span>
-                  <span>已完成</span>
-                </div>
-                <span class="lane-count" id="doneCount">0</span>
-              </header>
-              <div class="lane-body" id="doneLane" data-status="done"></div>
-            </section>
-          </div>
-        </section>
-
-        <aside class="insight-panel glass-panel">
-          <div class="insight-stack">
-            <section class="composer">
-              <h3>新增任務便條</h3>
-              <p>新任務會先放入未開始。</p>
-              <form id="taskForm">
-                <div class="field-grid">
-                  <div class="field">
-                    <label for="taskTitle">任務名稱</label>
-                    <input id="taskTitle" name="title" maxlength="40" required />
-                  </div>
-                  <div class="field">
-                    <label for="taskNote">摘要</label>
-                    <textarea id="taskNote" name="note" maxlength="160" required></textarea>
-                  </div>
-                </div>
-                <div class="field-grid two-up">
-                  <div class="field">
-                    <label for="taskDue">截止日</label>
-                    <input id="taskDue" name="due" type="date" required />
-                  </div>
-                  <div class="field">
-                    <label for="taskPriority">優先級</label>
-                    <select id="taskPriority" name="priority">
-                      <option value="critical">關鍵</option>
-                      <option value="high">高</option>
-                      <option value="medium" selected>一般</option>
-                    </select>
-                  </div>
-                </div>
-                <button class="submit-btn" id="submitBtn" type="submit">建立新卡片</button>
-                <button class="cancel-btn" id="cancelEditBtn" type="button" hidden>取消編輯</button>
-              </form>
-            </section>
-
-            <section class="archive-panel">
-              <div class="archive-head">
-                <h3>封存區域</h3>
-                <span class="archive-count" id="archiveCount">0</span>
-              </div>
-              <p>任務刪除後先進入封存，保留 3 天再自動刪除。</p>
-              <div class="archive-list" id="archiveList"></div>
-            </section>
-          </div>
-        </aside>
-      </main>
+    <!-- Archive -->
+    <div class="archive-section" id="archiveSection">
+      <button class="archive-toggle" id="archiveToggleBtn" type="button">
+        <span class="archive-caret">▶</span>
+        封存區
+        <span class="archive-badge" id="archiveCount">0</span>
+        <span class="archive-hint">刪除後保留 3 天</span>
+      </button>
+      <div class="archive-body" id="archiveBody" hidden>
+        <div class="archive-list" id="archiveList"></div>
+      </div>
     </div>
+  </div>
 
-    <script>
-      // ═══════════════════════════════════════════════════════════════════════
-      // Constants
-      // ═══════════════════════════════════════════════════════════════════════
-      const DAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
-      const LANE_NAMES = { queued: "未開始", active: "進行中", done: "已完成" };
-      const PRIORITY_TEXT = { critical: "關鍵", high: "高優先", medium: "一般" };
-      const PRIORITY_ACCENTS = {
-        critical: ["#f15d7d", "#ff8b3d"],
-        high:     ["#ff8b3d", "#ffd166"],
-        medium:   ["#2a7fff", "#0da99b"],
-      };
-      const ARCHIVE_RETENTION_MS    = 3 * 24 * 60 * 60 * 1000;
-      const ARCHIVE_PURGE_INTERVAL_MS = 60 * 1000;
-      const DAY_MS      = 24 * 60 * 60 * 1000;
-      const TIME_LAYOUT = "clock";
-      const STATUS_KEYS   = Object.keys(LANE_NAMES);
-      const PRIORITY_KEYS = Object.keys(PRIORITY_TEXT);
+  <script>
+    // ═══════════════════════════════════════════════════════════════════════
+    // Constants
+    // ═══════════════════════════════════════════════════════════════════════
+    const DAY_LABELS  = ["週日","週一","週二","週三","週四","週五","週六"];
+    const LANE_NAMES  = { queued: "待處理", active: "進行中", done: "已完成" };
+    const PRIORITY_TEXT = { critical: "關鍵", high: "高優先", medium: "一般" };
+    const PRIORITY_ACCENTS = {
+      critical: ["#ef4444", "#f97316"],
+      high:     ["#f59e0b", "#fbbf24"],
+      medium:   ["#3b82f6", "#14b8a6"],
+    };
+    const ARCHIVE_RETENTION_MS     = 3 * 24 * 60 * 60 * 1000;
+    const ARCHIVE_PURGE_INTERVAL_MS = 60 * 1000;
+    const DAY_MS        = 24 * 60 * 60 * 1000;
+    const STATUS_KEYS   = Object.keys(LANE_NAMES);
+    const PRIORITY_KEYS = Object.keys(PRIORITY_TEXT);
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // State
-      // ═══════════════════════════════════════════════════════════════════════
-      const state = {
-        tasks:         [],
-        archived:      [],
-        draggedTaskId: null,
-        editingTaskId: null,
-        purgeTimer:    0,
-      };
+    // ═══════════════════════════════════════════════════════════════════════
+    // State
+    // ═══════════════════════════════════════════════════════════════════════
+    const state = {
+      tasks:         [],
+      archived:      [],
+      draggedTaskId: null,
+      editingTaskId: null,
+      purgeTimer:    0,
+    };
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // DOM refs
-      // ═══════════════════════════════════════════════════════════════════════
-      const refs = {
-        // login
-        loginOverlay:  document.getElementById("loginOverlay"),
-        loginForm:     document.getElementById("loginForm"),
-        passwordInput: document.getElementById("passwordInput"),
-        loginError:    document.getElementById("loginError"),
-        // clock
-        todayDateMain: document.getElementById("todayDateMain"),
-        todayWeekday:  document.getElementById("todayWeekday"),
-        todayTimeMain: document.getElementById("todayTimeMain"),
-        // board
-        boardColumns: document.getElementById("boardColumns"),
-        laneBodies:   Array.from(document.querySelectorAll(".lane-body")),
-        queuedLane:   document.getElementById("queuedLane"),
-        activeLane:   document.getElementById("activeLane"),
-        doneLane:     document.getElementById("doneLane"),
-        queuedCount:  document.getElementById("queuedCount"),
-        activeCount:  document.getElementById("activeCount"),
-        doneCount:    document.getElementById("doneCount"),
-        // stats
-        overallDial:   document.getElementById("overallDial"),
-        overallValue:  document.getElementById("overallValue"),
-        metricQueued:  document.getElementById("metricQueued"),
-        metricActive:  document.getElementById("metricActive"),
-        metricDone:    document.getElementById("metricDone"),
-        metricRisk:    document.getElementById("metricRisk"),
-        // form
-        taskForm:      document.getElementById("taskForm"),
-        taskTitle:     document.getElementById("taskTitle"),
-        taskNote:      document.getElementById("taskNote"),
-        taskDue:       document.getElementById("taskDue"),
-        taskPriority:  document.getElementById("taskPriority"),
-        submitBtn:     document.getElementById("submitBtn"),
-        cancelEditBtn: document.getElementById("cancelEditBtn"),
-        // archive
-        archiveList:  document.getElementById("archiveList"),
-        archiveCount: document.getElementById("archiveCount"),
-      };
+    // ═══════════════════════════════════════════════════════════════════════
+    // DOM refs
+    // ═══════════════════════════════════════════════════════════════════════
+    const refs = {
+      // login
+      loginOverlay:  document.getElementById("loginOverlay"),
+      loginForm:     document.getElementById("loginForm"),
+      passwordInput: document.getElementById("passwordInput"),
+      loginError:    document.getElementById("loginError"),
+      // clock
+      todayTimeMain: document.getElementById("todayTimeMain"),
+      todayClock:    document.getElementById("todayClock"),
+      // stats
+      pbarFill:      document.getElementById("pbarFill"),
+      overallValue:  document.getElementById("overallValue"),
+      metricQueued:  document.getElementById("metricQueued"),
+      metricActive:  document.getElementById("metricActive"),
+      metricDone:    document.getElementById("metricDone"),
+      metricRisk:    document.getElementById("metricRisk"),
+      // board
+      boardColumns:  document.getElementById("boardColumns"),
+      laneBodies:    Array.from(document.querySelectorAll(".lane-body")),
+      queuedLane:    document.getElementById("queuedLane"),
+      activeLane:    document.getElementById("activeLane"),
+      doneLane:      document.getElementById("doneLane"),
+      queuedCount:   document.getElementById("queuedCount"),
+      activeCount:   document.getElementById("activeCount"),
+      doneCount:     document.getElementById("doneCount"),
+      // modal & form
+      taskModal:     document.getElementById("taskModal"),
+      modalTitle:    document.getElementById("modalTitle"),
+      taskForm:      document.getElementById("taskForm"),
+      taskTitle:     document.getElementById("taskTitle"),
+      taskNote:      document.getElementById("taskNote"),
+      taskDue:       document.getElementById("taskDue"),
+      taskPriority:  document.getElementById("taskPriority"),
+      submitBtn:     document.getElementById("submitBtn"),
+      cancelEditBtn: document.getElementById("cancelEditBtn"),
+      // archive
+      archiveSection:   document.getElementById("archiveSection"),
+      archiveBody:      document.getElementById("archiveBody"),
+      archiveList:      document.getElementById("archiveList"),
+      archiveCount:     document.getElementById("archiveCount"),
+    };
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // API layer  (all mutations use optimistic updates → rollback on error)
-      // ═══════════════════════════════════════════════════════════════════════
-      const api = {
-        async _fetch(method, path, body) {
-          const opts = { method, headers: {} };
-          if (body !== undefined) {
-            opts.headers["Content-Type"] = "application/json";
-            opts.body = JSON.stringify(body);
-          }
-          const res = await fetch(path, opts);
-          if (res.status === 401) {
-            showLogin();
-            const err = new Error("unauthorized");
-            err.status = 401;
-            throw err;
-          }
-          if (!res.ok) throw new Error(`${res.status}`);
-          if (res.status === 204) return null;
-          return res.json();
-        },
-        get:    (p)    => api._fetch("GET",    p),
-        post:   (p, b) => api._fetch("POST",   p, b),
-        put:    (p, b) => api._fetch("PUT",    p, b),
-        delete: (p)    => api._fetch("DELETE", p),
-      };
+    // ═══════════════════════════════════════════════════════════════════════
+    // Theme
+    // ═══════════════════════════════════════════════════════════════════════
+    const themeBtn  = document.getElementById("themeBtn");
+    const savedTheme = localStorage.getItem("flux-theme") ||
+      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Auth
-      // ═══════════════════════════════════════════════════════════════════════
-      function showLogin() {
-        refs.loginOverlay.hidden = false;
-        setTimeout(() => refs.passwordInput.focus(), 60);
-      }
+    function applyTheme(t) {
+      document.documentElement.dataset.theme = t;
+      themeBtn.textContent = t === "dark" ? "☀" : "☾";
+      localStorage.setItem("flux-theme", t);
+    }
 
-      function hideLogin() {
-        refs.loginOverlay.hidden = true;
-        refs.loginError.hidden   = true;
-        refs.passwordInput.value = "";
-      }
+    applyTheme(savedTheme);
+    themeBtn.addEventListener("click", () => {
+      applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    });
 
-      refs.loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        refs.loginError.hidden = true;
-        try {
-          const res = await fetch("/api/auth/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: refs.passwordInput.value }),
-          });
-          if (!res.ok) throw new Error("bad password");
-          hideLogin();
-          await loadFromServer();
-          resetTaskForm();
-          renderBoard();
-        } catch {
-          refs.loginError.hidden = false;
+    // ═══════════════════════════════════════════════════════════════════════
+    // API layer
+    // ═══════════════════════════════════════════════════════════════════════
+    const api = {
+      async _fetch(method, path, body) {
+        const opts = { method, headers: {} };
+        if (body !== undefined) {
+          opts.headers["Content-Type"] = "application/json";
+          opts.body = JSON.stringify(body);
         }
-      });
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Server sync
-      // ═══════════════════════════════════════════════════════════════════════
-      async function loadFromServer() {
-        const [taskData, archivedData] = await Promise.all([
-          api.get("/api/tasks"),
-          api.get("/api/archived"),
-        ]);
-        // Sort by sort_order within each status group
-        state.tasks    = (taskData.tasks    || []).sort((a, b) => a.sort_order - b.sort_order);
-        state.archived = archivedData.tasks || [];
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Utilities
-      // ═══════════════════════════════════════════════════════════════════════
-      function pad(v) { return String(v).padStart(2, "0"); }
-
-      function toDateInputValue(date) {
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-      }
-
-      function addDays(base, n) {
-        const d = new Date(base);
-        d.setDate(d.getDate() + n);
-        return d;
-      }
-
-      function formatDateLabel(dateInput) {
-        const d = new Date(`${dateInput}T00:00:00`);
-        return `${d.getMonth() + 1}/${d.getDate()} ${DAY_LABELS[d.getDay()]}`;
-      }
-
-      function formatTimeLabel(ts) {
-        return new Date(ts).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
-      }
-
-      function formatDateTimeLabel(ts) {
-        const d = new Date(ts);
-        return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
-
-      function updateTodayLabel() {
-        const now = new Date();
-        refs.todayDateMain.textContent = `${now.getMonth() + 1} 月 ${now.getDate()} 日`;
-        refs.todayWeekday.textContent  = DAY_LABELS[now.getDay()];
-        refs.todayTimeMain.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-      }
-
-      function normalizeStatus(s)   { return STATUS_KEYS.includes(s)   ? s : "queued"; }
-      function normalizePriority(p) { return PRIORITY_KEYS.includes(p) ? p : "medium"; }
-
-      function normalizeDue(due) {
-        if (/^\d{4}-\d{2}-\d{2}$/.test(String(due || ""))) return String(due);
-        return toDateInputValue(addDays(new Date(), 3));
-      }
-
-      function escapeHtml(text) {
-        return String(text)
-          .replaceAll("&",  "&amp;")
-          .replaceAll("<",  "&lt;")
-          .replaceAll(">",  "&gt;")
-          .replaceAll('"',  "&quot;")
-          .replaceAll("'",  "&#39;");
-      }
-
-      function isRiskTask(task) {
-        if (task.status === "done") return false;
-        const diffDays = Math.ceil((new Date(`${task.due}T00:00:00`) - new Date()) / DAY_MS);
-        return diffDays <= 2;
-      }
-
-      function archiveRemainingLabel(archivedAt) {
-        const remains = ARCHIVE_RETENTION_MS - (Date.now() - archivedAt);
-        if (remains <= 0) return "即將刪除";
-        return `剩餘 ${Math.ceil(remains / DAY_MS)} 天`;
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Rendering
-      // ═══════════════════════════════════════════════════════════════════════
-      function renderBoard() {
-        const buckets = { queued: [], active: [], done: [] };
-        state.tasks.forEach((t) => buckets[t.status].push(t));
-
-        renderLane(refs.queuedLane, buckets.queued);
-        renderLane(refs.activeLane, buckets.active);
-        renderLane(refs.doneLane,   buckets.done);
-
-        refs.queuedCount.textContent = buckets.queued.length;
-        refs.activeCount.textContent = buckets.active.length;
-        refs.doneCount.textContent   = buckets.done.length;
-
-        renderStats(buckets);
-        renderArchive();
-      }
-
-      function renderLane(container, tasks) {
-        if (!tasks.length) {
-          const empty = document.createElement("div");
-          empty.className   = "empty-state";
-          empty.textContent = "拖曳任務到這裡";
-          container.replaceChildren(empty);
-          return;
+        const res = await fetch(path, opts);
+        if (res.status === 401) {
+          showLogin();
+          const err = new Error("unauthorized");
+          err.status = 401;
+          throw err;
         }
+        if (!res.ok) throw new Error(`${res.status}`);
+        if (res.status === 204) return null;
+        return res.json();
+      },
+      get:    (p)    => api._fetch("GET",    p),
+      post:   (p, b) => api._fetch("POST",   p, b),
+      put:    (p, b) => api._fetch("PUT",    p, b),
+      delete: (p)    => api._fetch("DELETE", p),
+    };
 
-        const cards = tasks.map((task) => {
-          const [accentA, accentB] = PRIORITY_ACCENTS[task.priority];
-          const card = document.createElement("article");
-          card.className   = "task-card";
-          card.draggable   = true;
-          card.dataset.id  = task.id;
-          card.style.setProperty("--accent-a", accentA);
-          card.style.setProperty("--accent-b", accentB);
-          card.innerHTML = `
-            <div class="task-top">
-              <span class="priority-pill ${task.priority}">${PRIORITY_TEXT[task.priority]}</span>
-              <div class="card-menu-wrap">
-                <button class="card-menu-trigger" type="button"
-                  data-action="toggle-menu" data-id="${task.id}" aria-label="更多操作">...</button>
-                <div class="card-menu">
-                  <button class="card-menu-item" type="button"
-                    data-action="edit" data-id="${task.id}">編輯</button>
-                  <button class="card-menu-item danger" type="button"
-                    data-action="archive" data-id="${task.id}">刪除</button>
-                </div>
-              </div>
-            </div>
-            <h3>${escapeHtml(task.title)}</h3>
-            <p class="task-note">${escapeHtml(task.note)}</p>
-            <div class="task-meta">
-              <span>截止日 <strong>${formatDateLabel(task.due)}</strong></span>
-              <span>更新 <strong>${formatTimeLabel(task.lastUpdated)}</strong></span>
-            </div>
-          `;
-          return card;
+    // ═══════════════════════════════════════════════════════════════════════
+    // Auth
+    // ═══════════════════════════════════════════════════════════════════════
+    function showLogin() {
+      refs.loginOverlay.hidden = false;
+      setTimeout(() => refs.passwordInput.focus(), 60);
+    }
+
+    function hideLogin() {
+      refs.loginOverlay.hidden = true;
+      refs.loginError.hidden   = true;
+      refs.passwordInput.value = "";
+    }
+
+    refs.loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      refs.loginError.hidden = true;
+      try {
+        const res = await fetch("/api/auth/login", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ password: refs.passwordInput.value }),
         });
-
-        container.replaceChildren(...cards);
-      }
-
-      function renderStats(buckets) {
-        const total    = state.tasks.length;
-        const done     = buckets.done.length;
-        const overall  = total ? Math.round((done / total) * 100) : 0;
-        const degrees  = total ? Math.round((overall / 100) * 360) : 0;
-        const riskCount = state.tasks.filter(isRiskTask).length;
-
-        refs.overallDial.style.background = `
-          radial-gradient(circle at center, rgba(255,255,255,0.95) 0 57%, transparent 58%),
-          conic-gradient(var(--teal) ${degrees}deg, rgba(19,34,58,0.08) ${degrees}deg)
-        `;
-        refs.overallValue.textContent  = `${overall}%`;
-        refs.metricQueued.textContent  = buckets.queued.length;
-        refs.metricActive.textContent  = buckets.active.length;
-        refs.metricDone.textContent    = done;
-        refs.metricRisk.textContent    = riskCount;
-      }
-
-      function renderArchive() {
-        // Display only — actual purge happens server-side
-        refs.archiveCount.textContent = state.archived.length;
-
-        if (!state.archived.length) {
-          const empty = document.createElement("div");
-          empty.className   = "empty-state";
-          empty.textContent = "目前沒有封存任務";
-          refs.archiveList.replaceChildren(empty);
-          return;
-        }
-
-        const items = state.archived.map((task) => {
-          const item = document.createElement("article");
-          item.className = "archive-item";
-          item.innerHTML = `
-            <div class="archive-main">
-              <strong>${escapeHtml(task.title)}</strong>
-              <span>${LANE_NAMES[task.status]} / ${formatDateLabel(task.due)} / ${archiveRemainingLabel(task.archivedAt)}</span>
-              <span>封存於 ${formatDateTimeLabel(task.archivedAt)}</span>
-            </div>
-            <div class="archive-actions">
-              <button class="archive-btn" type="button"
-                data-action="restore"    data-id="${task.id}">還原</button>
-              <button class="archive-btn danger" type="button"
-                data-action="delete-now" data-id="${task.id}">立即刪除</button>
-            </div>
-          `;
-          return item;
-        });
-
-        refs.archiveList.replaceChildren(...items);
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Task mutations  (optimistic: update state & UI first, sync API after)
-      // ═══════════════════════════════════════════════════════════════════════
-      function insertTaskToLaneEnd(task) {
-        let last = -1;
-        for (let i = 0; i < state.tasks.length; i++) {
-          if (state.tasks[i].status === task.status) last = i;
-        }
-        state.tasks.splice(last + 1, 0, task);
-      }
-
-      function moveTask(taskId, nextStatus, anchorTaskId = "", placeAfter = false) {
-        if (!taskId || !LANE_NAMES[nextStatus]) return;
-
-        const fromIdx = state.tasks.findIndex((t) => t.id === taskId);
-        if (fromIdx === -1) return;
-
-        const task     = state.tasks[fromIdx];
-        const isSame   = anchorTaskId && anchorTaskId === taskId;
-        if (isSame && task.status === nextStatus) return;
-
-        state.tasks.splice(fromIdx, 1);
-        task.status      = nextStatus;
-        task.lastUpdated = Date.now();
-
-        let insertIdx = -1;
-        if (anchorTaskId) {
-          const anchorIdx = state.tasks.findIndex((t) => t.id === anchorTaskId);
-          if (anchorIdx !== -1 && state.tasks[anchorIdx].status === nextStatus) {
-            insertIdx = anchorIdx + (placeAfter ? 1 : 0);
-          }
-        }
-
-        if (insertIdx === -1) {
-          insertTaskToLaneEnd(task);
-        } else {
-          state.tasks.splice(insertIdx, 0, task);
-        }
-
-        // Calculate sort_order as position within the destination lane
-        task.sort_order = state.tasks
-          .filter((t) => t.status === nextStatus)
-          .findIndex((t) => t.id === taskId);
-
-        renderBoard();
-
-        // Sync to server (fire-and-forget; reload on failure)
-        api.put(`/api/tasks/${taskId}`, task).catch(async () => {
-          await loadFromServer().catch(() => {});
-          renderBoard();
-        });
-      }
-
-      function archiveTask(taskId) {
-        const idx = state.tasks.findIndex((t) => t.id === taskId);
-        if (idx === -1) return;
-
-        const [task]  = state.tasks.splice(idx, 1);
-        if (state.editingTaskId === taskId) resetTaskForm();
-
-        state.archived.unshift({ ...task, archivedAt: Date.now() });
-        renderBoard();
-
-        api.delete(`/api/tasks/${taskId}`).catch(() => {
-          state.tasks.splice(idx, 0, task);
-          state.archived = state.archived.filter((t) => t.id !== taskId);
-          renderBoard();
-        });
-      }
-
-      function restoreArchivedTask(taskId) {
-        const idx = state.archived.findIndex((t) => t.id === taskId);
-        if (idx === -1) return;
-
-        const [archived] = state.archived.splice(idx, 1);
-        const task = {
-          id:          archived.id,
-          title:       archived.title,
-          note:        archived.note,
-          due:         normalizeDue(archived.due),
-          priority:    normalizePriority(archived.priority),
-          status:      normalizeStatus(archived.status),
-          lastUpdated: Date.now(),
-          sort_order:  0,
-        };
-        insertTaskToLaneEnd(task);
-        renderBoard();
-
-        api.post(`/api/archived/${taskId}/restore`).catch(() => {
-          state.tasks    = state.tasks.filter((t) => t.id !== taskId);
-          state.archived.splice(idx, 0, archived);
-          renderBoard();
-        });
-      }
-
-      function deleteArchivedNow(taskId) {
-        const idx = state.archived.findIndex((t) => t.id === taskId);
-        if (idx === -1) return;
-
-        const [removed] = state.archived.splice(idx, 1);
-        renderArchive();
-
-        api.delete(`/api/archived/${taskId}`).catch(() => {
-          state.archived.splice(idx, 0, removed);
-          renderArchive();
-        });
-      }
-
-      function startEditTask(taskId) {
-        const task = state.tasks.find((t) => t.id === taskId);
-        if (!task) return;
-
-        state.editingTaskId        = taskId;
-        refs.taskTitle.value       = task.title;
-        refs.taskNote.value        = task.note;
-        refs.taskDue.value         = task.due;
-        refs.taskPriority.value    = task.priority;
-        refs.submitBtn.textContent = "儲存變更";
-        refs.cancelEditBtn.hidden  = false;
-        refs.taskTitle.focus();
-      }
-
-      function resetTaskForm() {
-        state.editingTaskId        = null;
-        refs.taskForm.reset();
-        refs.taskDue.value         = toDateInputValue(addDays(new Date(), 3));
-        refs.taskPriority.value    = "medium";
-        refs.submitBtn.textContent = "建立新卡片";
-        refs.cancelEditBtn.hidden  = true;
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // UI helpers
-      // ═══════════════════════════════════════════════════════════════════════
-      function closeCardMenus(exceptId = "") {
-        refs.boardColumns.querySelectorAll(".task-card.menu-open").forEach((card) => {
-          if (!(card instanceof HTMLElement)) return;
-          if (exceptId && card.dataset.id === exceptId) return;
-          card.classList.remove("menu-open");
-        });
-      }
-
-      function clearDropTargets() {
-        refs.laneBodies.forEach((l) => l.classList.remove("is-drop-target"));
-      }
-
-      function setDropTarget(target) {
-        refs.laneBodies.forEach((l) => l.classList.toggle("is-drop-target", l === target));
-      }
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Event listeners — drag-and-drop
-      // ═══════════════════════════════════════════════════════════════════════
-      refs.boardColumns.addEventListener("dragstart", (e) => {
-        const card = e.target instanceof HTMLElement && e.target.closest(".task-card");
-        if (!(card instanceof HTMLElement)) return;
-
-        state.draggedTaskId = card.dataset.id || null;
-        card.classList.add("is-dragging");
-        if (e.dataTransfer && state.draggedTaskId) {
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", state.draggedTaskId);
-        }
-      });
-
-      refs.boardColumns.addEventListener("dragend", (e) => {
-        const card = e.target instanceof HTMLElement && e.target.closest(".task-card");
-        if (card instanceof HTMLElement) card.classList.remove("is-dragging");
-        state.draggedTaskId = null;
-        clearDropTargets();
-      });
-
-      refs.boardColumns.addEventListener("dragover", (e) => {
-        const lane = e.target instanceof HTMLElement && e.target.closest(".lane-body");
-        if (!(lane instanceof HTMLElement)) return;
-        e.preventDefault();
-        setDropTarget(lane);
-        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
-      });
-
-      refs.boardColumns.addEventListener("drop", (e) => {
-        const lane = e.target instanceof HTMLElement && e.target.closest(".lane-body");
-        if (!(lane instanceof HTMLElement)) return;
-        e.preventDefault();
-
-        const droppedId  = state.draggedTaskId ||
-          (e.dataTransfer ? e.dataTransfer.getData("text/plain") : "");
-        const anchorCard = e.target instanceof HTMLElement && e.target.closest(".task-card");
-        const anchorId   = anchorCard instanceof HTMLElement ? anchorCard.dataset.id || "" : "";
-        let   after      = false;
-
-        if (anchorCard instanceof HTMLElement) {
-          const rect = anchorCard.getBoundingClientRect();
-          after = e.clientY > rect.top + rect.height / 2;
-        }
-
-        moveTask(droppedId, lane.dataset.status, anchorId, after);
-        state.draggedTaskId = null;
-        clearDropTargets();
-      });
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Event listeners — board card clicks
-      // ═══════════════════════════════════════════════════════════════════════
-      refs.boardColumns.addEventListener("click", (e) => {
-        const btn = e.target instanceof HTMLElement && e.target.closest("button[data-action]");
-        if (!(btn instanceof HTMLButtonElement)) {
-          closeCardMenus();
-          return;
-        }
-
-        const action = btn.dataset.action;
-        const taskId = btn.dataset.id || "";
-        if (!action) return;
-
-        if (action === "toggle-menu") {
-          const card = btn.closest(".task-card");
-          if (!(card instanceof HTMLElement) || !taskId) return;
-          const opening = !card.classList.contains("menu-open");
-          closeCardMenus(opening ? taskId : "");
-          card.classList.toggle("menu-open", opening);
-          return;
-        }
-
-        closeCardMenus();
-        if (!taskId) return;
-        if (action === "edit")    { startEditTask(taskId); return; }
-        if (action === "archive") { archiveTask(taskId); }
-      });
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Event listeners — archive panel
-      // ═══════════════════════════════════════════════════════════════════════
-      refs.archiveList.addEventListener("click", (e) => {
-        if (!(e.target instanceof HTMLButtonElement)) return;
-        const action = e.target.dataset.action;
-        const taskId = e.target.dataset.id;
-        if (!action || !taskId) return;
-        if (action === "restore")    { restoreArchivedTask(taskId); return; }
-        if (action === "delete-now") { deleteArchivedNow(taskId); }
-      });
-
-      // ═══════════════════════════════════════════════════════════════════════
-      // Event listeners — task form (create / edit)
-      // ═══════════════════════════════════════════════════════════════════════
-      refs.taskForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const fd = new FormData(refs.taskForm);
-
-        if (state.editingTaskId) {
-          const task = state.tasks.find((t) => t.id === state.editingTaskId);
-          if (task) {
-            task.title       = String(fd.get("title")).trim() || "未命名任務";
-            task.note        = String(fd.get("note")).trim();
-            task.due         = normalizeDue(fd.get("due"));
-            task.priority    = normalizePriority(fd.get("priority"));
-            task.lastUpdated = Date.now();
-            renderBoard();
-            api.put(`/api/tasks/${task.id}`, task).catch(() => {});
-          }
-          resetTaskForm();
-          return;
-        }
-
-        // Create
-        const task = {
-          id:          crypto.randomUUID(),
-          title:       String(fd.get("title")).trim() || "未命名任務",
-          note:        String(fd.get("note")).trim(),
-          due:         normalizeDue(fd.get("due")),
-          priority:    normalizePriority(fd.get("priority")),
-          status:      "queued",
-          sort_order:  0,
-          lastUpdated: Date.now(),
-        };
-
-        state.tasks.unshift(task);
-        renderBoard();
+        if (!res.ok) throw new Error("bad password");
+        hideLogin();
+        await loadFromServer();
         resetTaskForm();
+        renderBoard();
+      } catch {
+        refs.loginError.hidden = false;
+      }
+    });
 
-        api.post("/api/tasks", task).catch(() => {
-          state.tasks = state.tasks.filter((t) => t.id !== task.id);
-          renderBoard();
-        });
+    // ═══════════════════════════════════════════════════════════════════════
+    // Server sync
+    // ═══════════════════════════════════════════════════════════════════════
+    async function loadFromServer() {
+      const [taskData, archivedData] = await Promise.all([
+        api.get("/api/tasks"),
+        api.get("/api/archived"),
+      ]);
+      state.tasks    = (taskData.tasks    || []).sort((a, b) => a.sort_order - b.sort_order);
+      state.archived = archivedData.tasks || [];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Utilities
+    // ═══════════════════════════════════════════════════════════════════════
+    function pad(v) { return String(v).padStart(2, "0"); }
+
+    function toDateInputValue(date) {
+      return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+    }
+
+    function addDays(base, n) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + n);
+      return d;
+    }
+
+    function formatDateLabel(dateInput) {
+      const d = new Date(`${dateInput}T00:00:00`);
+      return `${d.getMonth()+1}/${d.getDate()} ${DAY_LABELS[d.getDay()]}`;
+    }
+
+    function formatTimeLabel(ts) {
+      return new Date(ts).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function formatDateTimeLabel(ts) {
+      const d = new Date(ts);
+      return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function updateTodayLabel() {
+      const now = new Date();
+      refs.todayTimeMain.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      refs.todayClock.textContent    = `${now.getMonth()+1}/${now.getDate()} ${DAY_LABELS[now.getDay()]}`;
+    }
+
+    function normalizeStatus(s)   { return STATUS_KEYS.includes(s)   ? s : "queued"; }
+    function normalizePriority(p) { return PRIORITY_KEYS.includes(p) ? p : "medium"; }
+
+    function normalizeDue(due) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(String(due || ""))) return String(due);
+      return toDateInputValue(addDays(new Date(), 3));
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&",  "&amp;")
+        .replaceAll("<",  "&lt;")
+        .replaceAll(">",  "&gt;")
+        .replaceAll('"',  "&quot;")
+        .replaceAll("'",  "&#39;");
+    }
+
+    function isRiskTask(task) {
+      if (task.status === "done") return false;
+      const diffDays = Math.ceil((new Date(`${task.due}T00:00:00`) - new Date()) / DAY_MS);
+      return diffDays <= 2;
+    }
+
+    function archiveRemainingLabel(archivedAt) {
+      const remains = ARCHIVE_RETENTION_MS - (Date.now() - archivedAt);
+      if (remains <= 0) return "即將刪除";
+      return `剩 ${Math.ceil(remains / DAY_MS)} 天`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Modal
+    // ═══════════════════════════════════════════════════════════════════════
+    function openModal(isEditing = false) {
+      refs.modalTitle.textContent  = isEditing ? "編輯任務" : "新增任務";
+      refs.submitBtn.textContent   = isEditing ? "儲存變更" : "建立任務";
+      refs.cancelEditBtn.textContent = isEditing ? "取消編輯" : "取消";
+      refs.taskModal.hidden = false;
+      setTimeout(() => refs.taskTitle.focus(), 60);
+    }
+
+    function closeModal() {
+      refs.taskModal.hidden = true;
+    }
+
+    document.getElementById("openModalBtn").addEventListener("click", () => {
+      if (state.editingTaskId) resetTaskForm();
+      openModal(false);
+    });
+
+    document.querySelectorAll("[data-open-modal]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (state.editingTaskId) resetTaskForm();
+        openModal(false);
       });
+    });
 
-      refs.cancelEditBtn.addEventListener("click", () => resetTaskForm());
+    document.getElementById("modalCloseBtn").addEventListener("click", () => resetTaskForm());
 
-      document.addEventListener("click", (e) => {
-        if (!(e.target instanceof HTMLElement)) return;
-        if (e.target.closest(".card-menu-wrap")) return;
-        closeCardMenus();
-      });
+    refs.taskModal.addEventListener("click", (e) => {
+      if (e.target === refs.taskModal) resetTaskForm();
+    });
 
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") closeCardMenus();
-      });
+    // ═══════════════════════════════════════════════════════════════════════
+    // Archive toggle
+    // ═══════════════════════════════════════════════════════════════════════
+    document.getElementById("archiveToggleBtn").addEventListener("click", () => {
+      const isOpen = refs.archiveSection.classList.toggle("open");
+      refs.archiveBody.hidden = !isOpen;
+    });
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // Init
-      // ═══════════════════════════════════════════════════════════════════════
-      async function init() {
-        document.body.dataset.timeLayout = TIME_LAYOUT;
-        updateTodayLabel();
+    // ═══════════════════════════════════════════════════════════════════════
+    // Rendering
+    // ═══════════════════════════════════════════════════════════════════════
+    function renderBoard() {
+      const buckets = { queued: [], active: [], done: [] };
+      state.tasks.forEach((t) => buckets[t.status]?.push(t));
 
-        try {
-          await loadFromServer();
-          hideLogin();
-          resetTaskForm();
-          renderBoard();
-        } catch (err) {
-          if (err?.status === 401) {
-            showLogin();
-          } else {
-            console.error("Init error:", err);
+      renderLane(refs.queuedLane, buckets.queued);
+      renderLane(refs.activeLane, buckets.active);
+      renderLane(refs.doneLane,   buckets.done);
+
+      refs.queuedCount.textContent = buckets.queued.length;
+      refs.activeCount.textContent = buckets.active.length;
+      refs.doneCount.textContent   = buckets.done.length;
+
+      renderStats(buckets);
+      renderArchive();
+    }
+
+    function renderLane(container, tasks) {
+      if (!tasks.length) {
+        const empty = document.createElement("div");
+        empty.className   = "empty-state";
+        empty.textContent = "拖曳任務到這裡";
+        container.replaceChildren(empty);
+        return;
+      }
+
+      const now      = new Date();
+      const todayStr = toDateInputValue(now);
+
+      const cards = tasks.map((task) => {
+        const [accentA, accentB] = PRIORITY_ACCENTS[task.priority];
+        const card = document.createElement("article");
+        card.className  = "task-card";
+        card.draggable  = true;
+        card.dataset.id = task.id;
+        card.style.setProperty("--accent-a", accentA);
+        card.style.setProperty("--accent-b", accentB);
+
+        let urgencyBadge = "";
+        let dueCls       = "";
+
+        if (task.status !== "done") {
+          const diffDays = Math.ceil((new Date(`${task.due}T00:00:00`) - now) / DAY_MS);
+          if (diffDays < 0) {
+            card.classList.add("is-overdue");
+            urgencyBadge = `<span class="pill overdue">逾期</span>`;
+            dueCls       = "due-overdue";
+          } else if (task.due === todayStr) {
+            card.classList.add("is-today");
+            urgencyBadge = `<span class="pill today">今天到期</span>`;
+            dueCls       = "due-today";
+          } else if (diffDays <= 2) {
+            urgencyBadge = `<span class="pill soon">即將到期</span>`;
           }
         }
 
-        if (state.purgeTimer) clearInterval(state.purgeTimer);
-        state.purgeTimer = window.setInterval(() => {
-          renderArchive();
-          updateTodayLabel();
-        }, ARCHIVE_PURGE_INTERVAL_MS);
+        card.innerHTML = `
+          <div class="task-top">
+            <div class="task-badges">
+              <span class="pill ${task.priority}">${PRIORITY_TEXT[task.priority]}</span>
+              ${urgencyBadge}
+            </div>
+            <div class="card-menu-wrap">
+              <button class="card-menu-trigger" type="button"
+                data-action="toggle-menu" data-id="${task.id}" aria-label="更多操作">•••</button>
+              <div class="card-menu">
+                <button class="card-menu-item" type="button"
+                  data-action="edit" data-id="${task.id}">編輯</button>
+                <button class="card-menu-item danger" type="button"
+                  data-action="archive" data-id="${task.id}">刪除</button>
+              </div>
+            </div>
+          </div>
+          <h3>${escapeHtml(task.title)}</h3>
+          <p class="task-note">${escapeHtml(task.note)}</p>
+          <div class="task-meta">
+            <span class="${dueCls}">截止 ${formatDateLabel(task.due)}</span>
+            <span>更新 ${formatTimeLabel(task.lastUpdated)}</span>
+          </div>`;
+        return card;
+      });
+
+      container.replaceChildren(...cards);
+    }
+
+    function renderStats(buckets) {
+      const total    = state.tasks.length;
+      const done     = buckets.done.length;
+      const overall  = total ? Math.round((done / total) * 100) : 0;
+      const riskCount = state.tasks.filter(isRiskTask).length;
+
+      refs.pbarFill.style.width      = `${overall}%`;
+      refs.overallValue.textContent  = `${overall}%`;
+      refs.metricQueued.textContent  = buckets.queued.length;
+      refs.metricActive.textContent  = buckets.active.length;
+      refs.metricDone.textContent    = done;
+      refs.metricRisk.textContent    = riskCount;
+    }
+
+    function renderArchive() {
+      refs.archiveCount.textContent = state.archived.length;
+
+      if (!state.archived.length) {
+        const empty = document.createElement("div");
+        empty.className   = "empty-state";
+        empty.textContent = "目前沒有封存任務";
+        refs.archiveList.replaceChildren(empty);
+        return;
       }
 
-      init();
-    </script>
-  </body>
+      const items = state.archived.map((task) => {
+        const item = document.createElement("article");
+        item.className = "archive-item";
+        item.innerHTML = `
+          <div class="archive-main">
+            <strong>${escapeHtml(task.title)}</strong>
+            <span>${LANE_NAMES[task.status]} · ${formatDateLabel(task.due)} · ${archiveRemainingLabel(task.archivedAt)}</span>
+          </div>
+          <div class="archive-actions">
+            <button class="archive-btn" type="button"
+              data-action="restore"    data-id="${task.id}">還原</button>
+            <button class="archive-btn danger" type="button"
+              data-action="delete-now" data-id="${task.id}">立即刪除</button>
+          </div>`;
+        return item;
+      });
+
+      refs.archiveList.replaceChildren(...items);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task mutations
+    // ═══════════════════════════════════════════════════════════════════════
+    function insertTaskToLaneEnd(task) {
+      let last = -1;
+      for (let i = 0; i < state.tasks.length; i++) {
+        if (state.tasks[i].status === task.status) last = i;
+      }
+      state.tasks.splice(last + 1, 0, task);
+    }
+
+    function moveTask(taskId, nextStatus, anchorTaskId = "", placeAfter = false) {
+      if (!taskId || !LANE_NAMES[nextStatus]) return;
+      const fromIdx = state.tasks.findIndex((t) => t.id === taskId);
+      if (fromIdx === -1) return;
+
+      const task   = state.tasks[fromIdx];
+      const isSame = anchorTaskId && anchorTaskId === taskId;
+      if (isSame && task.status === nextStatus) return;
+
+      state.tasks.splice(fromIdx, 1);
+      task.status      = nextStatus;
+      task.lastUpdated = Date.now();
+
+      let insertIdx = -1;
+      if (anchorTaskId) {
+        const anchorIdx = state.tasks.findIndex((t) => t.id === anchorTaskId);
+        if (anchorIdx !== -1 && state.tasks[anchorIdx].status === nextStatus) {
+          insertIdx = anchorIdx + (placeAfter ? 1 : 0);
+        }
+      }
+
+      if (insertIdx === -1) insertTaskToLaneEnd(task);
+      else                  state.tasks.splice(insertIdx, 0, task);
+
+      task.sort_order = state.tasks
+        .filter((t) => t.status === nextStatus)
+        .findIndex((t) => t.id === taskId);
+
+      renderBoard();
+      api.put(`/api/tasks/${taskId}`, task).catch(async () => {
+        await loadFromServer().catch(() => {});
+        renderBoard();
+      });
+    }
+
+    function archiveTask(taskId) {
+      const idx = state.tasks.findIndex((t) => t.id === taskId);
+      if (idx === -1) return;
+      const [task] = state.tasks.splice(idx, 1);
+      if (state.editingTaskId === taskId) resetTaskForm();
+      state.archived.unshift({ ...task, archivedAt: Date.now() });
+      renderBoard();
+      api.delete(`/api/tasks/${taskId}`).catch(() => {
+        state.tasks.splice(idx, 0, task);
+        state.archived = state.archived.filter((t) => t.id !== taskId);
+        renderBoard();
+      });
+    }
+
+    function restoreArchivedTask(taskId) {
+      const idx = state.archived.findIndex((t) => t.id === taskId);
+      if (idx === -1) return;
+      const [archived] = state.archived.splice(idx, 1);
+      const task = {
+        id:          archived.id,
+        title:       archived.title,
+        note:        archived.note,
+        due:         normalizeDue(archived.due),
+        priority:    normalizePriority(archived.priority),
+        status:      normalizeStatus(archived.status),
+        lastUpdated: Date.now(),
+        sort_order:  0,
+      };
+      insertTaskToLaneEnd(task);
+      renderBoard();
+      api.post(`/api/archived/${taskId}/restore`).catch(() => {
+        state.tasks    = state.tasks.filter((t) => t.id !== taskId);
+        state.archived.splice(idx, 0, archived);
+        renderBoard();
+      });
+    }
+
+    function deleteArchivedNow(taskId) {
+      const idx = state.archived.findIndex((t) => t.id === taskId);
+      if (idx === -1) return;
+      const [removed] = state.archived.splice(idx, 1);
+      renderArchive();
+      api.delete(`/api/archived/${taskId}`).catch(() => {
+        state.archived.splice(idx, 0, removed);
+        renderArchive();
+      });
+    }
+
+    function startEditTask(taskId) {
+      const task = state.tasks.find((t) => t.id === taskId);
+      if (!task) return;
+      state.editingTaskId     = taskId;
+      refs.taskTitle.value    = task.title;
+      refs.taskNote.value     = task.note;
+      refs.taskDue.value      = task.due;
+      refs.taskPriority.value = task.priority;
+      openModal(true);
+    }
+
+    function resetTaskForm() {
+      state.editingTaskId = null;
+      refs.taskForm.reset();
+      refs.taskDue.value      = toDateInputValue(addDays(new Date(), 3));
+      refs.taskPriority.value = "medium";
+      closeModal();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // UI helpers
+    // ═══════════════════════════════════════════════════════════════════════
+    function closeCardMenus(exceptId = "") {
+      refs.boardColumns.querySelectorAll(".task-card.menu-open").forEach((card) => {
+        if (!(card instanceof HTMLElement)) return;
+        if (exceptId && card.dataset.id === exceptId) return;
+        card.classList.remove("menu-open");
+      });
+    }
+
+    function clearDropTargets() {
+      refs.laneBodies.forEach((l) => l.classList.remove("is-drop-target"));
+    }
+
+    function setDropTarget(target) {
+      refs.laneBodies.forEach((l) => l.classList.toggle("is-drop-target", l === target));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Drag & drop
+    // ═══════════════════════════════════════════════════════════════════════
+    refs.boardColumns.addEventListener("dragstart", (e) => {
+      const card = e.target instanceof HTMLElement && e.target.closest(".task-card");
+      if (!(card instanceof HTMLElement)) return;
+      state.draggedTaskId = card.dataset.id || null;
+      card.classList.add("is-dragging");
+      if (e.dataTransfer && state.draggedTaskId) {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", state.draggedTaskId);
+      }
+    });
+
+    refs.boardColumns.addEventListener("dragend", (e) => {
+      const card = e.target instanceof HTMLElement && e.target.closest(".task-card");
+      if (card instanceof HTMLElement) card.classList.remove("is-dragging");
+      state.draggedTaskId = null;
+      clearDropTargets();
+    });
+
+    refs.boardColumns.addEventListener("dragover", (e) => {
+      const lane = e.target instanceof HTMLElement && e.target.closest(".lane-body");
+      if (!(lane instanceof HTMLElement)) return;
+      e.preventDefault();
+      setDropTarget(lane);
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+    });
+
+    refs.boardColumns.addEventListener("drop", (e) => {
+      const lane = e.target instanceof HTMLElement && e.target.closest(".lane-body");
+      if (!(lane instanceof HTMLElement)) return;
+      e.preventDefault();
+      const droppedId  = state.draggedTaskId ||
+        (e.dataTransfer ? e.dataTransfer.getData("text/plain") : "");
+      const anchorCard = e.target instanceof HTMLElement && e.target.closest(".task-card");
+      const anchorId   = anchorCard instanceof HTMLElement ? anchorCard.dataset.id || "" : "";
+      let   after      = false;
+      if (anchorCard instanceof HTMLElement) {
+        const rect = anchorCard.getBoundingClientRect();
+        after = e.clientY > rect.top + rect.height / 2;
+      }
+      moveTask(droppedId, lane.dataset.status, anchorId, after);
+      state.draggedTaskId = null;
+      clearDropTargets();
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Card click events
+    // ═══════════════════════════════════════════════════════════════════════
+    refs.boardColumns.addEventListener("click", (e) => {
+      const btn = e.target instanceof HTMLElement && e.target.closest("button[data-action]");
+      if (!(btn instanceof HTMLButtonElement)) {
+        closeCardMenus();
+        return;
+      }
+      const action = btn.dataset.action;
+      const taskId = btn.dataset.id || "";
+      if (!action) return;
+
+      if (action === "toggle-menu") {
+        const card = btn.closest(".task-card");
+        if (!(card instanceof HTMLElement) || !taskId) return;
+        const opening = !card.classList.contains("menu-open");
+        closeCardMenus(opening ? taskId : "");
+        card.classList.toggle("menu-open", opening);
+        return;
+      }
+      closeCardMenus();
+      if (!taskId) return;
+      if (action === "edit")    { startEditTask(taskId); return; }
+      if (action === "archive") { archiveTask(taskId); }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Archive events
+    // ═══════════════════════════════════════════════════════════════════════
+    refs.archiveList.addEventListener("click", (e) => {
+      if (!(e.target instanceof HTMLButtonElement)) return;
+      const action = e.target.dataset.action;
+      const taskId = e.target.dataset.id;
+      if (!action || !taskId) return;
+      if (action === "restore")    { restoreArchivedTask(taskId); return; }
+      if (action === "delete-now") { deleteArchivedNow(taskId); }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Task form submit
+    // ═══════════════════════════════════════════════════════════════════════
+    refs.taskForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(refs.taskForm);
+
+      if (state.editingTaskId) {
+        const task = state.tasks.find((t) => t.id === state.editingTaskId);
+        if (task) {
+          task.title       = String(fd.get("title")).trim() || "未命名任務";
+          task.note        = String(fd.get("note")).trim();
+          task.due         = normalizeDue(fd.get("due"));
+          task.priority    = normalizePriority(fd.get("priority"));
+          task.lastUpdated = Date.now();
+          renderBoard();
+          api.put(`/api/tasks/${task.id}`, task).catch(() => {});
+        }
+        resetTaskForm();
+        return;
+      }
+
+      const task = {
+        id:          crypto.randomUUID(),
+        title:       String(fd.get("title")).trim() || "未命名任務",
+        note:        String(fd.get("note")).trim(),
+        due:         normalizeDue(fd.get("due")),
+        priority:    normalizePriority(fd.get("priority")),
+        status:      "queued",
+        sort_order:  0,
+        lastUpdated: Date.now(),
+      };
+      state.tasks.unshift(task);
+      renderBoard();
+      resetTaskForm();
+      api.post("/api/tasks", task).catch(() => {
+        state.tasks = state.tasks.filter((t) => t.id !== task.id);
+        renderBoard();
+      });
+    });
+
+    refs.cancelEditBtn.addEventListener("click", () => resetTaskForm());
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Keyboard
+    // ═══════════════════════════════════════════════════════════════════════
+    document.addEventListener("click", (e) => {
+      if (!(e.target instanceof HTMLElement)) return;
+      if (e.target.closest(".card-menu-wrap")) return;
+      closeCardMenus();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeCardMenus();
+        if (!refs.taskModal.hidden) resetTaskForm();
+      }
+      // Press N to open new task (only when not in input/modal)
+      if (e.key === "n" && !e.ctrlKey && !e.metaKey && refs.taskModal.hidden) {
+        const tag = document.activeElement?.tagName ?? "";
+        if (!["INPUT","TEXTAREA","SELECT"].includes(tag)) {
+          openModal(false);
+        }
+      }
+    });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Init
+    // ═══════════════════════════════════════════════════════════════════════
+    async function init() {
+      updateTodayLabel();
+
+      try {
+        await loadFromServer();
+        hideLogin();
+        resetTaskForm();
+        renderBoard();
+      } catch (err) {
+        if (err?.status === 401) showLogin();
+        else console.error("Init error:", err);
+      }
+
+      if (state.purgeTimer) clearInterval(state.purgeTimer);
+      state.purgeTimer = window.setInterval(() => {
+        renderArchive();
+        updateTodayLabel();
+      }, ARCHIVE_PURGE_INTERVAL_MS);
+    }
+
+    init();
+  </script>
+</body>
 </html>
