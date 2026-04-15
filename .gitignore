@@ -1,0 +1,20 @@
+# Build output
+flux-board
+flux-board.exe
+*.exe
+
+# Database (local dev only)
+*.db
+*.sqlite
+data/
+
+# Environment files (never commit secrets)
+.env
+.env.*
+
+# Go
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
