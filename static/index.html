@@ -859,7 +859,7 @@
       </span>
       <span class="stat-chip risk">
         <span class="stat-dot" style="background:#ef4444"></span>
-        風險&nbsp;<strong id="metricRisk">0</strong>
+        ⚠️ 風險&nbsp;<strong id="metricRisk">0</strong>
       </span>
     </div>
     <div class="topbar-progress">
@@ -1242,14 +1242,14 @@
           const diffDays = Math.ceil((new Date(`${task.due}T00:00:00`) - now) / DAY_MS);
           if (diffDays < 0) {
             card.classList.add("is-overdue");
-            urgencyBadge = `<span class="pill overdue">逾期</span>`;
+            urgencyBadge = `<span class="pill overdue">⚠️ 逾期</span>`;
             dueCls       = "due-overdue";
           } else if (task.due === todayStr) {
             card.classList.add("is-today");
-            urgencyBadge = `<span class="pill today">今天到期</span>`;
+            urgencyBadge = `<span class="pill today">⚠️ 今天到期</span>`;
             dueCls       = "due-today";
           } else if (diffDays <= 2) {
-            urgencyBadge = `<span class="pill soon">即將到期</span>`;
+            urgencyBadge = `<span class="pill soon">⚠️ 即將到期</span>`;
           }
         }
 
