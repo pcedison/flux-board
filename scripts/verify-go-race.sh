@@ -13,17 +13,11 @@ packages=$(
 )
 
 if [ -z "$packages" ]; then
-  echo "No Go packages discovered for verification." >&2
+  echo "No Go packages discovered for race verification." >&2
   exit 1
 fi
 
-echo "[1/3] go test -count=1 $packages"
-go test -count=1 $packages
+echo "[1/1] go test -race -count=1 $packages"
+go test -race -count=1 $packages
 
-echo "[2/3] go vet $packages"
-go vet $packages
-
-echo "[3/3] go build $packages"
-go build $packages
-
-echo "Backend verification completed successfully."
+echo "Go race verification completed successfully."

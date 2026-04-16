@@ -37,7 +37,7 @@
 | W4 | Auth and Session Redesign | Main agent | done | Shared-password model retired for the current single-admin baseline |
 | W5 | Schema and Data Integrity | Main agent | done | Migrations and reorder correctness verified |
 | W6 | Go Modularization | Main agent | in_progress | Core logic testable and layered |
-| W7 | Frontend Foundation | Main agent | planned | New React frontend builds and talks to API |
+| W7 | Frontend Foundation | Main agent | in_progress | New React frontend builds and talks to API |
 | W8 | Trello-grade UX, RWD, A11y | Main agent | planned | Mouse/touch/keyboard all pass core flows |
 | W9 | Quality Gates, Release, Enterprise Hooks | Main agent | in_progress | Public-fork release ready |
 
@@ -146,12 +146,13 @@
 - Parallel lanes: handler split, service split, repo abstraction.
 - Current status: in_progress.
 - Current gaps:
-  - config loading plus mux/server assembly are extracted, and task reorder logic now lives in its own file, but handlers, SQL, and most domain rules still live in `main.go`
+  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, and reorder logic are now extracted into dedicated files, but SQL and most domain rules still live in the `main` package
   - `cmd/flux-board` and deeper layer splits remain for later W6 slices
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
   - mux/server assembly is separated from the rest of the business logic
-  - later W6 work must still extract handlers, services, repositories, and pure domain rules
+  - auth/session and task/archive HTTP handlers are no longer embedded in `main.go`
+  - later W6 work must still extract services, repositories, and pure domain rules
 
 ## W7 Frontend Foundation
 - Goal: replace the monolithic HTML with a modern, maintainable frontend base.
@@ -159,6 +160,15 @@
 - Tasks: create React + TypeScript + Vite app, add React Router, TanStack Query, app shell, tokenized style system, auth guard and base pages.
 - Gate: new frontend can build, typecheck, and communicate with the Go API.
 - Parallel lanes: design system, API layer, shell and routing.
+- Current status: in_progress.
+- Current gaps:
+  - the new `web/` app now builds, typechecks, routes, proxies `/api`, and reads the live Go API through React Query, but it remains read-only
+  - dedicated frontend unit tests, auth-owned pages, and deployment/runtime integration remain deferred to later W7/W8 slices
+- Corrected gate checklist:
+  - `web/` has a tracked React + TypeScript + Vite scaffold
+  - routing, typed API reads, and a query layer exist for the current read-only scope
+  - the scaffold has a responsive shell and can build/typecheck in CI and locally
+  - later W7/W8 work must still add mutation flows, auth UI, and runtime integration with the existing app
 
 ## W8 Trello-grade UX, RWD, and Accessibility
 - Goal: deliver rich board interactions that work on desktop, tablet, and mobile.
@@ -175,10 +185,11 @@
 - Parallel lanes: QA, release engineering, observability, enterprise design.
 - Current status: in_progress.
 - Current gaps:
-  - CI quality gates now cover richer browser smoke for login/create/archive/restore, but browser matrix, release flow, and observability remain mostly untouched
+  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, and `web/` build/typecheck, but browser matrix, release flow, and observability remain mostly untouched
   - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, and the broader browser matrix plus release/observability work still remain
 - Corrected gate checklist:
-  - CI runs cache-busted Go tests and race detection
+  - CI runs repo-owned Go verification, race detection, `web/` scaffold build/typecheck, and browser smoke
+  - local Windows race verification exists in a repo-owned script
   - later W9 work must still add broader browser/release/observability gates
 
 ## Standard Gates
@@ -221,22 +232,22 @@
 - `W5-P4` Archive correctness: status `done` for the current scope. Archive/restore now preserves lane position semantics and is covered by integration plus browser smoke. Parallel: future retention/reporting work remains separate.
 ### W6
 - `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are extracted, and reorder logic has begun moving into dedicated files, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
-- `W6-P2` Layer split: status `planned`. Handler/service/repo separation still remains. Parallel: coordinate with W5 query changes.
-- `W6-P3` Pure rules and domain errors: status `planned`. Core rules are still embedded in the main package and need extraction. Parallel: good subagent slice.
-- `W6-P4` Test seams: status `planned`. More explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
+ - `W6-P2` Layer split: status `in_progress`. Auth/session plus task/archive HTTP handlers are now extracted into dedicated files, but service/repo separation still remains. Parallel: coordinate with W5 query changes.
+ - `W6-P3` Pure rules and domain errors: status `planned`. Core rules are still embedded in the main package and need extraction. Parallel: good subagent slice.
+ - `W6-P4` Test seams: status `in_progress`. Route wiring now has direct coverage, but more explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
 ### W7
-- `W7-P1` Frontend scaffold: status `planned`. React + TypeScript + Vite app not started yet. Parallel: can overlap late W6.
-- `W7-P2` Data layer: status `planned`. API client and query layer not started yet. Parallel: with W7-P3.
-- `W7-P3` Design system: status `planned`. Tokenized design system not started yet. Parallel: with W7-P2.
-- `W7-P4` Page skeletons: status `planned`. New UI shell work not started yet. Parallel: after W7-P1.
+- `W7-P1` Frontend scaffold: status `done` for the current scope. A tracked React + TypeScript + Vite scaffold now exists under `web/`. Parallel: can overlap late W6.
+- `W7-P2` Data layer: status `in_progress`. Typed API reads and a React Query snapshot hook now exist, but mutation flows and auth-owned pages remain. Parallel: with W7-P3.
+- `W7-P3` Design system: status `in_progress`. Tokenized CSS variables and a responsive shell exist, but the full board design system remains later work. Parallel: with W7-P2.
+- `W7-P4` Page skeletons: status `in_progress`. Overview and board snapshot routes exist for the read-only scope, but the full app shell and feature pages are still incomplete. Parallel: after W7-P1.
 ### W8
 - `W8-P1` Core board UI: status `planned`. New board/list/card UI work has not started yet. Parallel: with W8-P2.
 - `W8-P2` Drag and reorder: status `planned`. `dnd-kit` work depends on later W5 reorder API. Parallel: depends on W5 reorder API.
 - `W8-P3` Non-drag movement: status `planned`. Explicit move controls not started yet. Parallel: with W8-P2.
 - `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: status `in_progress`. CI now includes richer browser smoke for login/create/archive/restore plus existing Go gates, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot with an observed green GitHub Actions run, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck, and richer browser smoke for login/create/archive/restore, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot and repo-owned verification scripts as the CI source of truth, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `planned`. Health/readiness/metrics/logging beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -257,6 +268,10 @@
 - 2026-04-16 | W4 / Bootstrap-only auth seeding | done | Changed bootstrap admin initialization so `APP_PASSWORD` seeds the first admin on initial setup instead of resetting live credentials on every startup; aligned docs and plan language with the new behavior | W4 is closer to its gate because the env secret is no longer the live shared production password path | Next: add audit logging and prove auth/session flow end to end before considering W4 complete | Risk: auth still centers on one admin account and lacks audit logging plus full integration proof
 - 2026-04-16 | W4 / Audit logging and handler-level auth flow proof | done | Added auth audit logging storage/hooks and handler-level tests covering login success, blocked login, verifier failure, logout invalidation, invalid session handling, and the `login -> /api/auth/me -> logout -> 401` path; updated docs to reflect the improved state | W4 now has materially stronger evidence and observability, but still remains in progress because auth is single-admin and full DB-backed integration coverage is not yet present | Next: continue W4 with either real DB-backed auth integration tests or another narrow improvement that does not expand scope into W5 | Risk: W4 still is not a public-fork-final auth model
 - 2026-04-16 | W2-W4 / Local integration smoke attempt | blocked | Attempted to run the repo-owned browser smoke against a temporary local PostgreSQL-backed app instance to raise evidence beyond static verification | The repo-side smoke path is syntactically valid and CI is configured, but this local environment could not start PostgreSQL because the Docker daemon was unavailable | Next: either observe the GitHub Actions smoke run after commit or rerun local integration once Docker Desktop is running | Risk: local end-to-end evidence is still pending because environment runtime support is unavailable in this session
+- 2026-04-16 | W9 / Local Windows race enablement | done | Installed MSYS2 UCRT64 GCC, removed a polluted user npm config that forced `os=linux`, and added repo-owned Windows race verification scripts | Local Windows development now has first-class `go test -race` support instead of relying only on Linux CI | Next: keep Linux CI as the cross-check while using the repo race script locally | Risk: developers still need the documented MSYS2 toolchain on Windows machines
+- 2026-04-16 | W6 / Auth-task HTTP split and route proof | done | Moved auth/session helpers plus task/archive HTTP handlers out of `main.go`, then added direct `newMux` route wiring coverage | `main.go` is slimmer and the current handler boundary is safer to extend without changing behavior | Next: later W6 slices should extract service/repository seams instead of piling logic back into handlers | Risk: SQL and domain rules still live in the `main` package
+- 2026-04-16 | W7 / React foundation read-model shell | done | Rebuilt the isolated `web/` scaffold around React Router, TanStack Query, a typed API client, responsive app shell, and read-only overview/board routes | W7 is now active with a maintainable read-model frontend that builds, typechecks, and talks to the real Go API without disturbing the embedded frontend | Next: keep the scaffold read-only until later W8 work adds mutation flows and auth-owned pages | Risk: the new frontend is not deployed and does not yet own login or board mutations
+- 2026-04-16 | W9 / Script-backed CI parity and manual smoke | done | Switched CI to use repo-owned Go verification scripts with dynamic Go package discovery, then ran local Go, race, web, and Docker-backed browser smoke verification against a temporary PostgreSQL instance | Quality gates now cover the new modularization slice and read-only frontend foundation with real end-to-end evidence | Next: broaden browser matrix and release/observability work in later W9 slices | Risk: broader frontend unit tests and multi-browser coverage are still pending
 - 2026-04-16 | W1-W2 / Deployment and deterministic Node install tightening | done | Added `docs/DEPLOYMENT.md`, linked it from `README.md`, switched smoke install guidance to `npm ci`, updated CI to use `npm ci`, and refreshed `package-lock.json` so browser tooling installs are pinned | W1 deployment guidance and W2 dependency reproducibility are materially tighter, though both waves still remain open pending tracked-history proof and an observed passing CI run | Next: keep W1/W2 open until the repo-owned files are committed and the CI smoke is observed passing | Risk: current evidence is still limited by the absence of a fresh-clone proof and a live GitHub Actions success in this thread
 - 2026-04-16 | W4 / Real DB-backed auth integration test added | done | Added `main_integration_test.go`, which skips without `DATABASE_URL` but exercises login failure, login success, `/api/auth/me`, logout, post-logout `401`, and auth audit log writes against a real PostgreSQL-backed app when a DB-capable environment exists | W4 now has repo-owned real-database integration coverage ready for CI/DB-capable runs, while local no-DB environments still remain stable because the test skips cleanly | Next: observe or rerun this test in a DB-capable environment before treating W4 as closeable | Risk: the integration test exists, but this thread has not yet observed it execute against a live database
 - 2026-04-16 | W1-W2 / Tracked-history and fresh-clone proof | done | Created branch `codex/w1-w2-w4-closeout`, committed the W1/W2/W4 baseline, and validated a clean clone by checking `.env.example`, running `./scripts/verify-go.ps1`, running `npm ci`, and syntax-checking the repo-owned smoke script | W1 now has tracked-history proof and a clean-clone reproducibility record for the current scope | Next: observe GitHub Actions before closing W2 | Risk: clean-clone runtime app startup still depends on a database-capable environment
