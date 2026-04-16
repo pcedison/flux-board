@@ -1,12 +1,22 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "[1/3] go test ./..."
-go test ./...
+function Invoke-GoCommand {
+  param(
+    [string]$Label,
+    [string[]]$Arguments
+  )
 
-Write-Host "[2/3] go vet ./..."
-go vet ./...
+  Write-Host $Label
+  & go @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "go $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+  }
+}
 
-Write-Host "[3/3] go build ./..."
-go build ./...
+Invoke-GoCommand "[1/3] go test ./..." @("test", "./...")
+
+Invoke-GoCommand "[2/3] go vet ./..." @("vet", "./...")
+
+Invoke-GoCommand "[3/3] go build ./..." @("build", "./...")
 
 Write-Host "Backend verification completed successfully."
