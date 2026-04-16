@@ -287,6 +287,39 @@ func TestHandleLoginReturnsUnauthorizedOnBadPassword(t *testing.T) {
 	}
 }
 
+func TestObservedLoginAuditEventCarriesRequestID(t *testing.T) {
+	var events []authAuditEvent
+	app := &App{
+		loginAttempts: make(map[string]loginAttemptState),
+		passwordVerifier: func(context.Context, string) (bool, error) {
+			return false, nil
+		},
+		auditRecorder: func(_ context.Context, event authAuditEvent) error {
+			events = append(events, event)
+			return nil
+		},
+	}
+
+	server := newHTTPServer("8080", app.securityHeaders(http.HandlerFunc(app.handleLogin)))
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"password":"wrong"}`))
+	req.RemoteAddr = "127.0.0.1:4567"
+	rec := httptest.NewRecorder()
+
+	server.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status 401, got %d", rec.Code)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected one audit event, got %+v", events)
+	}
+	if got := rec.Header().Get(requestIDHeader); got == "" {
+		t.Fatal("expected request id response header")
+	} else if events[0].RequestID != got {
+		t.Fatalf("expected audit event request id %q, got %q", got, events[0].RequestID)
+	}
+}
+
 func TestAuthFlowLoginSessionLogout(t *testing.T) {
 	sessions := make(map[string]sessionState)
 	var events []authAuditEvent

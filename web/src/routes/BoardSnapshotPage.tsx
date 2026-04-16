@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type { TaskPriority, TaskStatus } from "../lib/api";
@@ -30,6 +30,11 @@ type MoveTaskRequest = {
   status: TaskStatus;
 };
 
+type FocusTarget =
+  | { kind: "archived"; id: string }
+  | { kind: "task"; id: string }
+  | { kind: "title" };
+
 export function BoardSnapshotPage() {
   const snapshot = useBoardSnapshot();
   const mutations = useBoardMutations();
@@ -55,6 +60,8 @@ function BoardSnapshotContent({
 }) {
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dueInputRef = useRef<HTMLInputElement>(null);
+  const cardRefs = useRef(new Map<string, HTMLElement>());
+  const archiveButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
@@ -62,12 +69,63 @@ function BoardSnapshotContent({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ due?: string; title?: string }>({});
+  const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
 
   const isBusy =
     mutations.createTask.isPending ||
     mutations.moveTask.isPending ||
     mutations.archiveTask.isPending ||
     mutations.restoreTask.isPending;
+  const pendingMoveTaskID = mutations.moveTask.isPending ? mutations.moveTask.variables?.id : null;
+  const pendingArchiveTaskID = mutations.archiveTask.isPending ? mutations.archiveTask.variables : null;
+  const pendingRestoreTaskID = mutations.restoreTask.isPending ? mutations.restoreTask.variables : null;
+
+  useEffect(() => {
+    if (!focusTarget) {
+      return;
+    }
+
+    if (focusTarget.kind === "title") {
+      titleInputRef.current?.focus();
+      setFocusTarget(null);
+      return;
+    }
+
+    if (focusTarget.kind === "task") {
+      const taskCard = cardRefs.current.get(focusTarget.id);
+      if (taskCard) {
+        taskCard.focus();
+        setFocusTarget(null);
+      }
+      return;
+    }
+
+    const archiveButton = archiveButtonRefs.current.get(focusTarget.id);
+    if (archiveButton) {
+      archiveButton.focus();
+      setFocusTarget(null);
+    }
+  }, [data.archived, data.tasks, focusTarget]);
+
+  function setCardRef(id: string, element: HTMLElement | null) {
+    if (element) {
+      cardRefs.current.set(id, element);
+      return;
+    }
+    cardRefs.current.delete(id);
+  }
+
+  function setArchiveButtonRef(id: string, element: HTMLButtonElement | null) {
+    if (element) {
+      archiveButtonRefs.current.set(id, element);
+      return;
+    }
+    archiveButtonRefs.current.delete(id);
+  }
+
+  function isTaskBusy(id: string) {
+    return pendingMoveTaskID === id || pendingArchiveTaskID === id;
+  }
 
   async function handleCreateTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,6 +166,7 @@ function BoardSnapshotContent({
       setNote("");
       setPriority("medium");
       setActionStatus(`Created ${trimmedTitle} in the queued lane.`);
+      setFocusTarget({ kind: "title" });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);
@@ -120,6 +179,7 @@ function BoardSnapshotContent({
     try {
       await mutations.moveTask.mutateAsync(move);
       setActionStatus(announcement);
+      setFocusTarget({ kind: "task", id: move.id });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);
@@ -132,6 +192,7 @@ function BoardSnapshotContent({
     try {
       await mutations.archiveTask.mutateAsync(id);
       setActionStatus(`Archived ${taskTitle}.`);
+      setFocusTarget({ kind: "archived", id });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);
@@ -144,6 +205,7 @@ function BoardSnapshotContent({
     try {
       await mutations.restoreTask.mutateAsync(id);
       setActionStatus(`Restored ${taskTitle} to ${status}.`);
+      setFocusTarget({ kind: "task", id });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);
@@ -191,7 +253,11 @@ function BoardSnapshotContent({
                     aria-posinset={index + 1}
                     aria-setsize={tasks.length}
                   >
-                    <article className="card">
+                    <article
+                      className={`card${isTaskBusy(task.id) ? " card-pending" : ""}`}
+                      ref={(element) => setCardRef(task.id, element)}
+                      tabIndex={-1}
+                    >
                       <div className="card-row">
                         <strong>{task.title}</strong>
                         <span className={`priority priority-${task.priority}`}>{task.priority}</span>
@@ -203,7 +269,7 @@ function BoardSnapshotContent({
                           <button
                             className="action-button"
                             type="button"
-                            disabled={isBusy}
+                            disabled={isTaskBusy(task.id)}
                             aria-label={`Move ${task.title} up within ${lane.label}`}
                             onClick={() => {
                               const previousTask = tasks[index - 1];
@@ -225,7 +291,7 @@ function BoardSnapshotContent({
                           <button
                             className="action-button"
                             type="button"
-                            disabled={isBusy}
+                            disabled={isTaskBusy(task.id)}
                             aria-label={`Move ${task.title} down within ${lane.label}`}
                             onClick={() => {
                               const nextTask = tasks[index + 1];
@@ -248,7 +314,7 @@ function BoardSnapshotContent({
                             key={target.status}
                             className="action-button"
                             type="button"
-                            disabled={isBusy}
+                            disabled={isTaskBusy(task.id)}
                             aria-label={`${target.label} (${task.title})`}
                             onClick={() => {
                               const targetLabel = target.label
@@ -269,7 +335,7 @@ function BoardSnapshotContent({
                         <button
                           className="action-button action-button-secondary"
                           type="button"
-                          disabled={isBusy}
+                          disabled={isTaskBusy(task.id)}
                           aria-label={`Archive ${task.title}`}
                           onClick={() => {
                             void handleArchiveTask(task.id, task.title);
@@ -298,7 +364,11 @@ function BoardSnapshotContent({
           <p className="visually-hidden" aria-live="polite" role="status">
             {isBusy ? "Board update in progress." : actionError ?? actionStatus ?? ""}
           </p>
-          <form className="board-form" onSubmit={handleCreateTask} noValidate>
+          <form
+            className={`board-form${mutations.createTask.isPending ? " board-form-pending" : ""}`}
+            onSubmit={handleCreateTask}
+            noValidate
+          >
             <label className="form-field" htmlFor="board-task-title">
               Title
             </label>
@@ -381,7 +451,11 @@ function BoardSnapshotContent({
               placeholder="Optional implementation note"
               rows={4}
             />
-            <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={isBusy}>
+            <button
+              className="nav-pill nav-pill-active auth-submit"
+              type="submit"
+              disabled={mutations.createTask.isPending}
+            >
               {mutations.createTask.isPending ? "Creating..." : "Create task"}
             </button>
           </form>
@@ -399,7 +473,10 @@ function BoardSnapshotContent({
           ) : (
             <div className="archive-list">
               {data.archived.map((task) => (
-                <div key={task.id} className="archive-item">
+                <div
+                  key={task.id}
+                  className={`archive-item${pendingRestoreTaskID === task.id ? " archive-item-pending" : ""}`}
+                >
                   <div>
                     <strong>{task.title}</strong>
                     <p className="meta">Return to {task.status}</p>
@@ -407,7 +484,8 @@ function BoardSnapshotContent({
                   <button
                     className="action-button"
                     type="button"
-                    disabled={isBusy}
+                    disabled={pendingRestoreTaskID === task.id}
+                    ref={(element) => setArchiveButtonRef(task.id, element)}
                     aria-label={`Restore ${task.title}`}
                     onClick={() => {
                       void handleRestoreTask(task.id, task.title, task.status);

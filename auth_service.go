@@ -68,9 +68,12 @@ func (a *App) deleteSession(ctx context.Context, token string) error {
 
 func (a *App) recordAuthEvent(ctx context.Context, event authAuditEvent) {
 	event.CreatedAt = time.Now().UnixMilli()
+	if event.RequestID == "" {
+		event.RequestID = requestIDFromContext(ctx)
+	}
 	if a.auditRecorder != nil {
 		if err := a.auditRecorder(ctx, event); err != nil {
-			log.Printf("auth audit recorder error: %v", err)
+			log.Printf("auth audit recorder error request_id=%s: %v", event.RequestID, err)
 		}
 		return
 	}
@@ -82,6 +85,6 @@ func (a *App) recordAuthEvent(ctx context.Context, event authAuditEvent) {
 		INSERT INTO auth_audit_logs (username, event_type, outcome, client_ip, details, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, event.Username, event.EventType, event.Outcome, event.ClientIP, event.Details, event.CreatedAt); err != nil {
-		log.Printf("auth audit insert error: %v", err)
+		log.Printf("auth audit insert error request_id=%s: %v", event.RequestID, err)
 	}
 }

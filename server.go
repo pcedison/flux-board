@@ -40,7 +40,7 @@ func newMux(app *App) (*http.ServeMux, error) {
 func newHTTPServer(port string, handler http.Handler) *http.Server {
 	return &http.Server{
 		Addr:              ":" + port,
-		Handler:           handler,
+		Handler:           observabilityMiddleware(handler),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,

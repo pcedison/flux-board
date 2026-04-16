@@ -14,6 +14,7 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 - Three board states: `queued`, `active`, `done`
 - PostgreSQL persistence
 - Unauthenticated `GET /healthz` and DB-backed `GET /readyz` probes
+- API and probe request-id/access-log baseline for easier diagnosis
 - Embedded frontend served by the Go app
 - Isolated React/Vite shell with `/login`, guarded `/board`, auth-aware shell navigation, explicit sign-out handling, explicit create/move/archive/restore actions, and lane-local move up/down fallback for the next frontend
 
@@ -111,15 +112,20 @@ These smoke scripts now build the Go app, start it locally, wait for `/readyz`, 
 `PLAYWRIGHT_BROWSER` defaults to `chromium`; CI now also runs the same smoke path against `firefox` as the first non-Chromium browser gate.
 
 For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
+Observed API and probe responses now include `X-Request-Id`, and the Go server logs matching request IDs with client, method, path, status, bytes, and duration for `/api/*`, `/healthz`, and `/readyz`.
 
 The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` by default, so the isolated `web/` shell can talk to a local Go app without extra setup.
 
 ## Repository Layout
 - [main.go](main.go): current backend entrypoint and API server
+- [app_bootstrap.go](app_bootstrap.go): app construction and bootstrap-only admin seeding
+- [app_runtime.go](app_runtime.go): background loops and shared runtime middleware helpers
+- [app_state.go](app_state.go): shared app state and cross-cutting runtime types
 - [health_http.go](health_http.go): unauthenticated liveness/readiness handlers
 - [auth_http.go](auth_http.go): auth/session HTTP handlers and middleware
 - [auth_service.go](auth_service.go): auth/session persistence and audit helpers behind the transport layer
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
+- [server_observability.go](server_observability.go): request-id and access-log middleware at the server boundary
 - [tasks_http.go](tasks_http.go): task and archive HTTP handlers
 - [task_service.go](task_service.go): task validation and service-layer orchestration for CRUD/reorder flows
 - [task_validation.go](task_validation.go): pure task validation and ID-normalization rules shared by the service seam
@@ -134,10 +140,10 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests plus explicit non-drag board mutations, but the future React/Vite frontend is still not deployed or the production runtime owner
+- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, and basic focus continuity, but the future React/Vite frontend is still not deployed or the production runtime owner
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - The current user-facing runtime still depends on a single embedded HTML file until later W7/W8 integration waves
-- Health/readiness probes are intentionally minimal today and do not yet expose richer observability signals
+- Health/readiness probes and auth audit paths now expose a minimal request-id/access-log correlation baseline, but richer observability such as metrics, tracing, and structured logs remains for later W9 slices
 
 ## Governance Docs
 - [CONTRIBUTING.md](CONTRIBUTING.md)
