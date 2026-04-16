@@ -8,16 +8,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/fs"
 	"log"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
+
+	"flux-board/internal/config"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -110,12 +108,12 @@ type App struct {
 }
 
 func main() {
-	dbURL := mustEnv("DATABASE_URL")
-	password := mustEnv("APP_PASSWORD")
-	port := getEnv("PORT", "8080")
-	cookieSecure := getEnv("APP_ENV", "production") != "development"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 
-	pool, err := pgxpool.New(context.Background(), dbURL)
+	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("connect db: %v", err)
 	}
@@ -123,8 +121,8 @@ func main() {
 
 	app := &App{
 		db:                pool,
-		bootstrapPassword: password,
-		cookieSecure:      cookieSecure,
+		bootstrapPassword: cfg.AppPassword,
+		cookieSecure:      cfg.CookieSecure,
 		loginAttempts:     make(map[string]loginAttemptState),
 	}
 
@@ -135,107 +133,17 @@ func main() {
 	go app.archiveCleanupLoop()
 	go app.sessionCleanupLoop()
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/auth/login", app.handleLogin)
-	mux.HandleFunc("POST /api/auth/logout", app.handleLogout)
-	mux.HandleFunc("GET /api/auth/me", app.auth(app.handleGetSession))
-
-	mux.HandleFunc("GET /api/tasks", app.auth(app.handleGetTasks))
-	mux.HandleFunc("POST /api/tasks", app.auth(app.handleCreateTask))
-	mux.HandleFunc("PUT /api/tasks/{id}", app.auth(app.handleUpdateTask))
-	mux.HandleFunc("DELETE /api/tasks/{id}", app.auth(app.handleArchiveTask))
-
-	mux.HandleFunc("GET /api/archived", app.auth(app.handleGetArchived))
-	mux.HandleFunc("POST /api/archived/{id}/restore", app.auth(app.handleRestoreTask))
-	mux.HandleFunc("DELETE /api/archived/{id}", app.auth(app.handleDeleteArchived))
-
-	stripped, err := fs.Sub(staticFiles, "static")
+	mux, err := newMux(app)
 	if err != nil {
-		log.Fatalf("static fs: %v", err)
+		log.Fatalf("build mux: %v", err)
 	}
-	mux.Handle("/", http.FileServer(http.FS(stripped)))
+	server := newHTTPServer(cfg.Port, app.securityHeaders(mux))
+	installGracefulShutdown(server)
 
-	server := &http.Server{
-		Addr:              ":" + port,
-		Handler:           app.securityHeaders(mux),
-		ReadHeaderTimeout: readHeaderTimeout,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		IdleTimeout:       idleTimeout,
-	}
-
-	shutdownSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	go func() {
-		<-shutdownSignals.Done()
-		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("server shutdown error: %v", err)
-		}
-	}()
-
-	log.Printf("Flux Board listening on :%s (cookieSecure=%v)", port, cookieSecure)
+	log.Printf("Flux Board listening on :%s (cookieSecure=%v)", cfg.Port, cfg.CookieSecure)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("listen: %v", err)
 	}
-}
-
-// initSchema creates tables on first run; safe to call repeatedly.
-func (a *App) initSchema() error {
-	_, err := a.db.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS tasks (
-			id           TEXT    PRIMARY KEY,
-			title        TEXT    NOT NULL,
-			note         TEXT    NOT NULL DEFAULT '',
-			due          TEXT    NOT NULL,
-			priority     TEXT    NOT NULL DEFAULT 'medium',
-			status       TEXT    NOT NULL DEFAULT 'queued',
-			sort_order   INTEGER NOT NULL DEFAULT 0,
-			last_updated BIGINT  NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS archived_tasks (
-			id          TEXT   PRIMARY KEY,
-			title       TEXT   NOT NULL,
-			note        TEXT   NOT NULL DEFAULT '',
-			due         TEXT   NOT NULL,
-			priority    TEXT   NOT NULL,
-			status      TEXT   NOT NULL,
-			archived_at BIGINT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS users (
-			username      TEXT PRIMARY KEY,
-			password_hash TEXT NOT NULL,
-			role          TEXT NOT NULL DEFAULT 'admin',
-			created_at    BIGINT NOT NULL,
-			updated_at    BIGINT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS sessions (
-			token        TEXT PRIMARY KEY,
-			username     TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-			created_at   BIGINT NOT NULL,
-			expires_at   BIGINT NOT NULL,
-			revoked_at   BIGINT,
-			last_seen_at BIGINT NOT NULL,
-			client_ip    TEXT NOT NULL DEFAULT ''
-		);
-		CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
-		CREATE TABLE IF NOT EXISTS auth_audit_logs (
-			id         BIGSERIAL PRIMARY KEY,
-			username   TEXT NOT NULL DEFAULT '',
-			event_type TEXT NOT NULL,
-			outcome    TEXT NOT NULL,
-			client_ip  TEXT NOT NULL DEFAULT '',
-			details    TEXT NOT NULL DEFAULT '',
-			created_at BIGINT NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_auth_audit_logs_created_at ON auth_audit_logs(created_at);
-	`)
-	if err != nil {
-		return err
-	}
-	return a.ensureBootstrapAdmin(context.Background())
 }
 
 func (a *App) ensureBootstrapAdmin(ctx context.Context) error {
@@ -990,21 +898,6 @@ func newToken() string {
 		log.Fatalf("generate token: %v", err)
 	}
 	return hex.EncodeToString(bytes)
-}
-
-func mustEnv(key string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		log.Fatalf("required env var %s is not set", key)
-	}
-	return value
-}
-
-func getEnv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
 }
 
 func validPriority(priority string) bool {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -127,6 +128,63 @@ func TestIntegrationAuthFlowWithDatabase(t *testing.T) {
 	}
 }
 
+func TestIntegrationInitSchemaAppliesMigrations(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration migration test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	if err := app.initSchema(); err != nil {
+		t.Fatalf("re-run initSchema: %v", err)
+	}
+
+	rows, err := app.db.Query(context.Background(), `
+		SELECT version, checksum
+		FROM schema_migrations
+		ORDER BY version ASC
+	`)
+	if err != nil {
+		t.Fatalf("query schema_migrations: %v", err)
+	}
+	defer rows.Close()
+
+	var versions []string
+	var checksums []string
+	for rows.Next() {
+		var version, checksum string
+		if err := rows.Scan(&version, &checksum); err != nil {
+			t.Fatalf("scan schema_migrations: %v", err)
+		}
+		versions = append(versions, version)
+		checksums = append(checksums, checksum)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate schema_migrations: %v", err)
+	}
+	if len(versions) != 1 || versions[0] != "0001_initial" {
+		t.Fatalf("expected migration history [0001_initial], got %+v", versions)
+	}
+	if len(checksums) != 1 || checksums[0] == "" {
+		t.Fatalf("expected non-empty migration checksum, got %+v", checksums)
+	}
+
+	for _, objectName := range requiredSchemaObjects {
+		var resolved string
+		if err := app.db.QueryRow(context.Background(),
+			`SELECT COALESCE(to_regclass($1)::text, '')`,
+			objectName,
+		).Scan(&resolved); err != nil {
+			t.Fatalf("check schema object %s: %v", objectName, err)
+		}
+		if resolved == "" {
+			t.Fatalf("expected schema object %s to exist after initSchema", objectName)
+		}
+	}
+}
+
 func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 	t.Helper()
 
@@ -136,7 +194,7 @@ func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 		t.Fatalf("connect admin pool: %v", err)
 	}
 
-	schemaName := "itest_auth_" + time.Now().UTC().Format("20060102150405")
+	schemaName := fmt.Sprintf("itest_auth_%d", time.Now().UTC().UnixNano())
 	if _, err := adminPool.Exec(ctx, `CREATE SCHEMA `+schemaName); err != nil {
 		adminPool.Close()
 		t.Fatalf("create schema: %v", err)

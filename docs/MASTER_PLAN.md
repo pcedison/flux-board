@@ -129,6 +129,14 @@
 - Tasks: add versioned migrations, enforce FK/CHECK/indexes, move reorder to transactional batch updates, verify archive/restore correctness.
 - Gate: schema changes are reproducible and board ordering remains correct after reload and concurrent writes.
 - Parallel lanes: migration setup, DB constraints, reorder API.
+- Current status: in_progress.
+- Current gaps:
+  - versioned migration baseline is now landing, but reorder correctness and stricter DB invariants are still open
+  - archive/restore correctness still needs dedicated W5 regression coverage beyond the current W4 auth path
+- Corrected gate checklist:
+  - a versioned migration baseline exists and can initialize a fresh database
+  - migration history is recorded in the database
+  - later W5 work must still add reorder correctness, stronger constraints, and archive correctness checks
 
 ## W6 Go Modularization
 - Goal: turn the backend into a maintainable, testable layered service.
@@ -136,6 +144,14 @@
 - Tasks: shrink `main.go` to assembly, separate HTTP/service/repo layers, extract pure logic, add dependency boundaries and test seams.
 - Gate: core logic is no longer trapped in `main.go` and can be unit-tested.
 - Parallel lanes: handler split, service split, repo abstraction.
+- Current status: in_progress.
+- Current gaps:
+  - config loading plus mux/server assembly are being extracted, but handlers, SQL, and domain rules still live in `main.go`
+  - `cmd/flux-board` and deeper layer splits remain for later W6 slices
+- Corrected gate checklist:
+  - config loading is no longer embedded directly in startup logic
+  - mux/server assembly is separated from the rest of the business logic
+  - later W6 work must still extract handlers, services, repositories, and pure domain rules
 
 ## W7 Frontend Foundation
 - Goal: replace the monolithic HTML with a modern, maintainable frontend base.
@@ -192,30 +208,30 @@
  - `W4-P3` Brute-force defense: status `done` for the current scope. Throttling and auth audit logging exist, and infra failures are distinguished from bad credentials. Parallel: can reuse W3 middleware pieces.
  - `W4-P4` Session control: status `done` for the current scope. Expiry cleanup, logout invalidation, protected-route error handling, and DB-backed auth verification are all proven. Parallel: with test groundwork.
 ### W5
-- `W5-P1` Formal migrations: add migration toolchain, up/down files, CI validation. Done: schema changes are replayable and rollbackable. Parallel: with W6 repo work.
-- `W5-P2` Normalized model: redesign `boards/lists/cards/archive/sessions`, add FK / NOT NULL / CHECK / index. Done: DB enforces core invariants. Parallel: schema and query lanes can split.
-- `W5-P3` Reorder correctness: move reorder to transactional batch update and remove `MAX()+1` races. Done: ordering survives concurrency and reload. Parallel: with frontend drag API design.
-- `W5-P4` Archive correctness: verify archive, restore, delete, and `rows.Err()` handling. Done: CRUD and archive flows have no silent failure. Parallel: with integration tests.
+- `W5-P1` Formal migrations: status `in_progress`. Versioned migration baseline is landing with recorded migration history, but up/down strategy and broader validation still remain. Parallel: with W6 repo work.
+- `W5-P2` Normalized model: status `planned`. Stronger constraints and additional indexes still need to be introduced carefully after migration baseline stabilizes. Parallel: schema and query lanes can split.
+- `W5-P3` Reorder correctness: status `planned`. Transactional reorder and `MAX()+1` race removal are still open. Parallel: with frontend drag API design.
+- `W5-P4` Archive correctness: status `planned`. Dedicated archive/restore correctness work and regression coverage still remain. Parallel: with integration tests.
 ### W6
-- `W6-P1` Assembly-only main: move bootstrap into `cmd/`, config, router, startup wiring. Done: `main.go` no longer owns business logic. Parallel: pure structural move first.
-- `W6-P2` Layer split: separate handler, service, postgres repo with DI boundaries. Done: each layer is replaceable and testable. Parallel: coordinate with W5 query changes.
-- `W6-P3` Pure rules and domain errors: extract validation, ordering, mapping, error taxonomy. Done: core rules are unit-testable without HTTP/DB. Parallel: good subagent slice.
-- `W6-P4` Test seams: add mocks, fixtures, handler/service tests, repo test seams. Done: major flows have repeatable unit/integration coverage. Parallel: tie into W2 CI.
+- `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are being extracted, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
+- `W6-P2` Layer split: status `planned`. Handler/service/repo separation still remains. Parallel: coordinate with W5 query changes.
+- `W6-P3` Pure rules and domain errors: status `planned`. Core rules are still embedded in the main package and need extraction. Parallel: good subagent slice.
+- `W6-P4` Test seams: status `planned`. More explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
 ### W7
-- `W7-P1` Frontend scaffold: create `web/`, React + TypeScript + Vite, routing, startup flow. Done: app builds, typechecks, and runs locally. Parallel: can overlap late W6.
-- `W7-P2` Data layer: add API client, auth guard, TanStack Query, error handling. Done: frontend reads API with stable loading/error states. Parallel: with W7-P3.
-- `W7-P3` Design system: define tokens, CSS variables, shell layout, base component rules. Done: spacing, color, type, breakpoints are reusable. Parallel: with W7-P2.
-- `W7-P4` Page skeletons: build Board/Login/Base pages, page containers, empty states. Done: new UI shell works without single-file dependency. Parallel: after W7-P1.
+- `W7-P1` Frontend scaffold: status `planned`. React + TypeScript + Vite app not started yet. Parallel: can overlap late W6.
+- `W7-P2` Data layer: status `planned`. API client and query layer not started yet. Parallel: with W7-P3.
+- `W7-P3` Design system: status `planned`. Tokenized design system not started yet. Parallel: with W7-P2.
+- `W7-P4` Page skeletons: status `planned`. New UI shell work not started yet. Parallel: after W7-P1.
 ### W8
-- `W8-P1` Core board UI: implement board/list/card CRUD and archive/restore entry points. Done: core board actions complete with consistent UI. Parallel: with W8-P2.
-- `W8-P2` Drag and reorder: use `dnd-kit`, optimistic update, rollback, sync to reorder API. Done: mouse/touch/keyboard can move cards. Parallel: depends on W5 reorder API.
-- `W8-P3` Non-drag movement: add move menu, move-to-list, up/down actions. Done: movement does not depend on drag-and-drop alone. Parallel: with W8-P2.
-- `W8-P4` RWD and a11y: mobile-first layouts, 44px hit areas, focus trap, focus-visible, dialog/menu behavior. Done: desktop/tablet/mobile and keyboard all pass core flows. Parallel: with W8-P1.
+- `W8-P1` Core board UI: status `planned`. New board/list/card UI work has not started yet. Parallel: with W8-P2.
+- `W8-P2` Drag and reorder: status `planned`. `dnd-kit` work depends on later W5 reorder API. Parallel: depends on W5 reorder API.
+- `W8-P3` Non-drag movement: status `planned`. Explicit move controls not started yet. Parallel: with W8-P2.
+- `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: add backend unit/integration, frontend component tests, Playwright E2E. Done: core flows are automatically testable and repeatable. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: finalize GitHub Actions, release notes, rollback, versioning. Done: CI is stable and release process is reproducible. Parallel: partial dependency on W9-P1.
-- `W9-P3` Observability: add health/readiness, structured logs, metrics, slow-query logging. Done: issues are monitorable and diagnosable. Parallel: with W9-P2.
-- `W9-P4` Enterprise extension seams: reserve RBAC/SSO/workspace hooks and document them. Done: architecture can grow without harming public-fork simplicity. Parallel: after W7-W8 stabilize.
+- `W9-P1` Test gates: status `planned`. Broader backend/frontend/E2E gates remain for later waves. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `planned`. Release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P3` Observability: status `planned`. Health/readiness/metrics/logging beyond the current baseline remain open. Parallel: with W9-P2.
+- `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
 ## Execution Log
 - 2026-04-16 | W0 / Planning / Master Plan | done | Created condensed 10-wave master plan and resumable logging protocol | Master plan established in `docs/MASTER_PLAN.md` | Next: decompose W0 into executable epics/tasks and start baseline audit | Risk: none
@@ -239,3 +255,5 @@
 - 2026-04-16 | W1-W2 / Tracked-history and fresh-clone proof | done | Created branch `codex/w1-w2-w4-closeout`, committed the W1/W2/W4 baseline, and validated a clean clone by checking `.env.example`, running `./scripts/verify-go.ps1`, running `npm ci`, and syntax-checking the repo-owned smoke script | W1 now has tracked-history proof and a clean-clone reproducibility record for the current scope | Next: observe GitHub Actions before closing W2 | Risk: clean-clone runtime app startup still depends on a database-capable environment
 - 2026-04-16 | W2 / Smoke failure bounded for diagnosis | done | Added request-level and overall smoke timeouts plus workflow-level timeout so browser smoke can no longer hang indefinitely in CI | W2 failure mode is now actionable instead of silent hanging | Next: fix the root cause behind the first smoke 401 and rerun CI | Risk: none
 - 2026-04-16 | W2-W4 / CI contamination fix and clean-environment proof | done | Removed the duplicate DB-backed auth test that polluted the default CI schema, reran the PR workflow, and observed a green GitHub Actions run for `go test`, `go vet`, `go build`, app startup, and browser smoke on run `24494722677` | W2 is now proven on a clean environment, and W4 has observed DB-backed auth/session evidence plus browser smoke proof for the current single-admin baseline | Next: keep future auth evolution and multi-user work in later waves, not by reopening W4 scope silently | Risk: later waves still need multi-user/OIDC and richer session controls
+- 2026-04-16 | W0-W4 / Final verification pass | done | Re-ran local backend verification, rechecked latest CI on head `d64348f`, and confirmed the latest green workflow run `24494839272` still covers clean-environment boot, DB-backed auth tests, and browser smoke; aligned deployment docs with the tracked smoke credential requirement | W0-W4 are now re-verified and closed for their current documented scope | Next: begin W5 migration baseline and W6 startup extraction without reopening earlier waves | Risk: W1/W4 completion is scoped to the current single-admin + embedded-frontend baseline, not later-wave enterprise targets
+- 2026-04-16 | W5-W6 / First execution slice | in_progress | Started W5 migration baseline by introducing versioned SQL migrations and migration history tracking; started W6 bootstrap extraction by moving config loading into `internal/config` and moving mux/server assembly into dedicated startup files | W5 and W6 are now active with a low-risk first slice that preserves current behavior while creating room for deeper schema and modularization work | Next: validate migration history in DB-capable tests, then continue with reorder correctness and deeper layer extraction | Risk: `main.go` still owns handlers and SQL, and W5 has not yet addressed reorder races or stronger constraints
