@@ -35,8 +35,8 @@
 | W2 | CI and Reproducibility | Main agent | done | CI stable on clean env |
 | W3 | Server Security Hardening | Main agent | done | No obvious public-deploy security gaps |
 | W4 | Auth and Session Redesign | Main agent | done | Shared-password model retired for the current single-admin baseline |
-| W5 | Schema and Data Integrity | Main agent | planned | Migrations and reorder correctness verified |
-| W6 | Go Modularization | Main agent | planned | Core logic testable and layered |
+| W5 | Schema and Data Integrity | Main agent | done | Migrations and reorder correctness verified |
+| W6 | Go Modularization | Main agent | in_progress | Core logic testable and layered |
 | W7 | Frontend Foundation | Main agent | planned | New React frontend builds and talks to API |
 | W8 | Trello-grade UX, RWD, A11y | Main agent | planned | Mouse/touch/keyboard all pass core flows |
 | W9 | Quality Gates, Release, Enterprise Hooks | Main agent | in_progress | Public-fork release ready |
@@ -128,14 +128,15 @@
 - Tasks: add versioned migrations, enforce FK/CHECK/indexes, move reorder to transactional batch updates, verify archive/restore correctness.
 - Gate: schema changes are reproducible and board ordering remains correct after reload and concurrent writes.
 - Parallel lanes: migration setup, DB constraints, reorder API.
-- Current status: in_progress.
+- Current status: done for the current single-board scope.
 - Current gaps:
-  - versioned migration baseline is now landing, but reorder correctness and stricter DB invariants are still open
-  - archive/restore correctness still needs dedicated W5 regression coverage beyond the current W4 auth path
+  - broader multi-board/domain normalization remains deferred to later waves
 - Corrected gate checklist:
   - a versioned migration baseline exists and can initialize a fresh database
   - migration history is recorded in the database
-  - later W5 work must still add reorder correctness, stronger constraints, and archive correctness checks
+  - task/archive schema constraints exist for the current single-board scope
+  - reorder correctness is handled by a dedicated transactional endpoint
+  - archive/restore keeps lane ordering stable for the current scope and is covered by integration tests
 
 ## W6 Go Modularization
 - Goal: turn the backend into a maintainable, testable layered service.
@@ -145,7 +146,7 @@
 - Parallel lanes: handler split, service split, repo abstraction.
 - Current status: in_progress.
 - Current gaps:
-  - config loading plus mux/server assembly are being extracted, but handlers, SQL, and domain rules still live in `main.go`
+  - config loading plus mux/server assembly are extracted, and task reorder logic now lives in its own file, but handlers, SQL, and most domain rules still live in `main.go`
   - `cmd/flux-board` and deeper layer splits remain for later W6 slices
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
@@ -174,8 +175,8 @@
 - Parallel lanes: QA, release engineering, observability, enterprise design.
 - Current status: in_progress.
 - Current gaps:
-  - CI quality gates are tightening, but browser matrix, release flow, and observability remain mostly untouched
-  - the current workflow still carries a GitHub-hosted Node runtime deprecation warning that should be handled in a later W9 slice
+  - CI quality gates now cover richer browser smoke for login/create/archive/restore, but browser matrix, release flow, and observability remain mostly untouched
+  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, but an observed green remote run is still required before that slice can be considered fully proven
 - Corrected gate checklist:
   - CI runs cache-busted Go tests and race detection
   - later W9 work must still add broader browser/release/observability gates
@@ -214,12 +215,12 @@
  - `W4-P3` Brute-force defense: status `done` for the current scope. Throttling and auth audit logging exist, and infra failures are distinguished from bad credentials. Parallel: can reuse W3 middleware pieces.
  - `W4-P4` Session control: status `done` for the current scope. Expiry cleanup, logout invalidation, protected-route error handling, and DB-backed auth verification are all proven. Parallel: with test groundwork.
 ### W5
-- `W5-P1` Formal migrations: status `in_progress`. Versioned migration baseline is landing with recorded migration history, but up/down strategy and broader validation still remain. Parallel: with W6 repo work.
-- `W5-P2` Normalized model: status `planned`. Stronger constraints and additional indexes still need to be introduced carefully after migration baseline stabilizes. Parallel: schema and query lanes can split.
-- `W5-P3` Reorder correctness: status `planned`. Transactional reorder and `MAX()+1` race removal are still open. Parallel: with frontend drag API design.
-- `W5-P4` Archive correctness: status `planned`. Dedicated archive/restore correctness work and regression coverage still remain. Parallel: with integration tests.
+- `W5-P1` Formal migrations: status `done`. Versioned migrations, recorded checksums, and schema baseline validation now initialize a fresh database repeatably. Parallel: with W6 repo work.
+- `W5-P2` Normalized model: status `done` for the current single-board scope. Stronger task/archive constraints and stored archived sort order now protect the current schema. Parallel: broader domain normalization remains deferred.
+- `W5-P3` Reorder correctness: status `done` for the current scope. Transactional reorder endpoint, lane advisory locks, and `MAX()+1` race removal are now in place. Parallel: later W8 UI work can build on this API.
+- `W5-P4` Archive correctness: status `done` for the current scope. Archive/restore now preserves lane position semantics and is covered by integration plus browser smoke. Parallel: future retention/reporting work remains separate.
 ### W6
-- `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are being extracted, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
+- `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are extracted, and reorder logic has begun moving into dedicated files, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
 - `W6-P2` Layer split: status `planned`. Handler/service/repo separation still remains. Parallel: coordinate with W5 query changes.
 - `W6-P3` Pure rules and domain errors: status `planned`. Core rules are still embedded in the main package and need extraction. Parallel: good subagent slice.
 - `W6-P4` Test seams: status `planned`. More explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
@@ -234,8 +235,8 @@
 - `W8-P3` Non-drag movement: status `planned`. Explicit move controls not started yet. Parallel: with W8-P2.
 - `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: status `in_progress`. CI is tightening with cache-busted Go tests and race detection, but broader frontend/E2E gates still remain. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening is underway, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P1` Test gates: status `in_progress`. CI now includes richer browser smoke for login/create/archive/restore plus existing Go gates, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `planned`. Health/readiness/metrics/logging beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -265,3 +266,6 @@
 - 2026-04-16 | W5-W6 / First execution slice | in_progress | Started W5 migration baseline by introducing versioned SQL migrations and migration history tracking; started W6 bootstrap extraction by moving config loading into `internal/config` and moving mux/server assembly into dedicated startup files | W5 and W6 are now active with a low-risk first slice that preserves current behavior while creating room for deeper schema and modularization work | Next: validate migration history in DB-capable tests, then continue with reorder correctness and deeper layer extraction | Risk: `main.go` still owns handlers and SQL, and W5 has not yet addressed reorder races or stronger constraints
 - 2026-04-16 | W5-W6 / First slice validation | done | Fixed CI env isolation in the new config tests, reran local verification, and observed green GitHub Actions run `24495401377` for the W5/W6 startup+migration slice | The first W5/W6 slice now has local and clean-environment CI proof without reopening W0-W4 | Next: move W5 into reorder correctness and stronger schema guarantees, and move W6 into deeper handler/service/repo extraction | Risk: migration baseline still needs future down/rollback strategy and reorder work remains open
 - 2026-04-16 | W9 / First quality-gate tightening slice | in_progress | Tightened CI toward W9 by switching cache-busted Go tests, adding race detection in CI, and moving smoke tooling to Node 22 while keeping local verification lightweight | W9 is now active without blocking W5/W6, and CI quality gates are stronger for upcoming backend/frontend work | Next: verify the tightened workflow on GitHub Actions, then decide whether to add release/observability or browser-matrix work next | Risk: GitHub-hosted JS action runtime deprecation warnings still remain and need a later W9-specific pass
+- 2026-04-16 | W5 / Transactional reorder and archive integrity | done | Added a dedicated reorder endpoint, lane advisory locks, stronger task/archive constraints, archived sort-order retention, and integration coverage for reorder plus archive/restore semantics; updated the embedded frontend to call the new reorder path and stop relying on client-written `sort_order` | W5 is now complete for the current single-board scope, and the old `MAX(sort_order)+1` / single-task reorder drift path is retired | Next: continue W6 modularization while keeping W7 deferred until the backend seam is calmer | Risk: future concurrent stress tests can deepen proof, but no blocking correctness issue remains for the current scope
+- 2026-04-16 | W5-W9 / Local Docker-backed verification | done | Ran `go test -count=1 ./...` against a temporary PostgreSQL container, expanded the Playwright smoke from auth-only to login/create/archive/restore/logout, and verified the upgraded smoke path end to end against a Docker-backed local app | The current W5 changes now have local DB-backed integration proof and browser smoke proof, not just compile-time or unit-level evidence | Next: push this slice and observe the remote GitHub Actions run with the richer smoke coverage | Risk: local Windows could not run `go test -race` because CGO is disabled, so final race proof still depends on Linux CI
+- 2026-04-16 | W9 / Node 24 JavaScript action runtime pilot | in_progress | Updated the GitHub Actions workflow to opt into GitHub's Node 24 JavaScript action runtime pilot while keeping the existing backend and smoke pipeline intact | W9 now has a concrete path to clear the hosted Node 20 deprecation warning without reopening W5/W6 code paths | Next: observe a green remote Actions run with the pilot enabled and decide whether any action versions still need later upgrades | Risk: this slice needs an observed GitHub-hosted success run before it can be treated as fully proven

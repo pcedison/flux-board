@@ -20,6 +20,7 @@ func newMux(app *App) (*http.ServeMux, error) {
 	mux.HandleFunc("GET /api/tasks", app.auth(app.handleGetTasks))
 	mux.HandleFunc("POST /api/tasks", app.auth(app.handleCreateTask))
 	mux.HandleFunc("PUT /api/tasks/{id}", app.auth(app.handleUpdateTask))
+	mux.HandleFunc("POST /api/tasks/{id}/reorder", app.auth(app.handleReorderTask))
 	mux.HandleFunc("DELETE /api/tasks/{id}", app.auth(app.handleArchiveTask))
 
 	mux.HandleFunc("GET /api/archived", app.auth(app.handleGetArchived))

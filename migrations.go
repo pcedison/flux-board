@@ -34,6 +34,18 @@ var requiredSchemaObjects = []string{
 	"idx_auth_audit_logs_created_at",
 }
 
+var requiredSchemaConstraints = []string{
+	"tasks_status_allowed",
+	"tasks_priority_allowed",
+	"tasks_due_format",
+	"tasks_sort_order_nonnegative",
+	"tasks_status_sort_order_unique",
+	"archived_tasks_status_allowed",
+	"archived_tasks_priority_allowed",
+	"archived_tasks_due_format",
+	"archived_tasks_sort_order_nonnegative",
+}
+
 func (a *App) initSchema() error {
 	if err := runMigrations(context.Background(), a.db); err != nil {
 		return err
@@ -161,6 +173,24 @@ func validateSchemaBaseline(ctx context.Context, conn *pgxpool.Conn) error {
 		}
 		if resolved == "" {
 			return fmt.Errorf("required schema object %s is missing after migrations", objectName)
+		}
+	}
+	for _, constraintName := range requiredSchemaConstraints {
+		var exists bool
+		if err := conn.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_constraint c
+				JOIN pg_class r ON r.oid = c.conrelid
+				JOIN pg_namespace n ON n.oid = r.relnamespace
+				WHERE c.conname = $1
+				  AND n.nspname = current_schema()
+			)
+		`, constraintName).Scan(&exists); err != nil {
+			return fmt.Errorf("validate schema constraint %s: %w", constraintName, err)
+		}
+		if !exists {
+			return fmt.Errorf("required schema constraint %s is missing after migrations", constraintName)
 		}
 	}
 	return nil
