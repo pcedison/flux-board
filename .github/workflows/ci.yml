@@ -44,27 +44,27 @@ jobs:
         with:
           go-version: "1.22"
 
-      - name: Verify formatting context
-        run: go version
-
-      - name: Test
-        run: go test -count=1 ./...
-
-      - name: Race test
-        run: go test -race -count=1 ./...
-
-      - name: Vet
-        run: go vet ./...
-
-      - name: Build
-        run: go build -o flux-board .
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Install Node dependencies
+      - name: Verify formatting context
+        run: go version
+
+      - name: Verify Go
+        run: ./scripts/verify-go.sh
+
+      - name: Verify Go race
+        run: ./scripts/verify-go-race.sh
+
+      - name: Build app binary
+        run: go build -o flux-board .
+
+      - name: Verify web scaffold
+        run: ./scripts/verify-web.sh
+
+      - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
 
       - name: Install Playwright browsers
