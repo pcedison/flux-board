@@ -21,6 +21,9 @@ vendor/
 node_modules/
 playwright-report/
 test-results/
+server-*.log
+server-*.out.log
+server-*.err.log
 step1-loaded.png
 step5-after-login.png
 
