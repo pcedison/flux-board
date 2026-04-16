@@ -38,7 +38,7 @@
 | W5 | Schema and Data Integrity | Main agent | done | Migrations and reorder correctness verified |
 | W6 | Go Modularization | Main agent | in_progress | Core logic testable and layered |
 | W7 | Frontend Foundation | Main agent | in_progress | New React frontend builds and talks to API |
-| W8 | Trello-grade UX, RWD, A11y | Main agent | planned | Mouse/touch/keyboard all pass core flows |
+| W8 | Trello-grade UX, RWD, A11y | Main agent | in_progress | Mouse/touch/keyboard all pass core flows |
 | W9 | Quality Gates, Release, Enterprise Hooks | Main agent | in_progress | Public-fork release ready |
 
 ## W0 Baseline Audit
@@ -146,14 +146,15 @@
 - Parallel lanes: handler split, service split, repo abstraction.
 - Current status: in_progress.
 - Current gaps:
-  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, and task reorder persistence are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
+  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, task reorder persistence, and task mutation validation/service flow are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
   - `cmd/flux-board` and deeper layer splits remain for later W6 slices
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
   - mux/server assembly is separated from the rest of the business logic
   - auth/session and task/archive HTTP handlers are no longer embedded in `main.go`
   - task/archive CRUD persistence now has an explicit repository seam
-  - later W6 work must still extract services, repositories, and pure domain rules
+  - task mutation validation and reorder preconditions now have a dedicated service seam
+  - later W6 work must still extract deeper services, repositories, and pure domain rules
 
 ## W7 Frontend Foundation
 - Goal: replace the monolithic HTML with a modern, maintainable frontend base.
@@ -163,13 +164,13 @@
 - Parallel lanes: design system, API layer, shell and routing.
 - Current status: in_progress.
 - Current gaps:
-  - the new `web/` app now builds, typechecks, runs a small Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, and has auth-aware `/login` plus guarded `/board` routes, but board mutations remain deferred
+  - the new `web/` app now builds, typechecks, runs a small Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, has auth-aware `/login` plus guarded `/board` routes, and now exercises create/move/archive/restore mutations in the isolated shell
   - deployment/runtime integration with the existing app remains deferred to later W7/W8 slices
 - Corrected gate checklist:
   - `web/` has a tracked React + TypeScript + Vite scaffold
-  - routing, typed API reads, and a query layer exist for the current read-only scope
+  - routing, typed API reads, typed task mutations, and a query layer exist for the current isolated-shell scope
   - the scaffold has a responsive shell and can build/typecheck/test in CI and locally
-  - later W7/W8 work must still add board mutation flows and runtime integration with the existing app
+  - later W7/W8 work must still add runtime integration with the existing app, drag-and-drop enhancement, and broader UX polish
 
 ## W8 Trello-grade UX, RWD, and Accessibility
 - Goal: deliver rich board interactions that work on desktop, tablet, and mobile.
@@ -177,6 +178,14 @@
 - Tasks: implement CRUD UI, drag-and-drop as progressive enhancement, touch fallback, keyboard move controls, dialog/menu focus management, 44px targets, browser matrix checks.
 - Gate: core board movement works via mouse, touch, and keyboard; mobile and tablet are first-class; drag-and-drop is not the only path.
 - Parallel lanes: board UI, drag/drop, RWD, a11y verification.
+- Current status: in_progress.
+- Current gaps:
+  - the isolated React board now has non-drag create/move/archive/restore plus lane-local move up/down fallback with field-level validation and live status feedback, but drag-and-drop, keyboard-first reordering polish, and full mobile-first layout work still remain
+  - the embedded production runtime is still the single-file frontend, so W8 remains isolated until later integration waves
+- Corrected gate checklist:
+  - a non-drag movement path now exists in the isolated React board
+  - current mutation controls are button-based and work without hover-only affordances
+  - later W8 work must still add drag-and-drop as progressive enhancement, deeper accessibility polish, and runtime ownership
 
 ## W9 Quality Gates, Release, and Enterprise Hooks
 - Goal: make the project release-ready and extensible toward enterprise features.
@@ -233,19 +242,19 @@
 - `W5-P4` Archive correctness: status `done` for the current scope. Archive/restore now preserves lane position semantics and is covered by integration plus browser smoke. Parallel: future retention/reporting work remains separate.
 ### W6
 - `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are extracted, and reorder logic has begun moving into dedicated files, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
- - `W6-P2` Layer split: status `in_progress`. Auth/session plus task/archive/reorder HTTP boundaries and task repository seams are now extracted into dedicated files, but broader service/repo separation still remains. Parallel: coordinate with W5 query changes.
- - `W6-P3` Pure rules and domain errors: status `planned`. Core rules are still embedded in the main package and need extraction. Parallel: good subagent slice.
- - `W6-P4` Test seams: status `in_progress`. Route wiring, probe coverage, and task handler/repository seam coverage now exist, but more explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
+- `W6-P2` Layer split: status `in_progress`. Auth/session plus task/archive/reorder HTTP boundaries, task repository seams, and a first task service seam for validation and reorder preconditions are now extracted into dedicated files, but broader service/repo separation still remains. Parallel: coordinate with W5 query changes.
+- `W6-P3` Pure rules and domain errors: status `in_progress`. Task payload validation and reorder preconditions now sit behind a service seam, but broader domain rules are still embedded in the main package. Parallel: good subagent slice.
+- `W6-P4` Test seams: status `in_progress`. Route wiring, probe coverage, task handler/repository seam coverage, and task service tests now exist, but more explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
 ### W7
 - `W7-P1` Frontend scaffold: status `done` for the current scope. A tracked React + TypeScript + Vite scaffold now exists under `web/`. Parallel: can overlap late W6.
-- `W7-P2` Data layer: status `in_progress`. Typed API reads, an auth-session hook, a scoped login mutation for the current auth route, a React Query snapshot hook, and a frontend unit-test baseline now exist, but board mutation flows remain later work. Parallel: with W7-P3.
+- `W7-P2` Data layer: status `in_progress`. Typed API reads, an auth-session hook, scoped login/task mutations, a React Query snapshot hook, and a frontend unit-test baseline now exist in the isolated shell. Parallel: with W7-P3.
 - `W7-P3` Design system: status `in_progress`. Tokenized CSS variables and a responsive shell exist, but the full board design system remains later work. Parallel: with W7-P2.
-- `W7-P4` Page skeletons: status `in_progress`. Overview, login, and guarded board snapshot routes exist for the current read-only scope and now have unit-test coverage, but full feature/runtime integration remains incomplete. Parallel: after W7-P1.
+- `W7-P4` Page skeletons: status `in_progress`. Overview, login, and guarded board snapshot routes exist for the current isolated-shell scope, including explicit create/move/archive/restore actions and unit-test coverage, but full feature/runtime integration remains incomplete. Parallel: after W7-P1.
 ### W8
-- `W8-P1` Core board UI: status `planned`. New board/list/card UI work has not started yet. Parallel: with W8-P2.
+- `W8-P1` Core board UI: status `in_progress`. The isolated React board now renders create/move/archive/restore controls around board/list/card layout, but richer interaction polish still remains. Parallel: with W8-P2.
 - `W8-P2` Drag and reorder: status `planned`. `dnd-kit` work depends on later W5 reorder API. Parallel: depends on W5 reorder API.
-- `W8-P3` Non-drag movement: status `planned`. Explicit move controls not started yet. Parallel: with W8-P2.
-- `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
+- `W8-P3` Non-drag movement: status `in_progress`. Explicit create/move/archive/restore controls plus lane-local move-up/move-down fallback now exist in the isolated React board so drag-and-drop is no longer the only future path. Parallel: with W8-P2.
+- `W8-P4` RWD and a11y: status `in_progress`. The isolated board now has 44px targets, field-level validation, focus recovery, and live status feedback, but deeper mobile-first layout and keyboard interaction work still remain. Parallel: with W8-P1.
 ### W9
 - `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, and richer browser smoke for login/create/archive/restore, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
 - `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot and repo-owned verification scripts as the CI source of truth, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
@@ -292,3 +301,6 @@
 - 2026-04-16 | W6 / Reorder repository seam | done | Moved reorder transaction orchestration behind `TaskRepository.ReorderTask`, added an invalid-anchor domain error, and covered the thinner handler mapping with repository-seam tests | W6 now keeps CRUD, archive, and reorder persistence out of the HTTP layer, reducing direct SQL in handlers | Next: keep shrinking `main` by extracting pure domain rules and deeper service seams | Risk: most domain logic still lives in the `main` package
 - 2026-04-16 | W7 / Auth-aware routing slice | done | Added a guarded `/board` route, a lightweight `/login` page, an auth-session query hook, and route-level frontend tests while keeping the new shell read-only for board data | The new frontend now models authenticated vs unauthenticated flow without taking ownership of board mutations yet | Next: add board mutation architecture and runtime integration before W8 interaction work | Risk: the React shell is still isolated and not yet the production runtime owner
 - 2026-04-16 | W9 / Probe contract and local verification | done | Added unauthenticated `/healthz` and `/readyz` handlers with explicit no-store headers, switched CI/deployment readiness checks to `/readyz`, added unit/integration probe coverage, and reran `verify-go`, `verify-go-race`, `verify-web`, plus Docker-backed local DB/browser smoke | Operability is now less coupled to auth semantics, and this W6/W7/W9 slice has local backend, frontend, race, integration, and browser proof | Next: observe the updated CI on GitHub, then continue deeper W6 structure work and later W9 observability/release slices | Risk: probes remain intentionally minimal and broader browser-matrix/release work is still open
+- 2026-04-16 | W6 / Task mutation service seam | done | Added `task_service.go` so create/update/reorder validation and precondition checks now sit behind a task service instead of living only in handlers, then added service and HTTP-mapping tests to keep the transport contract stable | W6 now has a clearer HTTP -> service -> repository progression for task mutations without changing the live API surface | Next: keep extracting deeper domain rules and a future `cmd/` entrypoint without reopening handler correctness | Risk: the service seam still lives in the `main` package and broader domain extraction remains open
+- 2026-04-16 | W7-W8 / Initial non-drag mutation path | done | Extended the isolated React board to create, move, archive, and restore tasks through typed API helpers plus React Query mutations, then added field-level validation, focus recovery, live status feedback, and frontend tests around the new controls | W7 now owns the first write-path in the isolated shell, and W8 is officially active because the future frontend no longer depends on drag-and-drop as its only movement model | Next: keep W8 focused on progressive enhancement, keyboard/touch polish, and eventual runtime integration instead of jumping straight to drag-and-drop | Risk: the React shell is still isolated from production runtime ownership, and full mobile-first/browser-matrix work remains open
+- 2026-04-16 | W6-W8 / Service seam tightening and lane-local fallback | done | Added direct handler-to-service seam coverage for task creation, then expanded the isolated React board with lane-local move-up/move-down fallback, a global board feedback banner, and richer tests around non-drag mutations | W6 now has more direct evidence that handlers honor the new service seam, and W8 now covers lane-local ordering without requiring drag-and-drop | Next: continue W6 deeper domain extraction, and keep W8 focused on keyboard/touch polish plus future drag enhancement | Risk: production runtime ownership is still the embedded frontend, and broader browser-matrix work remains open

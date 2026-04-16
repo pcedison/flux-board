@@ -35,20 +35,15 @@ func (a *App) handleReorderTask(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, taskBodyLimit, &req) {
 		return
 	}
-	if !validStatus(req.Status) {
-		writeError(w, http.StatusBadRequest, "invalid status")
-		return
-	}
-	if req.AnchorTaskID == id {
-		writeError(w, http.StatusBadRequest, "anchor task cannot match task id")
-		return
-	}
-
-	task, err := a.taskRepository().ReorderTask(r.Context(), id, taskReorderInput{
+	task, err := a.taskService().ReorderTask(r.Context(), id, taskReorderInput{
 		Status:       req.Status,
-		AnchorTaskID: strings.TrimSpace(req.AnchorTaskID),
+		AnchorTaskID: req.AnchorTaskID,
 		PlaceAfter:   req.PlaceAfter,
 	})
+	if isTaskValidationError(err) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if errors.Is(err, errTaskNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return

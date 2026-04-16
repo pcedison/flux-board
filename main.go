@@ -93,6 +93,7 @@ type authAuditEvent struct {
 type App struct {
 	db                *pgxpool.Pool
 	taskRepo          TaskRepository
+	taskSvc           TaskService
 	bootstrapPassword string
 	cookieSecure      bool
 	loginMu           sync.Mutex
