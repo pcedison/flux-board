@@ -43,6 +43,7 @@ go run .
 ```
 
 Open `http://localhost:8080`.
+If `web/dist` has been built, the Go server also exposes the React preview shell on `http://localhost:8080/next/` while keeping the embedded frontend on `/`.
 
 Health probes for local or hosted verification:
 - `GET /healthz` returns `200` once the HTTP process is running
@@ -111,6 +112,18 @@ export PLAYWRIGHT_BROWSER=chromium
 These smoke scripts now build the Go app, start it locally, wait for `/readyz`, run the repo-owned Playwright smoke flow, keep logs under `test-results/`, and clean up the app process automatically.
 `PLAYWRIGHT_BROWSER` defaults to `chromium`; CI now also runs the same smoke path against `firefox` as the first non-Chromium browser gate.
 
+Preview-route smoke for the Go-served React shell:
+```powershell
+./scripts/verify-next-preview.ps1
+```
+
+On macOS/Linux:
+```sh
+./scripts/verify-next-preview.sh
+```
+
+These scripts verify the `web/` scaffold, build `web/dist`, then run a dedicated Playwright smoke flow against `/next/login` and `/next/board` without replacing the legacy `/` runtime.
+
 For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
 Observed API and probe responses now include `X-Request-Id`, and the Go server logs matching request IDs with client, method, path, status, bytes, and duration for `/api/*`, `/healthz`, and `/readyz`.
 
@@ -139,6 +152,7 @@ These scripts build a versionable binary artifact, emit a SHA-256 checksum, and 
 - [auth_context.go](auth_context.go): shared auth context and client-IP helpers
 - [auth_runtime.go](auth_runtime.go): login throttling and token-generation runtime helpers
 - [auth_service.go](auth_service.go): auth/session persistence and audit helpers behind the transport layer
+- [web_preview.go](web_preview.go): Go-served `/next/` React preview route with SPA fallback for built `web/dist`
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
 - [server_observability.go](server_observability.go): request-id and access-log middleware at the server boundary
 - [tasks_http.go](tasks_http.go): task and archive HTTP handlers
@@ -155,9 +169,9 @@ These scripts build a versionable binary artifact, emit a SHA-256 checksum, and 
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, and basic focus continuity, but the future React/Vite frontend is still not deployed or the production runtime owner
+- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, basic focus continuity, and a Go-served `/next/` preview route, but the future React/Vite frontend is still not the production runtime owner
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
-- The current user-facing runtime still depends on a single embedded HTML file until later W7/W8 integration waves
+- The current default user-facing runtime still depends on the embedded HTML shell on `/`; the React app now has a Go-served preview route on `/next/`, but it is not yet the production runtime owner
 - Health/readiness probes and auth audit paths now expose a minimal request-id/access-log correlation baseline, but richer observability such as metrics, tracing, and structured logs remains for later W9 slices
 - Release governance now has a first dry-run and rollback baseline, but there is still no versioning/changelog policy or multi-platform release matrix
 

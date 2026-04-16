@@ -9,6 +9,7 @@ app_binary=${APP_BINARY:-"./flux-board"}
 ready_attempts=${SMOKE_READY_ATTEMPTS:-60}
 ready_delay_seconds=${SMOKE_READY_DELAY_SECONDS:-2}
 playwright_browser=${PLAYWRIGHT_BROWSER:-"${SMOKE_BROWSER:-chromium}"}
+smoke_script=${SMOKE_SCRIPT:-"smoke:login"}
 
 export TEST_RESULTS_DIR="$results_dir"
 export BASE_URL="$base_url"
@@ -74,8 +75,8 @@ while [ "$attempt" -le "$ready_attempts" ]; do
   attempt=$((attempt + 1))
 done
 
-echo "[4/4] npm run smoke:login (browser=$PLAYWRIGHT_BROWSER)"
-if ! npm run smoke:login; then
+echo "[4/4] npm run $smoke_script (browser=$PLAYWRIGHT_BROWSER)"
+if ! npm run "$smoke_script"; then
   show_server_logs
   exit 1
 fi

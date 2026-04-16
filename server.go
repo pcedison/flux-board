@@ -6,9 +6,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func newMux(app *App) (*http.ServeMux, error) {
@@ -33,6 +30,12 @@ func newMux(app *App) (*http.ServeMux, error) {
 	if err != nil {
 		return nil, fmt.Errorf("static fs: %w", err)
 	}
+	nextPreview, err := newNextPreviewHandler(app.webPreviewFS)
+	if err != nil {
+		return nil, fmt.Errorf("next preview: %w", err)
+	}
+	mux.Handle("GET /next", http.RedirectHandler("/next/", http.StatusPermanentRedirect))
+	mux.Handle("/next/", nextPreview)
 	mux.Handle("/", http.FileServer(http.FS(stripped)))
 	return mux, nil
 }
@@ -48,10 +51,8 @@ func newHTTPServer(port string, handler http.Handler) *http.Server {
 	}
 }
 
-func installGracefulShutdown(server *http.Server) {
-	shutdownSignals, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+func installGracefulShutdown(server *http.Server, shutdownSignals context.Context) {
 	go func() {
-		defer stop()
 		<-shutdownSignals.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()

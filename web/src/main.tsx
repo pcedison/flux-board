@@ -10,7 +10,7 @@ import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/next">
         <App />
       </BrowserRouter>
     </QueryClientProvider>

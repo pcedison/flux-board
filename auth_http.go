@@ -5,9 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
-
-	"github.com/jackc/pgx/v5"
 )
 
 func (a *App) auth(next http.HandlerFunc) http.HandlerFunc {
@@ -18,26 +15,14 @@ func (a *App) auth(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		session, err := a.getActiveSession(r.Context(), cookie.Value)
+		session, err := a.authService().SessionFromToken(r.Context(), cookie.Value, clientIDFromRequest(r))
 		if err != nil {
-			if !errors.Is(err, pgx.ErrNoRows) {
-				a.recordAuthEvent(r.Context(), authAuditEvent{
-					EventType: "session",
-					Outcome:   "error",
-					ClientIP:  clientIDFromRequest(r),
-					Details:   "session lookup error",
-				})
-				writeError(w, http.StatusInternalServerError, "db error")
+			if errors.Is(err, errAuthInvalidSession) {
+				clearSessionCookie(w, a.cookieSecure)
+				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return
 			}
-			a.recordAuthEvent(r.Context(), authAuditEvent{
-				EventType: "session",
-				Outcome:   "invalid",
-				ClientIP:  clientIDFromRequest(r),
-				Details:   "session lookup failed",
-			})
-			clearSessionCookie(w, a.cookieSecure)
-			writeError(w, http.StatusUnauthorized, "unauthorized")
+			writeError(w, http.StatusInternalServerError, "db error")
 			return
 		}
 
@@ -47,18 +32,6 @@ func (a *App) auth(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
-	clientID := clientIDFromRequest(r)
-	if !a.allowLoginAttempt(clientID) {
-		a.recordAuthEvent(r.Context(), authAuditEvent{
-			EventType: "login",
-			Outcome:   "blocked",
-			ClientIP:  clientID,
-			Details:   "too many failed attempts",
-		})
-		writeError(w, http.StatusTooManyRequests, "too many attempts, try again later")
-		return
-	}
-
 	var payload struct {
 		Password string `json:"password"`
 	}
@@ -72,78 +45,36 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	username := bootstrapAdmin
-	match, err := a.verifyLoginPassword(r.Context(), password)
+	authSession, err := a.authService().Authenticate(r.Context(), password, clientIDFromRequest(r))
 	if err != nil {
-		a.recordAuthEvent(r.Context(), authAuditEvent{
-			Username:  username,
-			EventType: "login",
-			Outcome:   "error",
-			ClientIP:  clientID,
-			Details:   "password verification failed",
-		})
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if !match {
-		a.recordFailedLogin(clientID)
-		a.recordAuthEvent(r.Context(), authAuditEvent{
-			Username:  username,
-			EventType: "login",
-			Outcome:   "failed",
-			ClientIP:  clientID,
-		})
-		writeError(w, http.StatusUnauthorized, "invalid password")
+		switch {
+		case errors.Is(err, errAuthBlocked):
+			writeError(w, http.StatusTooManyRequests, "too many attempts, try again later")
+		case errors.Is(err, errAuthInvalidPassword):
+			writeError(w, http.StatusUnauthorized, "invalid password")
+		default:
+			writeError(w, http.StatusInternalServerError, "db error")
+		}
 		return
 	}
 
-	a.clearLoginAttempts(clientID)
-
-	token := newToken()
-	expiry := time.Now().Add(sessionDuration)
-	if err := a.createSession(r.Context(), token, username, clientID, expiry); err != nil {
-		a.recordAuthEvent(r.Context(), authAuditEvent{
-			Username:  username,
-			EventType: "login",
-			Outcome:   "error",
-			ClientIP:  clientID,
-			Details:   "session create failed",
-		})
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	a.recordAuthEvent(r.Context(), authAuditEvent{
-		Username:  username,
-		EventType: "login",
-		Outcome:   "success",
-		ClientIP:  clientID,
-	})
-	setSessionCookie(w, token, expiry, a.cookieSecure)
-	jsonResp(w, map[string]any{"ok": true, "expiresAt": expiry.UnixMilli()})
+	setSessionCookie(w, authSession.Token, authSession.ExpiresAt, a.cookieSecure)
+	jsonResp(w, map[string]any{"ok": true, "expiresAt": authSession.ExpiresAt.UnixMilli()})
 }
 
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
-	clientID := clientIDFromRequest(r)
 	cookie, err := r.Cookie(cookieName)
-	if err == nil {
-		if delErr := a.deleteSession(r.Context(), cookie.Value); delErr != nil {
-			a.recordAuthEvent(r.Context(), authAuditEvent{
-				EventType: "logout",
-				Outcome:   "error",
-				ClientIP:  clientID,
-				Details:   "session delete failed",
-			})
-			writeError(w, http.StatusInternalServerError, "db error")
-			return
-		}
-		a.recordAuthEvent(r.Context(), authAuditEvent{
-			Username:  bootstrapAdmin,
-			EventType: "logout",
-			Outcome:   "success",
-			ClientIP:  clientID,
-		})
+	if err != nil {
+		clearSessionCookie(w, a.cookieSecure)
+		w.WriteHeader(http.StatusOK)
+		return
 	}
+
+	if err := a.authService().Logout(r.Context(), cookie.Value, clientIDFromRequest(r)); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
 	clearSessionCookie(w, a.cookieSecure)
 	w.WriteHeader(http.StatusOK)
 }

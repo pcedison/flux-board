@@ -2,41 +2,47 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 )
 
-func (a *App) startBackgroundLoops() {
-	go a.archiveCleanupLoop()
-	go a.sessionCleanupLoop()
+func (a *App) startBackgroundLoops(ctx context.Context) {
+	go a.runCleanupLoop(ctx, time.Hour, "archive cleanup", a.cleanupArchivedTasks)
+	go a.runCleanupLoop(ctx, sessionCleanupTicker, "session cleanup", a.cleanupExpiredSessions)
 }
 
-// archiveCleanupLoop deletes archived tasks older than archiveRetention every hour.
-func (a *App) archiveCleanupLoop() {
-	ticker := time.NewTicker(time.Hour)
+func (a *App) runCleanupLoop(ctx context.Context, interval time.Duration, label string, cleanup func(context.Context) error) {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		cutoff := time.Now().Add(-archiveRetention).UnixMilli()
-		if _, err := a.db.Exec(context.Background(),
-			`DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff); err != nil {
-			log.Printf("archive cleanup error: %v", err)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cleanupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			err := cleanup(cleanupCtx)
+			cancel()
+			if err != nil && ctx.Err() == nil && !errors.Is(err, context.Canceled) {
+				log.Printf("%s error: %v", label, err)
+			}
 		}
 	}
 }
 
-func (a *App) sessionCleanupLoop() {
-	ticker := time.NewTicker(sessionCleanupTicker)
-	defer ticker.Stop()
+func (a *App) cleanupArchivedTasks(ctx context.Context) error {
+	cutoff := time.Now().Add(-archiveRetention).UnixMilli()
+	_, err := a.db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff)
+	return err
+}
 
-	for range ticker.C {
-		if _, err := a.db.Exec(context.Background(),
-			`DELETE FROM sessions WHERE expires_at < $1 OR revoked_at IS NOT NULL`, time.Now().UnixMilli()); err != nil {
-			log.Printf("session cleanup error: %v", err)
-		}
-	}
+func (a *App) cleanupExpiredSessions(ctx context.Context) error {
+	_, err := a.db.Exec(ctx,
+		`DELETE FROM sessions WHERE expires_at < $1 OR revoked_at IS NOT NULL`, time.Now().UnixMilli())
+	return err
 }
 
 func (a *App) securityHeaders(next http.Handler) http.Handler {
