@@ -44,3 +44,29 @@ func TestDefaultTaskServiceReorderTaskRejectsSelfAnchor(t *testing.T) {
 		t.Fatalf("expected self-anchor validation error, got %v", err)
 	}
 }
+
+func TestDefaultTaskServiceUpdateTaskRejectsMissingID(t *testing.T) {
+	service := defaultTaskService{
+		repo: stubTaskRepository{},
+	}
+
+	_, err := service.UpdateTask(context.Background(), "   ", Task{
+		Title:    "Ship tests",
+		Due:      "2026-04-20",
+		Priority: "medium",
+	})
+	if err == nil || err.Error() != "missing task id" {
+		t.Fatalf("expected missing task id error, got %v", err)
+	}
+}
+
+func TestDefaultTaskServiceArchiveTaskRejectsMissingID(t *testing.T) {
+	service := defaultTaskService{
+		repo: stubTaskRepository{},
+	}
+
+	_, err := service.ArchiveTask(context.Background(), " ")
+	if err == nil || err.Error() != "missing task id" {
+		t.Fatalf("expected missing task id error, got %v", err)
+	}
+}

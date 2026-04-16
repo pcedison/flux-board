@@ -91,12 +91,21 @@ On macOS/Linux:
 
 These scripts now run install, typecheck, frontend unit tests, and production build for `web/`.
 
-Optional browser smoke for the current embedded frontend:
+Browser smoke for the current embedded frontend:
 ```powershell
 npm ci
 $env:FLUX_PASSWORD="your-password"
-npm run smoke:login
+./scripts/verify-smoke.ps1
 ```
+
+On macOS/Linux:
+```sh
+npm ci
+export FLUX_PASSWORD="your-password"
+./scripts/verify-smoke.sh
+```
+
+These smoke scripts now build the Go app, start it locally, wait for `/readyz`, run the repo-owned Playwright smoke flow, keep logs under `test-results/`, and clean up the app process automatically.
 
 For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
 
@@ -109,9 +118,11 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
 - [tasks_http.go](tasks_http.go): task and archive HTTP handlers
 - [task_service.go](task_service.go): task validation and service-layer orchestration for CRUD/reorder flows
+- [task_validation.go](task_validation.go): pure task validation and ID-normalization rules shared by the service seam
 - [static/index.html](static/index.html): current embedded frontend
 - [web/](web): isolated React + TypeScript + Vite scaffold for the future frontend rebuild
 - [web/src/lib/useBoardMutations.ts](web/src/lib/useBoardMutations.ts): React Query mutation layer for the isolated board shell
+- [scripts/verify-smoke.ps1](scripts/verify-smoke.ps1) and [scripts/verify-smoke.sh](scripts/verify-smoke.sh): repo-owned app startup, readiness, Playwright smoke, and cleanup orchestration
 - [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md): master execution plan and progress log
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): current and target architecture
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): current deployment assumptions and post-deploy checks

@@ -25,17 +25,11 @@ type taskReorderRequest struct {
 }
 
 func (a *App) handleReorderTask(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing task id")
-		return
-	}
-
 	var req taskReorderRequest
 	if !decodeJSON(w, r, taskBodyLimit, &req) {
 		return
 	}
-	task, err := a.taskService().ReorderTask(r.Context(), id, taskReorderInput{
+	task, err := a.taskService().ReorderTask(r.Context(), r.PathValue("id"), taskReorderInput{
 		Status:       req.Status,
 		AnchorTaskID: req.AnchorTaskID,
 		PlaceAfter:   req.PlaceAfter,

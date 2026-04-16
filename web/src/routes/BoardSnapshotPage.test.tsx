@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
@@ -220,6 +220,55 @@ describe("BoardSnapshotPage", () => {
         placeAfter: true,
       }),
     );
+  });
+
+  it("exposes lane order semantics for assistive technology", () => {
+    mockSnapshot({
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "queued",
+          sort_order: 0,
+          lastUpdated: 1,
+        },
+        {
+          id: "d",
+          title: "Queue next",
+          note: "",
+          due: "2026-04-23",
+          priority: "high",
+          status: "queued",
+          sort_order: 1,
+          lastUpdated: 4,
+        },
+        {
+          id: "e",
+          title: "Queue later",
+          note: "",
+          due: "2026-04-24",
+          priority: "critical",
+          status: "queued",
+          sort_order: 2,
+          lastUpdated: 5,
+        },
+      ],
+    });
+
+    renderPage();
+
+    const queuedLane = screen.getByRole("region", { name: "Queued" });
+    expect(within(queuedLane).getByText("Use Move up or Move down to reorder cards within the Queued lane.")).toBeInTheDocument();
+
+    const items = within(queuedLane).getAllByRole("listitem");
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveAttribute("aria-posinset", "1");
+    expect(items[0]).toHaveAttribute("aria-setsize", "3");
+    expect(items[1]).toHaveAttribute("aria-posinset", "2");
+    expect(items[2]).toHaveAttribute("aria-posinset", "3");
   });
 });
 
