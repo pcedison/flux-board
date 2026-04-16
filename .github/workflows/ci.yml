@@ -6,6 +6,7 @@ on:
       - master
       - main
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -124,3 +125,66 @@ jobs:
           path: |
             test-results/
           if-no-files-found: ignore
+
+  release_dry_run:
+    if: github.event_name == 'workflow_dispatch'
+    needs:
+      - verify
+      - smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      PLAYWRIGHT_BROWSER: chromium
+      RELEASE_OUTPUT_DIR: test-results/release/github-dry-run
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run release dry run
+        run: bash ./scripts/release-dry-run.sh
+
+      - name: Upload release dry-run artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run-linux-amd64
+          path: |
+            test-results/release/github-dry-run/
+          if-no-files-found: error

@@ -191,9 +191,8 @@ describe("BoardSnapshotPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
 
-    await waitFor(() =>
-      expect(screen.getAllByText("Moved Queue me to Active.").length).toBeGreaterThan(0),
-    );
+    await waitFor(() => expect(screen.getByText("Moved Queue me to Active.")).toBeInTheDocument());
+    expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
   it("limits move pending state to the active card and restores focus to that card after success", async () => {

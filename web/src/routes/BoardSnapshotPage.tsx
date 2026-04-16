@@ -361,9 +361,6 @@ function BoardSnapshotContent({
             This W7/W8 slice adds the first non-drag mutation path to the new frontend while keeping
             the board layout intentionally simple.
           </p>
-          <p className="visually-hidden" aria-live="polite" role="status">
-            {isBusy ? "Board update in progress." : actionError ?? actionStatus ?? ""}
-          </p>
           <form
             className={`board-form${mutations.createTask.isPending ? " board-form-pending" : ""}`}
             onSubmit={handleCreateTask}
