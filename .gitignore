@@ -11,9 +11,18 @@ data/
 # Environment files (never commit secrets)
 .env
 .env.*
+!.env.example
 
 # Go
 vendor/
+*.exe
+
+# Node / diagnostics
+node_modules/
+playwright-report/
+test-results/
+step1-loaded.png
+step5-after-login.png
 
 # OS
 .DS_Store
