@@ -7,6 +7,7 @@ const baseURL = normalizeBaseUrl(process.env.BASE_URL ?? "http://127.0.0.1:8080"
 const password = process.env.FLUX_PASSWORD ?? process.env.APP_PASSWORD ?? "";
 const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
+const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const resultsDir =
   process.env.TEST_RESULTS_DIR ??
@@ -29,6 +30,8 @@ const context = await browser.newContext({
 });
 
 const page = await context.newPage();
+page.setDefaultTimeout(requestTimeoutMs);
+page.setDefaultNavigationTimeout(requestTimeoutMs);
 page.on("console", (msg) => {
   const text = msg.text();
   if (msg.type() === "error" || msg.type() === "warning") {
@@ -162,21 +165,31 @@ try {
 
 async function requestJson(page, url, init = {}) {
   return page.evaluate(
-    async ({ url, init }) => {
-      const response = await fetch(url, {
-        credentials: "include",
-        ...init,
-      });
-      let body = null;
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        body = await response.json().catch(() => null);
-      } else {
-        body = await response.text().catch(() => null);
+    async ({ url, init, requestTimeoutMs }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(`request timed out after ${requestTimeoutMs}ms`), requestTimeoutMs);
+      try {
+        const response = await fetch(url, {
+          credentials: "include",
+          signal: controller.signal,
+          ...init,
+        });
+        let body = null;
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          body = await response.json().catch(() => null);
+        } else {
+          body = await response.text().catch(() => null);
+        }
+        return { status: response.status, ok: response.ok, body };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { status: 0, ok: false, body: { error: message } };
+      } finally {
+        clearTimeout(timeout);
       }
-      return { status: response.status, ok: response.ok, body };
     },
-    { url, init }
+    { url, init, requestTimeoutMs }
   );
 }
 
