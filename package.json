@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node tests/e2e/login-smoke.mjs",
     "smoke": "node tests/e2e/login-smoke.mjs",
-    "smoke:login": "node tests/e2e/login-smoke.mjs"
+    "smoke:login": "node tests/e2e/login-smoke.mjs",
+    "smoke:next": "node tests/e2e/next-preview-smoke.mjs"
   },
   "repository": {
     "type": "git",

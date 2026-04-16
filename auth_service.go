@@ -2,11 +2,151 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
+
+var (
+	errAuthBlocked         = errors.New("auth blocked")
+	errAuthInvalidPassword = errors.New("invalid password")
+	errAuthInvalidSession  = errors.New("invalid session")
+)
+
+type AuthService interface {
+	Authenticate(context.Context, string, string) (authLoginResult, error)
+	Logout(context.Context, string, string) error
+	SessionFromToken(context.Context, string, string) (sessionState, error)
+}
+
+type authLoginResult struct {
+	Token     string
+	Username  string
+	ExpiresAt time.Time
+}
+
+type defaultAuthService struct {
+	app *App
+}
+
+func (a *App) authService() AuthService {
+	if a.authSvc != nil {
+		return a.authSvc
+	}
+	return defaultAuthService{app: a}
+}
+
+func (s defaultAuthService) Authenticate(ctx context.Context, password, clientIP string) (authLoginResult, error) {
+	if !s.app.allowLoginAttempt(clientIP) {
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			EventType: "login",
+			Outcome:   "blocked",
+			ClientIP:  clientIP,
+			Details:   "too many failed attempts",
+		})
+		return authLoginResult{}, errAuthBlocked
+	}
+
+	username := bootstrapAdmin
+	match, err := s.app.verifyLoginPassword(ctx, password)
+	if err != nil {
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			Username:  username,
+			EventType: "login",
+			Outcome:   "error",
+			ClientIP:  clientIP,
+			Details:   "password verification failed",
+		})
+		return authLoginResult{}, err
+	}
+	if !match {
+		s.app.recordFailedLogin(clientIP)
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			Username:  username,
+			EventType: "login",
+			Outcome:   "failed",
+			ClientIP:  clientIP,
+		})
+		return authLoginResult{}, errAuthInvalidPassword
+	}
+
+	s.app.clearLoginAttempts(clientIP)
+
+	token := newToken()
+	expiry := time.Now().Add(sessionDuration)
+	if err := s.app.createSession(ctx, token, username, clientIP, expiry); err != nil {
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			Username:  username,
+			EventType: "login",
+			Outcome:   "error",
+			ClientIP:  clientIP,
+			Details:   "session create failed",
+		})
+		return authLoginResult{}, err
+	}
+
+	s.app.recordAuthEvent(ctx, authAuditEvent{
+		Username:  username,
+		EventType: "login",
+		Outcome:   "success",
+		ClientIP:  clientIP,
+	})
+
+	return authLoginResult{
+		Token:     token,
+		Username:  username,
+		ExpiresAt: expiry,
+	}, nil
+}
+
+func (s defaultAuthService) Logout(ctx context.Context, token, clientIP string) error {
+	if err := s.app.deleteSession(ctx, token); err != nil {
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			EventType: "logout",
+			Outcome:   "error",
+			ClientIP:  clientIP,
+			Details:   "session delete failed",
+		})
+		return err
+	}
+
+	s.app.recordAuthEvent(ctx, authAuditEvent{
+		Username:  bootstrapAdmin,
+		EventType: "logout",
+		Outcome:   "success",
+		ClientIP:  clientIP,
+	})
+
+	return nil
+}
+
+func (s defaultAuthService) SessionFromToken(ctx context.Context, token, clientIP string) (sessionState, error) {
+	session, err := s.app.getActiveSession(ctx, token)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.app.recordAuthEvent(ctx, authAuditEvent{
+				EventType: "session",
+				Outcome:   "invalid",
+				ClientIP:  clientIP,
+				Details:   "session lookup failed",
+			})
+			return sessionState{}, errAuthInvalidSession
+		}
+
+		s.app.recordAuthEvent(ctx, authAuditEvent{
+			EventType: "session",
+			Outcome:   "error",
+			ClientIP:  clientIP,
+			Details:   "session lookup error",
+		})
+		return sessionState{}, err
+	}
+
+	return session, nil
+}
 
 func (a *App) verifyLoginPassword(ctx context.Context, given string) (bool, error) {
 	if a.passwordVerifier != nil {

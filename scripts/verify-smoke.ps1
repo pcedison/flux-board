@@ -21,6 +21,12 @@ if ([string]::IsNullOrWhiteSpace($env:PLAYWRIGHT_BROWSER)) {
   $env:PLAYWRIGHT_BROWSER = "chromium"
 }
 
+$smokeScript = if ([string]::IsNullOrWhiteSpace($env:SMOKE_SCRIPT)) {
+  "smoke:login"
+} else {
+  $env:SMOKE_SCRIPT
+}
+
 $binaryName = if ($env:OS -eq "Windows_NT") { "flux-board.exe" } else { "flux-board" }
 $binaryPath = if ([string]::IsNullOrWhiteSpace($env:APP_BINARY)) {
   Join-Path $root $binaryName
@@ -97,11 +103,11 @@ function Wait-ForReady {
 }
 
 function Invoke-Smoke {
-  Write-Host "[4/4] npm run smoke:login (browser=$env:PLAYWRIGHT_BROWSER)"
-  & npm run smoke:login
+  Write-Host "[4/4] npm run $smokeScript (browser=$env:PLAYWRIGHT_BROWSER)"
+  & npm run $smokeScript
   if ($LASTEXITCODE -ne 0) {
     Show-ServerLogs
-    throw "npm run smoke:login failed with exit code $LASTEXITCODE"
+    throw "npm run $smokeScript failed with exit code $LASTEXITCODE"
   }
 }
 

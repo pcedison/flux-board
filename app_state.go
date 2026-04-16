@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"sync"
 	"time"
 
@@ -39,8 +40,10 @@ type App struct {
 	db                *pgxpool.Pool
 	taskRepo          TaskRepository
 	taskSvc           TaskService
+	authSvc           AuthService
 	bootstrapPassword string
 	cookieSecure      bool
+	webPreviewFS      fs.FS
 	loginMu           sync.Mutex
 	loginAttempts     map[string]loginAttemptState
 	passwordVerifier  func(context.Context, string) (bool, error)

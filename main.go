@@ -6,6 +6,9 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"flux-board/internal/config"
@@ -76,14 +79,17 @@ func main() {
 		log.Fatalf("init schema: %v", err)
 	}
 
-	app.startBackgroundLoops()
+	runtimeCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	app.startBackgroundLoops(runtimeCtx)
 
 	mux, err := newMux(app)
 	if err != nil {
 		log.Fatalf("build mux: %v", err)
 	}
 	server := newHTTPServer(cfg.Port, app.securityHeaders(mux))
-	installGracefulShutdown(server)
+	installGracefulShutdown(server, runtimeCtx)
 
 	log.Printf("Flux Board listening on :%s (cookieSecure=%v)", cfg.Port, cfg.CookieSecure)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

@@ -12,7 +12,7 @@ Flux Board currently runs as a single Go application that:
 2. the app creates a `pgxpool` connection
 3. schema bootstrap runs directly from the app, including first-run bootstrap admin/session tables
 4. auth, tasks, and archive routes are registered with shared middleware
-5. embedded files under `static/` are served by the same process
+5. embedded files under `static/` are served by the same process, and a built `web/dist` can be exposed on `/next/` as a preview runtime route
 
 ## Current Backend Shape
 - entrypoint: [main.go](../main.go)
@@ -20,11 +20,12 @@ Flux Board currently runs as a single Go application that:
 - auth: `APP_PASSWORD` seeds the first admin row on bootstrap; subsequent login uses the stored bcrypt hash and PostgreSQL-backed sessions
 - auth audit: auth events are recorded into PostgreSQL audit rows during login, logout, and invalid session handling
 - transport hardening: explicit `http.Server`, timeouts, graceful shutdown, strict JSON decode, and baseline security headers
-- archive cleanup: periodic in-process goroutine
-- session cleanup: periodic in-process goroutine
+- archive cleanup: periodic in-process goroutine with cancellation-aware lifecycle
+- session cleanup: periodic in-process goroutine with cancellation-aware lifecycle
 
 ## Current Frontend Shape
 - single embedded file: [static/index.html](../static/index.html)
+- optional Go-served preview route for built `web/dist`: `/next/`
 - state is DOM- and script-coupled
 - drag-and-drop is currently the main card movement path
 
@@ -44,6 +45,7 @@ Flux Board currently runs as a single Go application that:
 
 ### Frontend
 - `web/` app using `React + TypeScript + Vite`
+- Go-served preview route on `/next/` before full runtime takeover
 - componentized board UI
 - touch, keyboard, and mouse friendly movement
 - mobile/tablet/desktop responsive layouts
