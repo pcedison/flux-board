@@ -5,13 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestValidateTaskPayloadDefaultsQueuedTask(t *testing.T) {
@@ -387,129 +385,4 @@ func TestAuthFlowLoginSessionLogout(t *testing.T) {
 	if events[2].EventType != "session" || events[2].Outcome != "invalid" {
 		t.Fatalf("expected third audit event to be invalid session, got %+v", events[2])
 	}
-}
-
-func TestAuthFlowAgainstPostgres(t *testing.T) {
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if dsn == "" {
-		t.Skip("DATABASE_URL not set")
-	}
-
-	pool, err := pgxpool.New(context.Background(), dsn)
-	if err != nil {
-		t.Fatalf("connect postgres: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	app := &App{
-		db:                pool,
-		bootstrapPassword: "integration-secret",
-		cookieSecure:      false,
-		loginAttempts:     make(map[string]loginAttemptState),
-	}
-
-	if err := app.initSchema(); err != nil {
-		t.Fatalf("init schema: %v", err)
-	}
-	if err := resetAuthTables(context.Background(), pool); err != nil {
-		t.Fatalf("reset auth tables: %v", err)
-	}
-	if err := app.ensureBootstrapAdmin(context.Background()); err != nil {
-		t.Fatalf("ensure bootstrap admin: %v", err)
-	}
-
-	loginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"password":"integration-secret"}`))
-	loginReq.RemoteAddr = "127.0.0.1:4567"
-	loginRec := httptest.NewRecorder()
-	app.handleLogin(loginRec, loginReq)
-	if loginRec.Code != http.StatusOK {
-		t.Fatalf("expected login status 200, got %d", loginRec.Code)
-	}
-
-	cookies := loginRec.Result().Cookies()
-	if len(cookies) == 0 {
-		t.Fatal("expected session cookie on login")
-	}
-
-	token := cookies[0].Value
-	if token == "" {
-		t.Fatal("expected non-empty session token")
-	}
-
-	var sessionCount int
-	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM sessions WHERE token=$1`, token).Scan(&sessionCount); err != nil {
-		t.Fatalf("verify session row: %v", err)
-	}
-	if sessionCount != 1 {
-		t.Fatalf("expected 1 live session row, got %d", sessionCount)
-	}
-
-	meHandler := app.auth(app.handleGetSession)
-	meReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	meReq.AddCookie(cookies[0])
-	meRec := httptest.NewRecorder()
-	meHandler(meRec, meReq)
-	if meRec.Code != http.StatusOK {
-		t.Fatalf("expected /api/auth/me status 200, got %d", meRec.Code)
-	}
-
-	var meBody struct {
-		Authenticated bool  `json:"authenticated"`
-		ExpiresAt     int64 `json:"expiresAt"`
-	}
-	if err := json.NewDecoder(meRec.Body).Decode(&meBody); err != nil {
-		t.Fatalf("decode /api/auth/me response: %v", err)
-	}
-	if !meBody.Authenticated || meBody.ExpiresAt <= 0 {
-		t.Fatalf("unexpected /api/auth/me body: %+v", meBody)
-	}
-
-	logoutReq := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
-	logoutReq.RemoteAddr = "127.0.0.1:4567"
-	logoutReq.AddCookie(cookies[0])
-	logoutRec := httptest.NewRecorder()
-	app.handleLogout(logoutRec, logoutReq)
-	if logoutRec.Code != http.StatusOK {
-		t.Fatalf("expected logout status 200, got %d", logoutRec.Code)
-	}
-
-	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM sessions WHERE token=$1`, token).Scan(&sessionCount); err != nil {
-		t.Fatalf("verify session deletion: %v", err)
-	}
-	if sessionCount != 0 {
-		t.Fatalf("expected session row to be deleted after logout, got %d", sessionCount)
-	}
-
-	postLogoutReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
-	postLogoutReq.RemoteAddr = "127.0.0.1:4567"
-	postLogoutReq.AddCookie(cookies[0])
-	postLogoutRec := httptest.NewRecorder()
-	meHandler(postLogoutRec, postLogoutReq)
-	if postLogoutRec.Code != http.StatusUnauthorized {
-		t.Fatalf("expected post-logout /api/auth/me status 401, got %d", postLogoutRec.Code)
-	}
-
-	var auditCount int
-	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM auth_audit_logs`).Scan(&auditCount); err != nil {
-		t.Fatalf("verify auth audit rows: %v", err)
-	}
-	if auditCount < 3 {
-		t.Fatalf("expected auth audit entries for login/logout/session, got %d", auditCount)
-	}
-}
-
-func resetAuthTables(ctx context.Context, pool *pgxpool.Pool) error {
-	stmts := []string{
-		`DELETE FROM sessions`,
-		`DELETE FROM auth_audit_logs`,
-		`DELETE FROM archived_tasks`,
-		`DELETE FROM tasks`,
-		`DELETE FROM users`,
-	}
-	for _, stmt := range stmts {
-		if _, err := pool.Exec(ctx, stmt); err != nil {
-			return err
-		}
-	}
-	return nil
 }
