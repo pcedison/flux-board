@@ -27,6 +27,43 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 4. confirm `/readyz` returns `200` once the app can reach PostgreSQL
 5. confirm `/api/auth/me` returns `401` before login and `200` after login
 
+## Release Dry Run
+Use the repo-owned release dry-run scripts before treating a build as publishable:
+
+```powershell
+./scripts/release-dry-run.ps1
+```
+
+On macOS/Linux:
+
+```sh
+./scripts/release-dry-run.sh
+```
+
+Current dry-run behavior:
+- builds one versionable binary artifact
+- emits a SHA-256 checksum beside that binary
+- reuses the built artifact for browser smoke instead of rebuilding
+- stores output and smoke diagnostics under `test-results/release/`
+
+Required env for a realistic dry run:
+- `DATABASE_URL`
+- `APP_PASSWORD`
+- `FLUX_PASSWORD` or `APP_PASSWORD`
+- optional `PLAYWRIGHT_BROWSER` if you want a browser other than the default `chromium`
+
+## Rollback Baseline
+Current rollback is intentionally simple and binary-first:
+1. stop the current app process
+2. restore the previous known-good binary artifact and matching environment values
+3. start the restored binary
+4. verify `/healthz` returns `200`
+5. verify `/readyz` returns `200`
+6. run `./scripts/verify-smoke.ps1` or `./scripts/verify-smoke.sh` against the restored binary
+7. confirm `/api/auth/me` is `401` before login and returns `200` after login
+
+If rollback fails any readiness or smoke step, keep the app out of rotation and inspect the release diagnostics saved under `test-results/`.
+
 ## Current Non-Goals
 - no migration framework yet
 - no multi-user auth model yet

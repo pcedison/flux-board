@@ -116,6 +116,18 @@ Observed API and probe responses now include `X-Request-Id`, and the Go server l
 
 The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` by default, so the isolated `web/` shell can talk to a local Go app without extra setup.
 
+For release-style verification, run:
+```powershell
+./scripts/release-dry-run.ps1
+```
+
+On macOS/Linux:
+```sh
+./scripts/release-dry-run.sh
+```
+
+These scripts build a versionable binary artifact, emit a SHA-256 checksum, and then reuse that binary for the same smoke flow instead of rebuilding again. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current release dry-run and rollback baseline.
+
 ## Repository Layout
 - [main.go](main.go): current backend entrypoint and API server
 - [app_bootstrap.go](app_bootstrap.go): app construction and bootstrap-only admin seeding
@@ -123,6 +135,9 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 - [app_state.go](app_state.go): shared app state and cross-cutting runtime types
 - [health_http.go](health_http.go): unauthenticated liveness/readiness handlers
 - [auth_http.go](auth_http.go): auth/session HTTP handlers and middleware
+- [auth_cookie.go](auth_cookie.go): cookie helpers for login/logout transport logic
+- [auth_context.go](auth_context.go): shared auth context and client-IP helpers
+- [auth_runtime.go](auth_runtime.go): login throttling and token-generation runtime helpers
 - [auth_service.go](auth_service.go): auth/session persistence and audit helpers behind the transport layer
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
 - [server_observability.go](server_observability.go): request-id and access-log middleware at the server boundary
@@ -144,6 +159,7 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - The current user-facing runtime still depends on a single embedded HTML file until later W7/W8 integration waves
 - Health/readiness probes and auth audit paths now expose a minimal request-id/access-log correlation baseline, but richer observability such as metrics, tracing, and structured logs remains for later W9 slices
+- Release governance now has a first dry-run and rollback baseline, but there is still no versioning/changelog policy or multi-platform release matrix
 
 ## Governance Docs
 - [CONTRIBUTING.md](CONTRIBUTING.md)

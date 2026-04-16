@@ -146,12 +146,13 @@
 - Parallel lanes: handler split, service split, repo abstraction.
 - Current status: in_progress.
 - Current gaps:
-  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, task reorder persistence, task mutation validation/service flow, and pure task validation rules are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
+  - config loading, mux/server assembly, auth/session handlers, auth cookies/context/runtime helpers, task/archive handlers, task reorder persistence, task mutation validation/service flow, and pure task validation rules are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
   - `cmd/flux-board` and deeper layer splits remain for later W6 slices
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
   - mux/server assembly is separated from the rest of the business logic
   - auth/session and task/archive HTTP handlers are no longer embedded in `main.go`
+  - auth cookies, context helpers, and login-throttle/runtime helpers are no longer concentrated in `auth_http.go`
   - task/archive CRUD persistence now has an explicit repository seam
   - task mutation validation and reorder preconditions now have a dedicated service seam
   - pure task validation and ID normalization are now separated from transport code
@@ -198,12 +199,13 @@
 - Parallel lanes: QA, release engineering, observability, enterprise design.
 - Current status: in_progress.
 - Current gaps:
-  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, repo-owned smoke orchestration, minimal unauthenticated health/readiness probes, and a minimal request-id/access-log plus auth-audit correlation baseline, but browser matrix, release flow, and richer observability still remain open
-  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot and shares a repo-owned smoke orchestration path with local verification, while the broader browser matrix plus release/observability work still remain
+  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, repo-owned smoke orchestration, minimal unauthenticated health/readiness probes, a minimal request-id/access-log plus auth-audit correlation baseline, and a first release dry-run / rollback baseline, but browser matrix and richer observability still remain open
+  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, shares a repo-owned smoke orchestration path with local verification, and exposes a manual release dry-run path, while the broader browser matrix plus observability work still remain
 - Corrected gate checklist:
   - CI runs repo-owned Go verification, race detection, `web/` scaffold build/typecheck/test, and browser smoke
   - local Windows race verification exists in a repo-owned script
-  - later W9 work must still add broader browser/release/observability gates beyond the current request-id/access-log baseline
+  - a manual release dry-run path now builds a checksumed artifact and reuses it for smoke verification
+  - later W9 work must still add broader browser and observability gates beyond the current request-id/access-log baseline
 
 ## Standard Gates
 - Security gate: no known P0 security defect; no shared-password production default; request and session protections active.
@@ -313,3 +315,4 @@
 - 2026-04-16 | W7-W9 / Session-owned shell hardening and local multi-browser proof | done | Added auth-aware shell navigation with explicit sign-out handling, centralized auth-query ownership helpers, reset auth state on `401` from protected board fetches/mutations, updated frontend tests, and re-ran local `chromium` plus `firefox` Docker-backed smoke against the shared verify-smoke flow | W7 now owns a more honest signed-in/signed-out runtime boundary, W8 has safer non-drag auth degradation, and W9 has observed local proof for the first non-Chromium browser gate before remote CI | Next: push this slice and observe the split GitHub Actions workflow so the new Firefox lane is proven remotely | Risk: runtime ownership is still split between the embedded frontend and the isolated React shell, and broader release/observability work remains open
 - 2026-04-16 | W9 / Request-id and access-log baseline | done | Added low-risk request-id plus access-log middleware at the server assembly boundary so `/api/*`, `/healthz`, and `/readyz` now return `X-Request-Id` and emit matching access logs with client, method, path, status, bytes, and duration; added focused server tests and aligned README wording | API and probe diagnostics now have a concrete correlation hook without reopening logging architecture or touching handler/business logic | Next: keep W9 focused on broader browser matrix, release flow, and richer observability beyond this baseline | Risk: logs remain stdlib text output, and there is still no metrics or tracing pipeline
 - 2026-04-16 | W6-W9 / Bootstrap split, scoped pending ownership, and auth-audit request correlation | done | Split root runtime state/bootstrap/background helpers out of `main.go`, added request-id propagation into auth audit events, tightened the isolated React board so create/move/archive/restore only disable their local work scope and restore focus for repeated interaction, then re-ran local Go, Windows race, web, and Docker-backed `chromium` plus `firefox` smoke verification | W6 is materially closer to assembly-only startup, W8 has a more usable keyboard/touch-friendly non-drag flow, and W9 now correlates access logs with auth audit events without reopening the logging architecture | Next: continue W6 deeper service/domain extraction and keep W9 focused on broader browser matrix, release flow, and richer observability | Risk: background cleanup loops still use unmanaged goroutines, runtime ownership is still split between the embedded frontend and the isolated React shell, and observability is still limited to stdlib logs without metrics or tracing
+- 2026-04-16 | W6-W9 / Auth transport split, single-announcement cleanup, and release dry-run baseline | done | Split auth cookie/context/runtime helpers out of `auth_http.go`, removed duplicate board status announcements from the isolated React shell, added repo-owned release dry-run scripts that build a checksumed artifact and reuse it for smoke verification, wired a manual `workflow_dispatch` release-dry-run job in CI, and documented the current rollback baseline | W6 now has a cleaner auth transport boundary that mirrors the task-side seams more closely, W8 is less noisy for assistive tech, and W9 now has a concrete first release-governance path instead of only verification and smoke gates | Next: continue W6 toward deeper service/domain extraction and keep W9 focused on broader browser matrix and richer observability | Risk: release governance is still single-platform and manual, and the project still lacks metrics/tracing plus a final versioning/changelog policy
