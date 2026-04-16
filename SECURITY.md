@@ -14,12 +14,12 @@ The current main branch is still in transition from MVP to hardened baseline.
 
 Known active gaps being addressed by the master plan:
 - bootstrap-password setup still leads to a single-admin auth model
-- DB-backed sessions and auth audit logging exist, but full database-backed auth/session verification and broader auth evolution are still incomplete
+- DB-backed sessions, auth audit logging, and database-backed auth/session verification now exist, but broader auth evolution is still incomplete
 - HTTP hardening is implemented but still needs stronger verification and clearer abuse-control trust assumptions
 - no formal migration framework yet
 
 ## Deployment Guidance
-Until the corrected `W1-W4` and `W5` gates in [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md) are completed:
+Until the later-wave gates in [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md), especially `W5+`, are completed:
 - do not treat this project as production-ready for open public internet exposure
 - prefer private or development-only deployment
 - apply your own infrastructure protections if you deploy it externally
