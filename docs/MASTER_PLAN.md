@@ -176,7 +176,7 @@
 - Current status: in_progress.
 - Current gaps:
   - CI quality gates now cover richer browser smoke for login/create/archive/restore, but browser matrix, release flow, and observability remain mostly untouched
-  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, but an observed green remote run is still required before that slice can be considered fully proven
+  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, and the broader browser matrix plus release/observability work still remain
 - Corrected gate checklist:
   - CI runs cache-busted Go tests and race detection
   - later W9 work must still add broader browser/release/observability gates
@@ -236,7 +236,7 @@
 - `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
 ### W9
 - `W9-P1` Test gates: status `in_progress`. CI now includes richer browser smoke for login/create/archive/restore plus existing Go gates, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot with an observed green GitHub Actions run, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `planned`. Health/readiness/metrics/logging beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -269,3 +269,4 @@
 - 2026-04-16 | W5 / Transactional reorder and archive integrity | done | Added a dedicated reorder endpoint, lane advisory locks, stronger task/archive constraints, archived sort-order retention, and integration coverage for reorder plus archive/restore semantics; updated the embedded frontend to call the new reorder path and stop relying on client-written `sort_order` | W5 is now complete for the current single-board scope, and the old `MAX(sort_order)+1` / single-task reorder drift path is retired | Next: continue W6 modularization while keeping W7 deferred until the backend seam is calmer | Risk: future concurrent stress tests can deepen proof, but no blocking correctness issue remains for the current scope
 - 2026-04-16 | W5-W9 / Local Docker-backed verification | done | Ran `go test -count=1 ./...` against a temporary PostgreSQL container, expanded the Playwright smoke from auth-only to login/create/archive/restore/logout, and verified the upgraded smoke path end to end against a Docker-backed local app | The current W5 changes now have local DB-backed integration proof and browser smoke proof, not just compile-time or unit-level evidence | Next: push this slice and observe the remote GitHub Actions run with the richer smoke coverage | Risk: local Windows could not run `go test -race` because CGO is disabled, so final race proof still depends on Linux CI
 - 2026-04-16 | W9 / Node 24 JavaScript action runtime pilot | in_progress | Updated the GitHub Actions workflow to opt into GitHub's Node 24 JavaScript action runtime pilot while keeping the existing backend and smoke pipeline intact | W9 now has a concrete path to clear the hosted Node 20 deprecation warning without reopening W5/W6 code paths | Next: observe a green remote Actions run with the pilot enabled and decide whether any action versions still need later upgrades | Risk: this slice needs an observed GitHub-hosted success run before it can be treated as fully proven
+- 2026-04-16 | W9 / Remote CI proof for reorder + Node 24 pilot | done | Pushed commit `885f3eb` to PR `#1` and observed green GitHub Actions run `24496466310`, which covered Go tests, Linux race test, build, app startup, and the richer browser smoke under the Node 24 JavaScript action runtime pilot | W9 now has observed remote proof for the current reorder-integrity and smoke-expansion slice | Next: continue W6 structural extraction and later W7/W8 frontend rebuild work while leaving release/observability for later W9 passes | Risk: broader browser matrix, release flow, and observability remain open
