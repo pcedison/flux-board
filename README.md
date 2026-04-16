@@ -73,9 +73,9 @@ npm run smoke:login
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md): current deployment assumptions and post-deploy checks
 
 ## Known Current Limitations
-- Current auth model still centers on a single bootstrap-created admin account; it is safer than the original MVP, but not yet a multi-user or public-fork-final auth model
+- Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - No formal migration system yet
-- Browser smoke coverage now has a repo-owned local script, but it is not yet wired into a full CI-grade frontend pipeline
+- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, but the future React/Vite frontend still does not have its broader build/typecheck/lint pipeline
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - Current frontend still depends on a single embedded HTML file
 
@@ -85,4 +85,4 @@ npm run smoke:login
 - [LICENSE](LICENSE)
 
 ## Public Fork Note
-This repository is being prepared for public-fork use, but it is not yet at the final security and engineering baseline described in the master plan. Until the corrected `W1-W4` gates are closed, treat public deployment as development-only unless you apply your own hardening.
+This repository now has the corrected `W1-W4` baseline in place, but it is still not at the final security and engineering target described in the master plan. Until later waves such as migrations, deeper modularization, and the React/Vite rebuild are complete, treat public deployment as development-only unless you apply your own hardening.
