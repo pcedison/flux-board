@@ -124,6 +124,34 @@ describe("BoardSnapshotPage", () => {
     );
   });
 
+  it("keeps unrelated controls available while create is pending and restores focus to the title field", async () => {
+    mockSnapshot();
+    const deferred = createDeferred<Awaited<ReturnType<typeof createTask>>>();
+    mockedCreateTask.mockReturnValueOnce(deferred.promise);
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Ship mutations" } });
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-04-30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Creating..." })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Move to Active (Queue me)" })).toBeEnabled();
+
+    deferred.resolve({
+      id: "new-task",
+      title: "Ship mutations",
+      note: "",
+      due: "2026-04-30",
+      priority: "medium",
+      status: "queued",
+      sort_order: 2,
+      lastUpdated: 12,
+    });
+
+    await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+  });
+
   it("shows inline field validation before create and focuses the missing field", () => {
     mockSnapshot();
 
@@ -166,6 +194,42 @@ describe("BoardSnapshotPage", () => {
     await waitFor(() =>
       expect(screen.getAllByText("Moved Queue me to Active.").length).toBeGreaterThan(0),
     );
+  });
+
+  it("limits move pending state to the active card and restores focus to that card after success", async () => {
+    mockSnapshot();
+    const deferred = createDeferred<Awaited<ReturnType<typeof moveTask>>>();
+    mockedMoveTask.mockReturnValueOnce(deferred.promise);
+
+    renderPage();
+
+    const moveButton = screen.getByRole("button", { name: "Move to Active (Queue me)" });
+    const archiveButton = screen.getByRole("button", { name: "Archive Queue me" });
+    const unrelatedButton = screen.getByRole("button", { name: "Back to Queued (Do me)" });
+    const movedCard = screen.getByText("Queue me").closest("article");
+
+    if (!movedCard) {
+      throw new Error("expected moved card article");
+    }
+
+    fireEvent.click(moveButton);
+
+    await waitFor(() => expect(moveButton).toBeDisabled());
+    expect(archiveButton).toBeDisabled();
+    expect(unrelatedButton).toBeEnabled();
+
+    deferred.resolve({
+      id: "a",
+      title: "Queue me",
+      note: "",
+      due: "2026-04-20",
+      priority: "medium",
+      status: "active",
+      sort_order: 0,
+      lastUpdated: 10,
+    });
+
+    await waitFor(() => expect(movedCard).toHaveFocus());
   });
 
   it("uses explicit move-up and move-down controls for lane-local reorder fallback", async () => {
@@ -357,4 +421,16 @@ function mockSnapshot(overrides?: Partial<NonNullable<ReturnType<typeof useBoard
     error: null,
     isPending: false,
   } as ReturnType<typeof useBoardSnapshot>);
+}
+
+function createDeferred<T>() {
+  let reject!: (reason?: unknown) => void;
+  let resolve!: (value: T | PromiseLike<T>) => void;
+
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, reject, resolve };
 }

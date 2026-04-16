@@ -296,6 +296,22 @@ a {
   border: 1px solid var(--stroke-soft);
 }
 
+.card:focus-visible {
+  outline: 2px solid rgba(19, 111, 99, 0.3);
+  outline-offset: 3px;
+}
+
+.card-pending,
+.archive-item-pending,
+.board-form-pending {
+  opacity: 0.8;
+}
+
+.card-pending,
+.archive-item-pending {
+  border-color: rgba(19, 111, 99, 0.28);
+}
+
 .card-note {
   margin: 12px 0 0;
   color: var(--text-strong);
