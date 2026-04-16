@@ -21,6 +21,17 @@ type stubTaskRepository struct {
 	updateTaskFn    func(context.Context, string, Task) (Task, error)
 }
 
+type stubTaskService struct {
+	archiveTaskFn   func(context.Context, string) (ArchivedTask, error)
+	createTaskFn    func(context.Context, Task) (Task, error)
+	deleteArchiveFn func(context.Context, string) error
+	listArchivedFn  func(context.Context) ([]ArchivedTask, error)
+	listTasksFn     func(context.Context) ([]Task, error)
+	reorderTaskFn   func(context.Context, string, taskReorderInput) (Task, error)
+	restoreTaskFn   func(context.Context, string) (Task, error)
+	updateTaskFn    func(context.Context, string, Task) (Task, error)
+}
+
 func (s stubTaskRepository) ListTasks(ctx context.Context) ([]Task, error) {
 	if s.listTasksFn != nil {
 		return s.listTasksFn(ctx)
@@ -77,6 +88,62 @@ func (s stubTaskRepository) DeleteArchived(ctx context.Context, id string) error
 	return nil
 }
 
+func (s stubTaskService) ListTasks(ctx context.Context) ([]Task, error) {
+	if s.listTasksFn != nil {
+		return s.listTasksFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubTaskService) CreateTask(ctx context.Context, task Task) (Task, error) {
+	if s.createTaskFn != nil {
+		return s.createTaskFn(ctx, task)
+	}
+	return task, nil
+}
+
+func (s stubTaskService) UpdateTask(ctx context.Context, id string, task Task) (Task, error) {
+	if s.updateTaskFn != nil {
+		return s.updateTaskFn(ctx, id, task)
+	}
+	return task, nil
+}
+
+func (s stubTaskService) ReorderTask(ctx context.Context, id string, reorder taskReorderInput) (Task, error) {
+	if s.reorderTaskFn != nil {
+		return s.reorderTaskFn(ctx, id, reorder)
+	}
+	return Task{}, nil
+}
+
+func (s stubTaskService) ArchiveTask(ctx context.Context, id string) (ArchivedTask, error) {
+	if s.archiveTaskFn != nil {
+		return s.archiveTaskFn(ctx, id)
+	}
+	return ArchivedTask{}, nil
+}
+
+func (s stubTaskService) ListArchived(ctx context.Context) ([]ArchivedTask, error) {
+	if s.listArchivedFn != nil {
+		return s.listArchivedFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubTaskService) RestoreTask(ctx context.Context, id string) (Task, error) {
+	if s.restoreTaskFn != nil {
+		return s.restoreTaskFn(ctx, id)
+	}
+	return Task{}, nil
+}
+
+func (s stubTaskService) DeleteArchived(ctx context.Context, id string) error {
+	if s.deleteArchiveFn != nil {
+		return s.deleteArchiveFn(ctx, id)
+	}
+	return nil
+}
+
 func TestHandleGetTasksUsesRepositoryResult(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
@@ -126,6 +193,54 @@ func TestHandleCreateTaskMapsConflictError(t *testing.T) {
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("expected status 409, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleCreateTaskMapsValidationError(t *testing.T) {
+	app := &App{}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(`{
+		"id":"task-1",
+		"title":"   ",
+		"note":"",
+		"due":"2026-04-20",
+		"priority":"medium"
+	}`))
+	rec := httptest.NewRecorder()
+	app.handleCreateTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "title is required") {
+		t.Fatalf("expected title validation error, got %s", rec.Body.String())
+	}
+}
+
+func TestHandleCreateTaskUsesInjectedTaskService(t *testing.T) {
+	app := &App{
+		taskSvc: stubTaskService{
+			createTaskFn: func(context.Context, Task) (Task, error) {
+				return Task{}, taskValidationError{message: "service validation"}
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(`{
+		"id":"task-1",
+		"title":"Ship tests",
+		"note":"",
+		"due":"2026-04-20",
+		"priority":"medium"
+	}`))
+	rec := httptest.NewRecorder()
+	app.handleCreateTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "service validation") {
+		t.Fatalf("expected service validation error, got %s", rec.Body.String())
 	}
 }
 
@@ -206,5 +321,24 @@ func TestHandleReorderTaskMapsInvalidAnchor(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleReorderTaskMapsValidationError(t *testing.T) {
+	app := &App{}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/task-1/reorder", strings.NewReader(`{
+		"status":"blocked"
+	}`))
+	req.SetPathValue("id", "task-1")
+	rec := httptest.NewRecorder()
+
+	app.handleReorderTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "invalid status") {
+		t.Fatalf("expected invalid status error, got %s", rec.Body.String())
 	}
 }

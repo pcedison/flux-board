@@ -4,13 +4,14 @@ export type AuthSession = {
 };
 
 export type TaskStatus = "queued" | "active" | "done";
+export type TaskPriority = "medium" | "high" | "critical";
 
 export type Task = {
   id: string;
   title: string;
   note: string;
   due: string;
-  priority: "medium" | "high" | "critical";
+  priority: TaskPriority;
   status: TaskStatus;
   sort_order: number;
   lastUpdated: number;
@@ -21,7 +22,7 @@ export type ArchivedTask = {
   title: string;
   note: string;
   due: string;
-  priority: "medium" | "high" | "critical";
+  priority: TaskPriority;
   status: TaskStatus;
   sort_order: number;
   archivedAt: number;
@@ -50,6 +51,20 @@ export class ApiError extends Error {
 type LoginResponse = {
   expiresAt?: number;
   ok?: boolean;
+};
+
+export type TaskDraft = {
+  due: string;
+  note?: string;
+  priority: TaskPriority;
+  title: string;
+};
+
+export type MoveTaskInput = {
+  anchorTaskId?: string;
+  id: string;
+  placeAfter?: boolean;
+  status: TaskStatus;
 };
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -98,6 +113,48 @@ export async function loginWithPassword(password: string): Promise<AuthSession> 
   };
 }
 
+export function createTask(task: TaskDraft): Promise<Task> {
+  return apiFetch<Task>("/api/tasks", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: newTaskID(),
+      title: task.title,
+      note: task.note ?? "",
+      due: task.due,
+      priority: task.priority,
+    }),
+  });
+}
+
+export function moveTask(input: MoveTaskInput): Promise<Task> {
+  return apiFetch<Task>(`/api/tasks/${input.id}/reorder`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      status: input.status,
+      anchorTaskId: input.anchorTaskId,
+      placeAfter: input.placeAfter,
+    }),
+  });
+}
+
+export function archiveTask(id: string): Promise<ArchivedTask> {
+  return apiFetch<ArchivedTask>(`/api/tasks/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function restoreTask(id: string): Promise<Task> {
+  return apiFetch<Task>(`/api/archived/${id}/restore`, {
+    method: "POST",
+  });
+}
+
 async function fetchTasks(): Promise<Task[]> {
   const body = await apiFetch<{ tasks?: Task[] }>("/api/tasks");
   return body.tasks ?? [];
@@ -120,4 +177,11 @@ export async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
 
   const [tasks, archived] = await Promise.all([fetchTasks(), fetchArchivedTasks()]);
   return { session, tasks, archived };
+}
+
+function newTaskID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `task-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 }

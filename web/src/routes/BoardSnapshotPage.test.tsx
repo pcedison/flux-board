@@ -1,18 +1,75 @@
-import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
+import { archiveTask, createTask, moveTask, restoreTask } from "../lib/api";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
 vi.mock("../lib/useBoardSnapshot", () => ({
   useBoardSnapshot: vi.fn(),
 }));
 
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual("../lib/api");
+  return {
+    ...actual,
+    archiveTask: vi.fn(),
+    createTask: vi.fn(),
+    moveTask: vi.fn(),
+    restoreTask: vi.fn(),
+  };
+});
+
 const mockedUseBoardSnapshot = vi.mocked(useBoardSnapshot);
+const mockedCreateTask = vi.mocked(createTask);
+const mockedMoveTask = vi.mocked(moveTask);
+const mockedArchiveTask = vi.mocked(archiveTask);
+const mockedRestoreTask = vi.mocked(restoreTask);
 
 describe("BoardSnapshotPage", () => {
   beforeEach(() => {
     mockedUseBoardSnapshot.mockReset();
+    mockedCreateTask.mockReset().mockResolvedValue({
+      id: "new-task",
+      title: "Created",
+      note: "",
+      due: "2026-05-01",
+      priority: "medium",
+      status: "queued",
+      sort_order: 0,
+      lastUpdated: 10,
+    });
+    mockedMoveTask.mockReset().mockResolvedValue({
+      id: "a",
+      title: "Queue me",
+      note: "",
+      due: "2026-04-20",
+      priority: "medium",
+      status: "active",
+      sort_order: 0,
+      lastUpdated: 10,
+    });
+    mockedArchiveTask.mockReset().mockResolvedValue({
+      id: "a",
+      title: "Queue me",
+      note: "",
+      due: "2026-04-20",
+      priority: "medium",
+      status: "queued",
+      sort_order: 0,
+      archivedAt: 10,
+    });
+    mockedRestoreTask.mockReset().mockResolvedValue({
+      id: "c",
+      title: "Archived",
+      note: "",
+      due: "2026-04-22",
+      priority: "critical",
+      status: "done",
+      sort_order: 0,
+      lastUpdated: 11,
+    });
   });
 
   it("renders an error panel when the snapshot fails", () => {
@@ -22,60 +79,209 @@ describe("BoardSnapshotPage", () => {
       isPending: false,
     } as ReturnType<typeof useBoardSnapshot>);
 
-    render(<BoardSnapshotPage />);
+    renderPage();
 
     expect(screen.getByRole("alert")).toHaveTextContent("Failed to load board snapshot");
     expect(screen.getByRole("alert")).toHaveTextContent("api down");
   });
 
-  it("renders lane cards and archive totals from the snapshot", () => {
-    mockedUseBoardSnapshot.mockReturnValue({
-      data: {
-        session: { authenticated: true, expiresAt: 1 },
-        tasks: [
-          {
-            id: "a",
-            title: "Queue me",
-            note: "first lane",
-            due: "2026-04-20",
-            priority: "medium",
-            status: "queued",
-            sort_order: 0,
-            lastUpdated: 1,
-          },
-          {
-            id: "b",
-            title: "Do me",
-            note: "",
-            due: "2026-04-21",
-            priority: "high",
-            status: "active",
-            sort_order: 1,
-            lastUpdated: 2,
-          },
-        ],
-        archived: [
-          {
-            id: "c",
-            title: "Archived",
-            note: "",
-            due: "2026-04-22",
-            priority: "critical",
-            status: "done",
-            sort_order: 0,
-            archivedAt: 3,
-          },
-        ],
-      },
-      error: null,
-      isPending: false,
-    } as ReturnType<typeof useBoardSnapshot>);
+  it("renders lane cards, create controls, and archive totals from the snapshot", () => {
+    mockSnapshot();
 
-    render(<BoardSnapshotPage />);
+    renderPage();
 
     expect(screen.getByText("Queue me")).toBeInTheDocument();
     expect(screen.getByText("Do me")).toBeInTheDocument();
     expect(screen.getByText("Due 2026-04-20 / order 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Archive Queue me" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Restore Archived" })).toBeInTheDocument();
     expect(screen.getByText("1 archived cards")).toBeInTheDocument();
   });
+
+  it("submits the create task form through the typed API helper", async () => {
+    mockSnapshot();
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Ship mutations" } });
+    fireEvent.change(screen.getByLabelText("Due date"), { target: { value: "2026-04-30" } });
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Keep it read-write, not drag-first." } });
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+
+    await waitFor(() =>
+      expect(mockedCreateTask).toHaveBeenCalledWith({
+        title: "Ship mutations",
+        due: "2026-04-30",
+        note: "Keep it read-write, not drag-first.",
+        priority: "medium",
+      }),
+    );
+  });
+
+  it("shows inline field validation before create and focuses the missing field", () => {
+    mockSnapshot();
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create task" }));
+
+    expect(screen.getByText("Enter a task title before creating a card.")).toBeInTheDocument();
+    expect(screen.getByText("Choose a due date before creating a card.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Title")).toHaveFocus();
+    expect(mockedCreateTask).not.toHaveBeenCalled();
+  });
+
+  it("triggers explicit move, archive, and restore actions", async () => {
+    mockSnapshot();
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive Queue me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restore Archived" }));
+
+    await waitFor(() =>
+      expect(mockedMoveTask).toHaveBeenCalledWith({
+        id: "a",
+        status: "active",
+      }),
+    );
+    await waitFor(() => expect(mockedArchiveTask).toHaveBeenCalledWith("a"));
+    await waitFor(() => expect(mockedRestoreTask).toHaveBeenCalledWith("c"));
+  });
+
+  it("surfaces a status message after a successful move action", async () => {
+    mockSnapshot();
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText("Moved Queue me to Active.").length).toBeGreaterThan(0),
+    );
+  });
+
+  it("uses explicit move-up and move-down controls for lane-local reorder fallback", async () => {
+    mockSnapshot({
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "queued",
+          sort_order: 0,
+          lastUpdated: 1,
+        },
+        {
+          id: "d",
+          title: "Queue next",
+          note: "",
+          due: "2026-04-23",
+          priority: "high",
+          status: "queued",
+          sort_order: 1,
+          lastUpdated: 4,
+        },
+        {
+          id: "e",
+          title: "Queue later",
+          note: "",
+          due: "2026-04-24",
+          priority: "critical",
+          status: "queued",
+          sort_order: 2,
+          lastUpdated: 5,
+        },
+      ],
+    });
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Move Queue next up within Queued" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Queue next down within Queued" }));
+
+    await waitFor(() =>
+      expect(mockedMoveTask).toHaveBeenNthCalledWith(1, {
+        id: "d",
+        status: "queued",
+        anchorTaskId: "a",
+        placeAfter: false,
+      }),
+    );
+    await waitFor(() =>
+      expect(mockedMoveTask).toHaveBeenNthCalledWith(2, {
+        id: "d",
+        status: "queued",
+        anchorTaskId: "e",
+        placeAfter: true,
+      }),
+    );
+  });
 });
+
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <BoardSnapshotPage />
+    </QueryClientProvider>,
+  );
+}
+
+function mockSnapshot(overrides?: Partial<NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>>) {
+  const data: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]> = {
+    session: { authenticated: true, expiresAt: 1 },
+    tasks: [
+      {
+        id: "a",
+        title: "Queue me",
+        note: "first lane",
+        due: "2026-04-20",
+        priority: "medium",
+        status: "queued",
+        sort_order: 0,
+        lastUpdated: 1,
+      },
+      {
+        id: "b",
+        title: "Do me",
+        note: "",
+        due: "2026-04-21",
+        priority: "high",
+        status: "active",
+        sort_order: 1,
+        lastUpdated: 2,
+      },
+    ],
+    archived: [
+      {
+        id: "c",
+        title: "Archived",
+        note: "",
+        due: "2026-04-22",
+        priority: "critical",
+        status: "done",
+        sort_order: 0,
+        archivedAt: 3,
+      },
+    ],
+    ...overrides,
+  };
+
+  mockedUseBoardSnapshot.mockReturnValue({
+    data,
+    error: null,
+    isPending: false,
+  } as ReturnType<typeof useBoardSnapshot>);
+}
