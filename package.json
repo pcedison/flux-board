@@ -1,0 +1,24 @@
+{
+  "name": "flux-board",
+  "version": "1.0.0",
+  "description": "Repo-owned smoke tooling for the current Flux Board MVP frontend and auth flow.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/e2e/login-smoke.mjs",
+    "smoke": "node tests/e2e/login-smoke.mjs",
+    "smoke:login": "node tests/e2e/login-smoke.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pcedison/flux-board.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/pcedison/flux-board/issues"
+  },
+  "homepage": "https://github.com/pcedison/flux-board#readme",
+  "dependencies": {
+    "playwright": "^1.59.1"
+  }
+}

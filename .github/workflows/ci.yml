@@ -1,0 +1,110 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      TEST_RESULTS_DIR: test-results/github-ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Verify formatting context
+        run: go version
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build -o flux-board .
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Node dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start app
+        run: |
+          ./flux-board > server.log 2>&1 &
+          echo $! > server.pid
+
+      - name: Wait for app
+        run: |
+          for attempt in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/api/auth/me" || true)
+            if [ "$code" = "401" ]; then
+              echo "App is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "App did not become ready in time."
+          tail -n 200 server.log || true
+          exit 1
+
+      - name: Smoke login
+        run: npm run smoke:login
+
+      - name: Show server log on failure
+        if: failure()
+        run: tail -n 200 server.log || true
+
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill "$(cat server.pid)" || true
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics
+          path: |
+            server.log
+            test-results/
+          if-no-files-found: ignore
