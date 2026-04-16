@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"net/http"
-	"strings"
 )
 
 func (a *App) handleGetTasks(w http.ResponseWriter, r *http.Request) {
@@ -41,18 +40,12 @@ func (a *App) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing task id")
-		return
-	}
-
 	var task Task
 	if !decodeJSON(w, r, taskBodyLimit, &task) {
 		return
 	}
 
-	updatedTask, err := a.taskService().UpdateTask(r.Context(), id, task)
+	updatedTask, err := a.taskService().UpdateTask(r.Context(), r.PathValue("id"), task)
 	if isTaskValidationError(err) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -70,13 +63,11 @@ func (a *App) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 // handleArchiveTask moves a task from tasks to archived_tasks.
 func (a *App) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing task id")
+	task, err := a.taskService().ArchiveTask(r.Context(), r.PathValue("id"))
+	if isTaskValidationError(err) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	task, err := a.taskService().ArchiveTask(r.Context(), id)
 	if errors.Is(err, errTaskNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -101,13 +92,11 @@ func (a *App) handleGetArchived(w http.ResponseWriter, r *http.Request) {
 
 // handleRestoreTask moves a task from archived_tasks to tasks.
 func (a *App) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing task id")
+	task, err := a.taskService().RestoreTask(r.Context(), r.PathValue("id"))
+	if isTaskValidationError(err) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	task, err := a.taskService().RestoreTask(r.Context(), id)
 	if errors.Is(err, errTaskNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -125,13 +114,11 @@ func (a *App) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) handleDeleteArchived(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(r.PathValue("id"))
-	if id == "" {
-		writeError(w, http.StatusBadRequest, "missing task id")
+	err := a.taskService().DeleteArchived(r.Context(), r.PathValue("id"))
+	if isTaskValidationError(err) {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	err := a.taskService().DeleteArchived(r.Context(), id)
 	if errors.Is(err, errTaskNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return

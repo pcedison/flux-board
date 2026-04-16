@@ -179,98 +179,110 @@ function BoardSnapshotContent({
             {tasks.length === 0 ? (
               <p className="empty">No tasks in this lane yet.</p>
             ) : (
-              <div className="lane-list">
+              <>
+                <p id={`lane-${lane.status}-hint`} className="visually-hidden">
+                  Use Move up or Move down to reorder cards within the {lane.label} lane.
+                </p>
+                <ol className="lane-list" aria-describedby={`lane-${lane.status}-hint`}>
                 {tasks.map((task, index) => (
-                  <article key={task.id} className="card">
-                    <div className="card-row">
-                      <strong>{task.title}</strong>
-                      <span className={`priority priority-${task.priority}`}>{task.priority}</span>
-                    </div>
-                    <p className="meta">Due {task.due} / order {task.sort_order}</p>
-                    {task.note ? <p className="card-note">{task.note}</p> : null}
-                    <div className="card-actions">
-                      {index > 0 ? (
+                  <li
+                    key={task.id}
+                    className="lane-list-item"
+                    aria-posinset={index + 1}
+                    aria-setsize={tasks.length}
+                  >
+                    <article className="card">
+                      <div className="card-row">
+                        <strong>{task.title}</strong>
+                        <span className={`priority priority-${task.priority}`}>{task.priority}</span>
+                      </div>
+                      <p className="meta">Due {task.due} / order {task.sort_order}</p>
+                      {task.note ? <p className="card-note">{task.note}</p> : null}
+                      <div className="card-actions">
+                        {index > 0 ? (
+                          <button
+                            className="action-button"
+                            type="button"
+                            disabled={isBusy}
+                            aria-label={`Move ${task.title} up within ${lane.label}`}
+                            onClick={() => {
+                              const previousTask = tasks[index - 1];
+                              void handleMoveTask(
+                                {
+                                  id: task.id,
+                                  status: task.status,
+                                  anchorTaskId: previousTask.id,
+                                  placeAfter: false,
+                                },
+                                `Moved ${task.title} up within ${lane.label}.`,
+                              );
+                            }}
+                          >
+                            Move up
+                          </button>
+                        ) : null}
+                        {index < tasks.length - 1 ? (
+                          <button
+                            className="action-button"
+                            type="button"
+                            disabled={isBusy}
+                            aria-label={`Move ${task.title} down within ${lane.label}`}
+                            onClick={() => {
+                              const nextTask = tasks[index + 1];
+                              void handleMoveTask(
+                                {
+                                  id: task.id,
+                                  status: task.status,
+                                  anchorTaskId: nextTask.id,
+                                  placeAfter: true,
+                                },
+                                `Moved ${task.title} down within ${lane.label}.`,
+                              );
+                            }}
+                          >
+                            Move down
+                          </button>
+                        ) : null}
+                        {moveTargets[task.status].map((target) => (
+                          <button
+                            key={target.status}
+                            className="action-button"
+                            type="button"
+                            disabled={isBusy}
+                            aria-label={`${target.label} (${task.title})`}
+                            onClick={() => {
+                              const targetLabel = target.label
+                                .replace("Move to ", "")
+                                .replace("Back to ", "");
+                              void handleMoveTask(
+                                {
+                                  id: task.id,
+                                  status: target.status,
+                                },
+                                `Moved ${task.title} to ${targetLabel}.`,
+                              );
+                            }}
+                          >
+                            {target.label}
+                          </button>
+                        ))}
                         <button
-                          className="action-button"
+                          className="action-button action-button-secondary"
                           type="button"
                           disabled={isBusy}
-                          aria-label={`Move ${task.title} up within ${lane.label}`}
+                          aria-label={`Archive ${task.title}`}
                           onClick={() => {
-                            const previousTask = tasks[index - 1];
-                            void handleMoveTask(
-                              {
-                                id: task.id,
-                                status: task.status,
-                                anchorTaskId: previousTask.id,
-                                placeAfter: false,
-                              },
-                              `Moved ${task.title} up within ${lane.label}.`,
-                            );
+                            void handleArchiveTask(task.id, task.title);
                           }}
                         >
-                          Move up
+                          Archive
                         </button>
-                      ) : null}
-                      {index < tasks.length - 1 ? (
-                        <button
-                          className="action-button"
-                          type="button"
-                          disabled={isBusy}
-                          aria-label={`Move ${task.title} down within ${lane.label}`}
-                          onClick={() => {
-                            const nextTask = tasks[index + 1];
-                            void handleMoveTask(
-                              {
-                                id: task.id,
-                                status: task.status,
-                                anchorTaskId: nextTask.id,
-                                placeAfter: true,
-                              },
-                              `Moved ${task.title} down within ${lane.label}.`,
-                            );
-                          }}
-                        >
-                          Move down
-                        </button>
-                      ) : null}
-                      {moveTargets[task.status].map((target) => (
-                        <button
-                          key={target.status}
-                          className="action-button"
-                          type="button"
-                          disabled={isBusy}
-                          aria-label={`${target.label} (${task.title})`}
-                          onClick={() => {
-                            const targetLabel = target.label
-                              .replace("Move to ", "")
-                              .replace("Back to ", "");
-                            void handleMoveTask(
-                              {
-                                id: task.id,
-                                status: target.status,
-                              },
-                              `Moved ${task.title} to ${targetLabel}.`,
-                            );
-                          }}
-                        >
-                          {target.label}
-                        </button>
-                      ))}
-                      <button
-                        className="action-button action-button-secondary"
-                        type="button"
-                        disabled={isBusy}
-                        aria-label={`Archive ${task.title}`}
-                        onClick={() => {
-                          void handleArchiveTask(task.id, task.title);
-                        }}
-                      >
-                        Archive
-                      </button>
-                    </div>
-                  </article>
+                      </div>
+                    </article>
+                  </li>
                 ))}
-              </div>
+                </ol>
+              </>
             )}
           </section>
         );

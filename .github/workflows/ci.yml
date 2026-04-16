@@ -58,9 +58,6 @@ jobs:
       - name: Verify Go race
         run: bash ./scripts/verify-go-race.sh
 
-      - name: Build app binary
-        run: go build -o flux-board .
-
       - name: Verify web scaffold
         run: bash ./scripts/verify-web.sh
 
@@ -70,38 +67,8 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Start app
-        run: |
-          ./flux-board > server.log 2>&1 &
-          echo $! > server.pid
-
-      - name: Wait for app
-        run: |
-          for attempt in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/readyz" || true)
-            if [ "$code" = "200" ]; then
-              echo "App is ready."
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "App did not become ready in time."
-          tail -n 200 server.log || true
-          exit 1
-
-      - name: Smoke login
-        run: timeout 180s npm run smoke:login
-
-      - name: Show server log on failure
-        if: failure()
-        run: tail -n 200 server.log || true
-
-      - name: Stop app
-        if: always()
-        run: |
-          if [ -f server.pid ]; then
-            kill "$(cat server.pid)" || true
-          fi
+      - name: Verify browser smoke
+        run: bash ./scripts/verify-smoke.sh
 
       - name: Upload diagnostics
         if: always()
@@ -109,6 +76,5 @@ jobs:
         with:
           name: ci-diagnostics
           path: |
-            server.log
             test-results/
           if-no-files-found: ignore

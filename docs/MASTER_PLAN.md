@@ -146,7 +146,7 @@
 - Parallel lanes: handler split, service split, repo abstraction.
 - Current status: in_progress.
 - Current gaps:
-  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, task reorder persistence, and task mutation validation/service flow are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
+  - config loading, mux/server assembly, auth/session handlers, task/archive handlers, task reorder persistence, task mutation validation/service flow, and pure task validation rules are now extracted into dedicated files, but deeper services and most domain rules still live in the `main` package
   - `cmd/flux-board` and deeper layer splits remain for later W6 slices
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
@@ -154,6 +154,7 @@
   - auth/session and task/archive HTTP handlers are no longer embedded in `main.go`
   - task/archive CRUD persistence now has an explicit repository seam
   - task mutation validation and reorder preconditions now have a dedicated service seam
+  - pure task validation and ID normalization are now separated from transport code
   - later W6 work must still extract deeper services, repositories, and pure domain rules
 
 ## W7 Frontend Foundation
@@ -180,11 +181,12 @@
 - Parallel lanes: board UI, drag/drop, RWD, a11y verification.
 - Current status: in_progress.
 - Current gaps:
-  - the isolated React board now has non-drag create/move/archive/restore plus lane-local move up/down fallback with field-level validation and live status feedback, but drag-and-drop, keyboard-first reordering polish, and full mobile-first layout work still remain
+  - the isolated React board now has non-drag create/move/archive/restore plus lane-local move up/down fallback with field-level validation, live status feedback, and list-order semantics for assistive tech, but drag-and-drop, keyboard-first reordering polish, and full mobile-first layout work still remain
   - the embedded production runtime is still the single-file frontend, so W8 remains isolated until later integration waves
 - Corrected gate checklist:
   - a non-drag movement path now exists in the isolated React board
   - current mutation controls are button-based and work without hover-only affordances
+  - lane-local fallback now exposes order semantics to assistive technology
   - later W8 work must still add drag-and-drop as progressive enhancement, deeper accessibility polish, and runtime ownership
 
 ## W9 Quality Gates, Release, and Enterprise Hooks
@@ -195,8 +197,8 @@
 - Parallel lanes: QA, release engineering, observability, enterprise design.
 - Current status: in_progress.
 - Current gaps:
-  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, and minimal unauthenticated health/readiness probes, but browser matrix, release flow, and richer observability remain mostly untouched
-  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, and the broader browser matrix plus release/observability work still remain
+  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, repo-owned smoke orchestration, and minimal unauthenticated health/readiness probes, but browser matrix, release flow, and richer observability remain mostly untouched
+  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot and shares a repo-owned smoke orchestration path with local verification, while the broader browser matrix plus release/observability work still remain
 - Corrected gate checklist:
   - CI runs repo-owned Go verification, race detection, `web/` scaffold build/typecheck/test, and browser smoke
   - local Windows race verification exists in a repo-owned script
@@ -243,7 +245,7 @@
 ### W6
 - `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are extracted, and reorder logic has begun moving into dedicated files, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
 - `W6-P2` Layer split: status `in_progress`. Auth/session plus task/archive/reorder HTTP boundaries, task repository seams, and a first task service seam for validation and reorder preconditions are now extracted into dedicated files, but broader service/repo separation still remains. Parallel: coordinate with W5 query changes.
-- `W6-P3` Pure rules and domain errors: status `in_progress`. Task payload validation and reorder preconditions now sit behind a service seam, but broader domain rules are still embedded in the main package. Parallel: good subagent slice.
+- `W6-P3` Pure rules and domain errors: status `in_progress`. Task payload validation, ID normalization, and reorder preconditions now sit behind dedicated non-HTTP helpers, but broader domain rules are still embedded in the main package. Parallel: good subagent slice.
 - `W6-P4` Test seams: status `in_progress`. Route wiring, probe coverage, task handler/repository seam coverage, and task service tests now exist, but more explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
 ### W7
 - `W7-P1` Frontend scaffold: status `done` for the current scope. A tracked React + TypeScript + Vite scaffold now exists under `web/`. Parallel: can overlap late W6.
@@ -254,10 +256,10 @@
 - `W8-P1` Core board UI: status `in_progress`. The isolated React board now renders create/move/archive/restore controls around board/list/card layout, but richer interaction polish still remains. Parallel: with W8-P2.
 - `W8-P2` Drag and reorder: status `planned`. `dnd-kit` work depends on later W5 reorder API. Parallel: depends on W5 reorder API.
 - `W8-P3` Non-drag movement: status `in_progress`. Explicit create/move/archive/restore controls plus lane-local move-up/move-down fallback now exist in the isolated React board so drag-and-drop is no longer the only future path. Parallel: with W8-P2.
-- `W8-P4` RWD and a11y: status `in_progress`. The isolated board now has 44px targets, field-level validation, focus recovery, and live status feedback, but deeper mobile-first layout and keyboard interaction work still remain. Parallel: with W8-P1.
+- `W8-P4` RWD and a11y: status `in_progress`. The isolated board now has 44px targets, field-level validation, focus recovery, live status feedback, and lane-order semantics for assistive tech, but deeper mobile-first layout and keyboard interaction work still remain. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, and richer browser smoke for login/create/archive/restore, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot and repo-owned verification scripts as the CI source of truth, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, and richer browser smoke for login/create/archive/restore through the shared verify-smoke scripts, but broader frontend/E2E and browser-matrix gates still remain. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot plus repo-owned Go/web/smoke verification scripts as the CI source of truth, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `in_progress`. Minimal unauthenticated health/readiness probes now exist, but metrics and richer logging/observability beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -304,3 +306,5 @@
 - 2026-04-16 | W6 / Task mutation service seam | done | Added `task_service.go` so create/update/reorder validation and precondition checks now sit behind a task service instead of living only in handlers, then added service and HTTP-mapping tests to keep the transport contract stable | W6 now has a clearer HTTP -> service -> repository progression for task mutations without changing the live API surface | Next: keep extracting deeper domain rules and a future `cmd/` entrypoint without reopening handler correctness | Risk: the service seam still lives in the `main` package and broader domain extraction remains open
 - 2026-04-16 | W7-W8 / Initial non-drag mutation path | done | Extended the isolated React board to create, move, archive, and restore tasks through typed API helpers plus React Query mutations, then added field-level validation, focus recovery, live status feedback, and frontend tests around the new controls | W7 now owns the first write-path in the isolated shell, and W8 is officially active because the future frontend no longer depends on drag-and-drop as its only movement model | Next: keep W8 focused on progressive enhancement, keyboard/touch polish, and eventual runtime integration instead of jumping straight to drag-and-drop | Risk: the React shell is still isolated from production runtime ownership, and full mobile-first/browser-matrix work remains open
 - 2026-04-16 | W6-W8 / Service seam tightening and lane-local fallback | done | Added direct handler-to-service seam coverage for task creation, then expanded the isolated React board with lane-local move-up/move-down fallback, a global board feedback banner, and richer tests around non-drag mutations | W6 now has more direct evidence that handlers honor the new service seam, and W8 now covers lane-local ordering without requiring drag-and-drop | Next: continue W6 deeper domain extraction, and keep W8 focused on keyboard/touch polish plus future drag enhancement | Risk: production runtime ownership is still the embedded frontend, and broader browser-matrix work remains open
+- 2026-04-16 | W6-W9 / ID normalization and repo-owned smoke orchestration | done | Moved task ID normalization for update/archive/restore/reorder/delete into the task service seam, then added `verify-smoke.ps1/sh` so local and CI smoke now share the same app-start/readiness/smoke/cleanup flow | W6 is less HTTP-coupled for task mutations, and W9 now has a tighter local/CI parity story for browser smoke | Next: keep W6 shrinking domain logic out of `main`, and continue W8/W9 toward keyboard polish, browser matrix, and release/observability work | Risk: production runtime ownership and broader multi-browser/release gates are still open
+- 2026-04-16 | W6-W9 / Validation extraction, list semantics, and smoke parity proof | done | Extracted pure task validation into `task_validation.go`, added lane-order semantics plus reorder guidance to the isolated React board, fixed Windows `verify-smoke.ps1` readiness polling, and re-ran local Go/web/smoke verification against a Docker-backed PostgreSQL instance | W6 now has a cleaner pure-validation seam, W8 has a more screen-reader-friendly non-drag fallback, and W9 now has real local proof that the shared smoke orchestration works on Windows | Next: continue W6 domain extraction and push W8/W9 toward keyboard polish, multi-browser coverage, and release/observability work | Risk: runtime ownership is still split between the embedded frontend and the isolated React shell

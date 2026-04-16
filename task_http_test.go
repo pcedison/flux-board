@@ -263,6 +263,21 @@ func TestHandleRestoreTaskMapsStoredTaskInvalid(t *testing.T) {
 	}
 }
 
+func TestHandleArchiveTaskMapsMissingIDFromService(t *testing.T) {
+	app := &App{}
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/tasks/", nil)
+	rec := httptest.NewRecorder()
+	app.handleArchiveTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "missing task id") {
+		t.Fatalf("expected missing task id error, got %s", rec.Body.String())
+	}
+}
+
 func TestHandleDeleteArchivedMapsNotFound(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
