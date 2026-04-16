@@ -128,6 +128,30 @@ func TestIntegrationAuthFlowWithDatabase(t *testing.T) {
 	}
 }
 
+func TestIntegrationHealthAndReadinessWithDatabase(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration probe test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	healthReq := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	healthRec := httptest.NewRecorder()
+	app.handleHealthz(healthRec, healthReq)
+	if healthRec.Code != http.StatusOK {
+		t.Fatalf("expected /healthz status 200, got %d", healthRec.Code)
+	}
+
+	readyReq := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	readyRec := httptest.NewRecorder()
+	app.handleReadyz(readyRec, readyReq)
+	if readyRec.Code != http.StatusOK {
+		t.Fatalf("expected /readyz status 200, got %d body=%s", readyRec.Code, readyRec.Body.String())
+	}
+}
+
 func TestIntegrationInitSchemaAppliesMigrations(t *testing.T) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {

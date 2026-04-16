@@ -6,14 +6,16 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 - Current runtime: Go backend with embedded static frontend.
 - Current maturity: MVP that works, but is not yet production-hardened for public deployment.
 - Active upgrade plan: [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md).
-- New frontend baseline: isolated `web/` React + TypeScript + Vite scaffold with React Router, TanStack Query, and read-only API integration.
+- New frontend baseline: isolated `web/` React + TypeScript + Vite scaffold with React Router, TanStack Query, auth-aware routing, and read-only API integration.
 
 ## Current Features
 - Bootstrap-password-protected task board with DB-backed sessions
 - Create, edit, archive, restore, and delete tasks
 - Three board states: `queued`, `active`, `done`
 - PostgreSQL persistence
+- Unauthenticated `GET /healthz` and DB-backed `GET /readyz` probes
 - Embedded frontend served by the Go app
+- Isolated React/Vite shell with `/login` and guarded `/board` routes for the next frontend
 
 ## Planned Direction
 - Go API + PostgreSQL remains the backend foundation
@@ -40,6 +42,10 @@ go run .
 ```
 
 Open `http://localhost:8080`.
+
+Health probes for local or hosted verification:
+- `GET /healthz` returns `200` once the HTTP process is running
+- `GET /readyz` returns `200` only after the app can reach PostgreSQL
 
 ### Deployment Basics
 Current deployment assumptions for the Go binary are:
@@ -92,10 +98,13 @@ $env:FLUX_PASSWORD="your-password"
 npm run smoke:login
 ```
 
+For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
+
 The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` by default, so the read-only `web/` shell can talk to a local Go app without extra setup.
 
 ## Repository Layout
 - [main.go](main.go): current backend entrypoint and API server
+- [health_http.go](health_http.go): unauthenticated liveness/readiness handlers
 - [auth_http.go](auth_http.go): auth/session HTTP handlers and middleware
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
 - [tasks_http.go](tasks_http.go): task and archive HTTP handlers plus task payload validation
@@ -108,9 +117,11 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck plus a small frontend unit-test baseline, but the future React/Vite frontend is still not deployed or mutation-capable
+- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests plus auth-aware routing, but the future React/Vite frontend is still not deployed or board-mutation-capable
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - The current user-facing runtime still depends on a single embedded HTML file until later W7/W8 integration waves
+- Health/readiness probes are intentionally minimal today and do not yet expose richer observability signals
+- Health/readiness probes are intentionally minimal today and do not yet expose richer observability signals
 
 ## Governance Docs
 - [CONTRIBUTING.md](CONTRIBUTING.md)

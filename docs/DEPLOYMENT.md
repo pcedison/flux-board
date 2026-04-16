@@ -23,7 +23,9 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 ## Verification After Deploy
 1. run backend verification with `./scripts/verify-go.ps1` or `./scripts/verify-go.sh`
 2. set `FLUX_PASSWORD` or `APP_PASSWORD` for the current bootstrap admin, then run browser smoke with `npm run smoke:login`
-3. confirm `/api/auth/me` returns `401` before login and `200` after login
+3. confirm `/healthz` returns `200` once the process is serving HTTP
+4. confirm `/readyz` returns `200` once the app can reach PostgreSQL
+5. confirm `/api/auth/me` returns `401` before login and `200` after login
 
 ## Current Non-Goals
 - no migration framework yet

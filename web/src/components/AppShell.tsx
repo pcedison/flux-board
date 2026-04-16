@@ -4,6 +4,7 @@ import { NavLink } from "react-router-dom";
 const navItems = [
   { href: "/", label: "Overview" },
   { href: "/board", label: "Board Snapshot" },
+  { href: "/login", label: "Sign In" },
 ];
 
 export function AppShell({ children }: PropsWithChildren) {

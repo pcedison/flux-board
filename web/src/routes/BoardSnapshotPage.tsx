@@ -50,7 +50,7 @@ function BoardSnapshotContent({
                       <strong>{task.title}</strong>
                       <span className={`priority priority-${task.priority}`}>{task.priority}</span>
                     </div>
-                    <p className="meta">Due {task.due} · order {task.sort_order}</p>
+                    <p className="meta">Due {task.due} / order {task.sort_order}</p>
                     {task.note ? <p className="card-note">{task.note}</p> : null}
                   </article>
                 ))}

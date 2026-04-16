@@ -157,13 +157,18 @@ a {
 }
 
 .page-grid,
-.board-grid {
+.board-grid,
+.auth-layout {
   display: grid;
   gap: 18px;
 }
 
 .page-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.auth-layout {
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
 }
 
 .board-grid {
@@ -229,6 +234,13 @@ a {
   margin: 0;
   padding-left: 18px;
   color: #324050;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .lane-head,
@@ -299,6 +311,49 @@ a {
   font-weight: 700;
 }
 
+.auth-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.form-field {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.text-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--stroke-soft);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text-strong);
+  font: inherit;
+}
+
+.text-input:focus-visible {
+  outline: 2px solid rgba(19, 111, 99, 0.28);
+  outline-offset: 2px;
+  border-color: rgba(19, 111, 99, 0.42);
+}
+
+.form-error {
+  margin: 0;
+  color: #991b1b;
+  font-weight: 600;
+}
+
+.auth-submit {
+  border: 0;
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 @media (max-width: 1100px) {
   .board-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -313,6 +368,7 @@ a {
 
   .page-grid,
   .board-grid,
+  .auth-layout,
   .stats-grid {
     grid-template-columns: 1fr;
   }

@@ -33,11 +33,38 @@ describe("BoardSnapshotPage", () => {
       data: {
         session: { authenticated: true, expiresAt: 1 },
         tasks: [
-          { id: "a", title: "Queue me", note: "first lane", due: "2026-04-20", priority: "medium", status: "queued", sort_order: 0, lastUpdated: 1 },
-          { id: "b", title: "Do me", note: "", due: "2026-04-21", priority: "high", status: "active", sort_order: 1, lastUpdated: 2 },
+          {
+            id: "a",
+            title: "Queue me",
+            note: "first lane",
+            due: "2026-04-20",
+            priority: "medium",
+            status: "queued",
+            sort_order: 0,
+            lastUpdated: 1,
+          },
+          {
+            id: "b",
+            title: "Do me",
+            note: "",
+            due: "2026-04-21",
+            priority: "high",
+            status: "active",
+            sort_order: 1,
+            lastUpdated: 2,
+          },
         ],
         archived: [
-          { id: "c", title: "Archived", note: "", due: "2026-04-22", priority: "critical", status: "done", sort_order: 0, archivedAt: 3 },
+          {
+            id: "c",
+            title: "Archived",
+            note: "",
+            due: "2026-04-22",
+            priority: "critical",
+            status: "done",
+            sort_order: 0,
+            archivedAt: 3,
+          },
         ],
       },
       error: null,
@@ -48,7 +75,7 @@ describe("BoardSnapshotPage", () => {
 
     expect(screen.getByText("Queue me")).toBeInTheDocument();
     expect(screen.getByText("Do me")).toBeInTheDocument();
-    expect(screen.getByText("Due 2026-04-20 · order 0")).toBeInTheDocument();
+    expect(screen.getByText("Due 2026-04-20 / order 0")).toBeInTheDocument();
     expect(screen.getByText("1 archived cards")).toBeInTheDocument();
   });
 });

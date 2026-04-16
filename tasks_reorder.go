@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -45,93 +44,25 @@ func (a *App) handleReorderTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := a.db.Begin(r.Context())
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	defer tx.Rollback(r.Context())
-
-	var current Task
-	err = tx.QueryRow(r.Context(), `
-		SELECT id, title, note, due, priority, status, sort_order, last_updated
-		FROM tasks
-		WHERE id=$1
-	`, id).Scan(
-		&current.ID,
-		&current.Title,
-		&current.Note,
-		&current.Due,
-		&current.Priority,
-		&current.Status,
-		&current.SortOrder,
-		&current.LastUpdated,
-	)
-	if errors.Is(err, pgx.ErrNoRows) {
+	task, err := a.taskRepository().ReorderTask(r.Context(), id, taskReorderInput{
+		Status:       req.Status,
+		AnchorTaskID: strings.TrimSpace(req.AnchorTaskID),
+		PlaceAfter:   req.PlaceAfter,
+	})
+	if errors.Is(err, errTaskNotFound) {
 		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
+	if errors.Is(err, errTaskInvalidAnchor) {
+		writeError(w, http.StatusBadRequest, "anchor task is invalid")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
 
-	if err := lockTaskLanes(r.Context(), tx, current.Status, req.Status); err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if err := deferTaskOrderConstraint(r.Context(), tx); err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	sourceIDs, err := laneTaskIDs(r.Context(), tx, current.Status)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	sourceIDs = removeTaskID(sourceIDs, current.ID)
-
-	targetIDs := sourceIDs
-	if current.Status != req.Status {
-		targetIDs, err = laneTaskIDs(r.Context(), tx, req.Status)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "db error")
-			return
-		}
-	}
-
-	insertIdx, err := reorderInsertIndex(r.Context(), tx, req.Status, req.AnchorTaskID, req.PlaceAfter, targetIDs)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeError(w, http.StatusBadRequest, "anchor task is invalid")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	targetIDs = insertAt(targetIDs, insertIdx, current.ID)
-
-	now := time.Now().UnixMilli()
-	if current.Status != req.Status {
-		if err := applyLaneOrder(r.Context(), tx, current.Status, sourceIDs, "", 0); err != nil {
-			writeError(w, http.StatusInternalServerError, "db error")
-			return
-		}
-	}
-	if err := applyLaneOrder(r.Context(), tx, req.Status, targetIDs, current.ID, now); err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-
-	current.Status = req.Status
-	current.SortOrder = insertIdx
-	current.LastUpdated = now
-	jsonResp(w, current)
+	jsonResp(w, task)
 }
 
 func lockTaskLanes(ctx context.Context, tx pgx.Tx, statuses ...string) error {

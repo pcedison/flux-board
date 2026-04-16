@@ -16,6 +16,7 @@ type stubTaskRepository struct {
 	deleteArchiveFn func(context.Context, string) error
 	listArchivedFn  func(context.Context) ([]ArchivedTask, error)
 	listTasksFn     func(context.Context) ([]Task, error)
+	reorderTaskFn   func(context.Context, string, taskReorderInput) (Task, error)
 	restoreTaskFn   func(context.Context, string) (Task, error)
 	updateTaskFn    func(context.Context, string, Task) (Task, error)
 }
@@ -39,6 +40,13 @@ func (s stubTaskRepository) UpdateTask(ctx context.Context, id string, task Task
 		return s.updateTaskFn(ctx, id, task)
 	}
 	return task, nil
+}
+
+func (s stubTaskRepository) ReorderTask(ctx context.Context, id string, reorder taskReorderInput) (Task, error) {
+	if s.reorderTaskFn != nil {
+		return s.reorderTaskFn(ctx, id, reorder)
+	}
+	return Task{}, nil
 }
 
 func (s stubTaskRepository) ArchiveTask(ctx context.Context, id string) (ArchivedTask, error) {
@@ -174,5 +182,29 @@ func TestHandleGetArchivedMapsRepositoryFailure(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+}
+
+func TestHandleReorderTaskMapsInvalidAnchor(t *testing.T) {
+	app := &App{
+		taskRepo: stubTaskRepository{
+			reorderTaskFn: func(context.Context, string, taskReorderInput) (Task, error) {
+				return Task{}, errTaskInvalidAnchor
+			},
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks/task-1/reorder", strings.NewReader(`{
+		"status":"queued",
+		"anchorTaskId":"task-2",
+		"placeAfter":false
+	}`))
+	req.SetPathValue("id", "task-1")
+	rec := httptest.NewRecorder()
+
+	app.handleReorderTask(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
