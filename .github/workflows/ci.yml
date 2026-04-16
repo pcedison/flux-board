@@ -48,7 +48,10 @@ jobs:
         run: go version
 
       - name: Test
-        run: go test ./...
+        run: go test -count=1 ./...
+
+      - name: Race test
+        run: go test -race -count=1 ./...
 
       - name: Vet
         run: go vet ./...
@@ -59,7 +62,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install Node dependencies
         run: npm ci --no-fund --no-audit

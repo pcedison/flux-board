@@ -40,7 +40,7 @@
 | W6 | Go Modularization | Main agent | planned | Core logic testable and layered |
 | W7 | Frontend Foundation | Main agent | planned | New React frontend builds and talks to API |
 | W8 | Trello-grade UX, RWD, A11y | Main agent | planned | Mouse/touch/keyboard all pass core flows |
-| W9 | Quality Gates, Release, Enterprise Hooks | Main agent | planned | Public-fork release ready |
+| W9 | Quality Gates, Release, Enterprise Hooks | Main agent | in_progress | Public-fork release ready |
 
 ## W0 Baseline Audit
 - Goal: freeze the real MVP state and identify blockers before implementation.
@@ -173,6 +173,13 @@
 - Tasks: add unit/integration/E2E coverage, verify Chromium/Firefox/WebKit, define release/rollback process, add health/metrics/logging, reserve extension points for RBAC/SSO/workspaces.
 - Gate: project is safe to publish, testable in CI, and ready for controlled future enterprise expansion.
 - Parallel lanes: QA, release engineering, observability, enterprise design.
+- Current status: in_progress.
+- Current gaps:
+  - CI quality gates are tightening, but browser matrix, release flow, and observability remain mostly untouched
+  - the current workflow still carries a GitHub-hosted Node runtime deprecation warning that should be handled in a later W9 slice
+- Corrected gate checklist:
+  - CI runs cache-busted Go tests and race detection
+  - later W9 work must still add broader browser/release/observability gates
 
 ## Standard Gates
 - Security gate: no known P0 security defect; no shared-password production default; request and session protections active.
@@ -228,8 +235,8 @@
 - `W8-P3` Non-drag movement: status `planned`. Explicit move controls not started yet. Parallel: with W8-P2.
 - `W8-P4` RWD and a11y: status `planned`. New mobile-first and accessibility work not started yet. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: status `planned`. Broader backend/frontend/E2E gates remain for later waves. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `planned`. Release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P1` Test gates: status `in_progress`. CI is tightening with cache-busted Go tests and race detection, but broader frontend/E2E gates still remain. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening is underway, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `planned`. Health/readiness/metrics/logging beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -258,3 +265,4 @@
 - 2026-04-16 | W0-W4 / Final verification pass | done | Re-ran local backend verification, rechecked latest CI on head `d64348f`, and confirmed the latest green workflow run `24494839272` still covers clean-environment boot, DB-backed auth tests, and browser smoke; aligned deployment docs with the tracked smoke credential requirement | W0-W4 are now re-verified and closed for their current documented scope | Next: begin W5 migration baseline and W6 startup extraction without reopening earlier waves | Risk: W1/W4 completion is scoped to the current single-admin + embedded-frontend baseline, not later-wave enterprise targets
 - 2026-04-16 | W5-W6 / First execution slice | in_progress | Started W5 migration baseline by introducing versioned SQL migrations and migration history tracking; started W6 bootstrap extraction by moving config loading into `internal/config` and moving mux/server assembly into dedicated startup files | W5 and W6 are now active with a low-risk first slice that preserves current behavior while creating room for deeper schema and modularization work | Next: validate migration history in DB-capable tests, then continue with reorder correctness and deeper layer extraction | Risk: `main.go` still owns handlers and SQL, and W5 has not yet addressed reorder races or stronger constraints
 - 2026-04-16 | W5-W6 / First slice validation | done | Fixed CI env isolation in the new config tests, reran local verification, and observed green GitHub Actions run `24495401377` for the W5/W6 startup+migration slice | The first W5/W6 slice now has local and clean-environment CI proof without reopening W0-W4 | Next: move W5 into reorder correctness and stronger schema guarantees, and move W6 into deeper handler/service/repo extraction | Risk: migration baseline still needs future down/rollback strategy and reorder work remains open
+- 2026-04-16 | W9 / First quality-gate tightening slice | in_progress | Tightened CI toward W9 by switching cache-busted Go tests, adding race detection in CI, and moving smoke tooling to Node 22 while keeping local verification lightweight | W9 is now active without blocking W5/W6, and CI quality gates are stronger for upcoming backend/frontend work | Next: verify the tightened workflow on GitHub Actions, then decide whether to add release/observability or browser-matrix work next | Risk: GitHub-hosted JS action runtime deprecation warnings still remain and need a later W9-specific pass
