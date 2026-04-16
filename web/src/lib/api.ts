@@ -48,6 +48,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isUnauthorizedApiError(error: unknown) {
+  return error instanceof ApiError && error.status === 401;
+}
+
 type LoginResponse = {
   expiresAt?: number;
   ok?: boolean;
@@ -87,6 +91,24 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function apiFetchVoid(path: string, init?: RequestInit): Promise<void> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    credentials: "include",
+    headers,
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as ErrorEnvelope;
+    throw new ApiError(body.error ?? `Request failed with status ${response.status}`, response.status);
+  }
+}
+
 export async function fetchAuthSession(): Promise<AuthSession | null> {
   try {
     return await apiFetch<AuthSession>("/api/auth/me");
@@ -111,6 +133,12 @@ export async function loginWithPassword(password: string): Promise<AuthSession> 
     authenticated: true,
     expiresAt: body.expiresAt ?? Date.now(),
   };
+}
+
+export function logout(): Promise<void> {
+  return apiFetchVoid("/api/auth/logout", {
+    method: "POST",
+  });
 }
 
 export function createTask(task: TaskDraft): Promise<Task> {
@@ -175,7 +203,20 @@ export async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
     };
   }
 
-  const [tasks, archived] = await Promise.all([fetchTasks(), fetchArchivedTasks()]);
+  const boardData = await Promise.all([fetchTasks(), fetchArchivedTasks()]).catch((error) => {
+    if (isUnauthorizedApiError(error)) {
+      return null;
+    }
+    throw error;
+  });
+  if (!boardData) {
+    return {
+      session: null,
+      tasks: [],
+      archived: [],
+    };
+  }
+  const [tasks, archived] = boardData;
   return { session, tasks, archived };
 }
 

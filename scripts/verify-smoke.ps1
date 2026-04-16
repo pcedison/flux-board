@@ -17,6 +17,10 @@ $baseURL = if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) {
 }
 $env:BASE_URL = $baseURL
 
+if ([string]::IsNullOrWhiteSpace($env:PLAYWRIGHT_BROWSER)) {
+  $env:PLAYWRIGHT_BROWSER = "chromium"
+}
+
 $binaryName = if ($env:OS -eq "Windows_NT") { "flux-board.exe" } else { "flux-board" }
 $binaryPath = if ([string]::IsNullOrWhiteSpace($env:APP_BINARY)) {
   Join-Path $root $binaryName
@@ -93,7 +97,7 @@ function Wait-ForReady {
 }
 
 function Invoke-Smoke {
-  Write-Host "[4/4] npm run smoke:login"
+  Write-Host "[4/4] npm run smoke:login (browser=$env:PLAYWRIGHT_BROWSER)"
   & npm run smoke:login
   if ($LASTEXITCODE -ne 0) {
     Show-ServerLogs

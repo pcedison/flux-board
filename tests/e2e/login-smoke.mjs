@@ -1,10 +1,13 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { chromium } from "playwright";
+import { chromium, firefox, webkit } from "playwright";
 
 const baseURL = normalizeBaseUrl(process.env.BASE_URL ?? "http://127.0.0.1:8080");
 const password = process.env.FLUX_PASSWORD ?? process.env.APP_PASSWORD ?? "";
+const browserName = normalizeBrowserName(
+  process.env.PLAYWRIGHT_BROWSER ?? process.env.SMOKE_BROWSER ?? "chromium"
+);
 const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
 const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
@@ -29,7 +32,8 @@ if (typeof overallTimeout.unref === "function") {
   overallTimeout.unref();
 }
 
-const browser = await chromium.launch({
+const browserType = resolveBrowserType(browserName);
+const browser = await browserType.launch({
   headless,
   slowMo: slowMo > 0 ? slowMo : undefined,
 });
@@ -184,6 +188,7 @@ try {
     JSON.stringify(
       {
         baseURL,
+        browser: browserName,
         headless,
         slowMo,
         resultsDir,
@@ -204,6 +209,7 @@ try {
     JSON.stringify(
       {
         baseURL,
+        browser: browserName,
         headless,
         slowMo,
         resultsDir,
@@ -268,6 +274,27 @@ async function safeReadJson(response) {
 function normalizeBaseUrl(value) {
   const url = new URL(value);
   return url.toString().replace(/\/$/, "");
+}
+
+function normalizeBrowserName(value) {
+  return String(value).trim().toLowerCase();
+}
+
+function resolveBrowserType(name) {
+  switch (name) {
+    case "chromium":
+      return chromium;
+    case "firefox":
+      return firefox;
+    case "webkit":
+      return webkit;
+    default:
+      throw new Error(
+        `Unsupported PLAYWRIGHT_BROWSER ${JSON.stringify(
+          name
+        )}. Expected one of chromium, firefox, webkit.`
+      );
+  }
 }
 
 function parseBoolean(value, fallback) {

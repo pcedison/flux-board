@@ -145,6 +145,12 @@ a {
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+.nav-button {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
 .nav-pill:hover,
 .nav-pill:focus-visible {
   background: var(--accent-soft);
@@ -154,6 +160,11 @@ a {
 .nav-pill-active {
   background: var(--accent);
   color: #f8fffe;
+}
+
+.nav-pill-muted {
+  background: rgba(15, 23, 42, 0.08);
+  color: #223247;
 }
 
 .page-grid,
