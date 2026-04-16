@@ -53,16 +53,16 @@ jobs:
         run: go version
 
       - name: Verify Go
-        run: ./scripts/verify-go.sh
+        run: bash ./scripts/verify-go.sh
 
       - name: Verify Go race
-        run: ./scripts/verify-go-race.sh
+        run: bash ./scripts/verify-go-race.sh
 
       - name: Build app binary
         run: go build -o flux-board .
 
       - name: Verify web scaffold
-        run: ./scripts/verify-web.sh
+        run: bash ./scripts/verify-web.sh
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
