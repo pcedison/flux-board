@@ -92,6 +92,7 @@ type authAuditEvent struct {
 // App holds shared application dependencies.
 type App struct {
 	db                *pgxpool.Pool
+	taskRepo          TaskRepository
 	bootstrapPassword string
 	cookieSecure      bool
 	loginMu           sync.Mutex

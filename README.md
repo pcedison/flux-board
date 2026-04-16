@@ -24,7 +24,7 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 ### Requirements
 - Go `1.22+`
 - PostgreSQL
-- Node.js `18+` only if you want to run the optional browser smoke tooling
+- Node.js `20.19+` or `22.12+` if you want to run the `web/` scaffold or browser smoke tooling
 - On Windows, local `go test -race` also needs a C toolchain such as `MSYS2 UCRT64 GCC`
 
 ### Environment
@@ -83,6 +83,8 @@ On macOS/Linux:
 ./scripts/verify-web.sh
 ```
 
+These scripts now run install, typecheck, frontend unit tests, and production build for `web/`.
+
 Optional browser smoke for the current embedded frontend:
 ```powershell
 npm ci
@@ -106,7 +108,7 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck verification plus a routed read-only shell, but the future React/Vite frontend is still not deployed or mutation-capable
+- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck plus a small frontend unit-test baseline, but the future React/Vite frontend is still not deployed or mutation-capable
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - The current user-facing runtime still depends on a single embedded HTML file until later W7/W8 integration waves
 

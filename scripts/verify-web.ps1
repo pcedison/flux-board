@@ -13,8 +13,9 @@ function Invoke-WebCommand {
   }
 }
 
-Invoke-WebCommand "[1/3] npm --prefix web ci --no-fund --no-audit" @("--prefix", "web", "ci", "--no-fund", "--no-audit")
-Invoke-WebCommand "[2/3] npm --prefix web run typecheck" @("--prefix", "web", "run", "typecheck")
-Invoke-WebCommand "[3/3] npm --prefix web run build" @("--prefix", "web", "run", "build")
+Invoke-WebCommand "[1/4] npm --prefix web ci --no-fund --no-audit" @("--prefix", "web", "ci", "--no-fund", "--no-audit")
+Invoke-WebCommand "[2/4] npm --prefix web run typecheck" @("--prefix", "web", "run", "typecheck")
+Invoke-WebCommand "[3/4] npm --prefix web run test:run" @("--prefix", "web", "run", "test:run")
+Invoke-WebCommand "[4/4] npm --prefix web run build" @("--prefix", "web", "run", "build")
 
 Write-Host "Web verification completed successfully."
