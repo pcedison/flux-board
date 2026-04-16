@@ -1,23 +1,41 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { logout } from "../lib/api";
 import type { BoardSnapshot, AuthSession } from "../lib/api";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
-vi.mock("../lib/useAuthSession", () => ({
-  useAuthSession: vi.fn(),
-}));
+vi.mock("../lib/useAuthSession", async () => {
+  const actual = await vi.importActual("../lib/useAuthSession");
+  return {
+    ...actual,
+    useAuthSession: vi.fn(),
+  };
+});
 
-vi.mock("../lib/useBoardSnapshot", () => ({
-  useBoardSnapshot: vi.fn(),
-}));
+vi.mock("../lib/useBoardSnapshot", async () => {
+  const actual = await vi.importActual("../lib/useBoardSnapshot");
+  return {
+    ...actual,
+    useBoardSnapshot: vi.fn(),
+  };
+});
+
+vi.mock("../lib/api", async () => {
+  const actual = await vi.importActual("../lib/api");
+  return {
+    ...actual,
+    logout: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 const mockedUseAuthSession = vi.mocked(useAuthSession);
 const mockedUseBoardSnapshot = vi.mocked(useBoardSnapshot);
+const mockedLogout = vi.mocked(logout);
 
 function renderApp(initialEntry: string) {
   const queryClient = new QueryClient({
@@ -61,6 +79,7 @@ describe("App auth-aware routing", () => {
   beforeEach(() => {
     mockedUseAuthSession.mockReset();
     mockedUseBoardSnapshot.mockReset();
+    mockedLogout.mockClear().mockResolvedValue(undefined);
   });
 
   it("redirects unauthenticated board visits to the login route", () => {
@@ -70,6 +89,8 @@ describe("App auth-aware routing", () => {
     renderApp("/board");
 
     expect(screen.getByRole("heading", { name: "Sign in to view the board" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign In" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Board Snapshot" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByText(/Redirects you back to/i)).toHaveTextContent("/board");
   });
@@ -96,6 +117,8 @@ describe("App auth-aware routing", () => {
     renderApp("/board");
 
     expect(screen.getByText("Queue me")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Board Snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to view the board" })).not.toBeInTheDocument();
   });
 
@@ -111,5 +134,30 @@ describe("App auth-aware routing", () => {
 
     expect(screen.getByText("Archive Snapshot")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to view the board" })).not.toBeInTheDocument();
+  });
+
+  it("clears shell auth ownership after logout", async () => {
+    mockedUseAuthSession.mockReturnValueOnce(
+      {
+        data: { authenticated: true, expiresAt: 1 },
+        error: null,
+        isPending: false,
+      } as unknown as ReturnType<typeof useAuthSession>,
+    );
+    mockedUseAuthSession.mockReturnValue(
+      {
+        data: null,
+        error: null,
+        isPending: false,
+      } as unknown as ReturnType<typeof useAuthSession>,
+    );
+    mockBoardSnapshot(undefined, true);
+
+    renderApp("/");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() => expect(mockedLogout).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole("link", { name: "Sign In" })).toBeInTheDocument());
   });
 });

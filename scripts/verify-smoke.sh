@@ -8,9 +8,11 @@ base_url=${base_url%/}
 app_binary=${APP_BINARY:-"./flux-board"}
 ready_attempts=${SMOKE_READY_ATTEMPTS:-60}
 ready_delay_seconds=${SMOKE_READY_DELAY_SECONDS:-2}
+playwright_browser=${PLAYWRIGHT_BROWSER:-"${SMOKE_BROWSER:-chromium}"}
 
 export TEST_RESULTS_DIR="$results_dir"
 export BASE_URL="$base_url"
+export PLAYWRIGHT_BROWSER="$playwright_browser"
 
 mkdir -p "$results_dir"
 
@@ -72,7 +74,7 @@ while [ "$attempt" -le "$ready_attempts" ]; do
   attempt=$((attempt + 1))
 done
 
-echo "[4/4] npm run smoke:login"
+echo "[4/4] npm run smoke:login (browser=$PLAYWRIGHT_BROWSER)"
 if ! npm run smoke:login; then
   show_server_logs
   exit 1

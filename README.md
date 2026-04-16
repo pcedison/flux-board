@@ -6,7 +6,7 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 - Current runtime: Go backend with embedded static frontend.
 - Current maturity: MVP that works, but is not yet production-hardened for public deployment.
 - Active upgrade plan: [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md).
-- New frontend baseline: isolated `web/` React + TypeScript + Vite scaffold with React Router, TanStack Query, auth-aware routing, and the first non-drag board mutation path.
+- New frontend baseline: isolated `web/` React + TypeScript + Vite scaffold with React Router, TanStack Query, auth-aware routing, explicit sign-out handling, and the first non-drag board mutation path.
 
 ## Current Features
 - Bootstrap-password-protected task board with DB-backed sessions
@@ -15,7 +15,7 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 - PostgreSQL persistence
 - Unauthenticated `GET /healthz` and DB-backed `GET /readyz` probes
 - Embedded frontend served by the Go app
-- Isolated React/Vite shell with `/login`, guarded `/board`, explicit create/move/archive/restore actions, and lane-local move up/down fallback for the next frontend
+- Isolated React/Vite shell with `/login`, guarded `/board`, auth-aware shell navigation, explicit sign-out handling, explicit create/move/archive/restore actions, and lane-local move up/down fallback for the next frontend
 
 ## Planned Direction
 - Go API + PostgreSQL remains the backend foundation
@@ -95,6 +95,7 @@ Browser smoke for the current embedded frontend:
 ```powershell
 npm ci
 $env:FLUX_PASSWORD="your-password"
+$env:PLAYWRIGHT_BROWSER="chromium"
 ./scripts/verify-smoke.ps1
 ```
 
@@ -102,10 +103,12 @@ On macOS/Linux:
 ```sh
 npm ci
 export FLUX_PASSWORD="your-password"
+export PLAYWRIGHT_BROWSER=chromium
 ./scripts/verify-smoke.sh
 ```
 
 These smoke scripts now build the Go app, start it locally, wait for `/readyz`, run the repo-owned Playwright smoke flow, keep logs under `test-results/`, and clean up the app process automatically.
+`PLAYWRIGHT_BROWSER` defaults to `chromium`; CI now also runs the same smoke path against `firefox` as the first non-Chromium browser gate.
 
 For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
 
@@ -115,6 +118,7 @@ The Vite dev server is configured to proxy `/api/*` to `http://127.0.0.1:8080` b
 - [main.go](main.go): current backend entrypoint and API server
 - [health_http.go](health_http.go): unauthenticated liveness/readiness handlers
 - [auth_http.go](auth_http.go): auth/session HTTP handlers and middleware
+- [auth_service.go](auth_service.go): auth/session persistence and audit helpers behind the transport layer
 - [http_helpers.go](http_helpers.go): shared JSON request/response helpers
 - [tasks_http.go](tasks_http.go): task and archive HTTP handlers
 - [task_service.go](task_service.go): task validation and service-layer orchestration for CRUD/reorder flows

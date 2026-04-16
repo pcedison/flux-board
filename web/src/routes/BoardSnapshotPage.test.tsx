@@ -3,12 +3,17 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
-import { archiveTask, createTask, moveTask, restoreTask } from "../lib/api";
+import { ApiError, archiveTask, createTask, moveTask, restoreTask } from "../lib/api";
+import { authSessionQueryKey } from "../lib/useAuthSession";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
-vi.mock("../lib/useBoardSnapshot", () => ({
-  useBoardSnapshot: vi.fn(),
-}));
+vi.mock("../lib/useBoardSnapshot", async () => {
+  const actual = await vi.importActual("../lib/useBoardSnapshot");
+  return {
+    ...actual,
+    useBoardSnapshot: vi.fn(),
+  };
+});
 
 vi.mock("../lib/api", async () => {
   const actual = await vi.importActual("../lib/api");
@@ -222,6 +227,19 @@ describe("BoardSnapshotPage", () => {
     );
   });
 
+  it("clears auth-session ownership when a mutation returns 401", async () => {
+    mockSnapshot();
+    mockedMoveTask.mockRejectedValueOnce(new ApiError("unauthorized", 401));
+
+    const queryClient = renderPage({
+      authSession: { authenticated: true, expiresAt: 1 },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
+
+    await waitFor(() => expect(queryClient.getQueryData(authSessionQueryKey)).toBeNull());
+  });
+
   it("exposes lane order semantics for assistive technology", () => {
     mockSnapshot({
       tasks: [
@@ -272,7 +290,7 @@ describe("BoardSnapshotPage", () => {
   });
 });
 
-function renderPage() {
+function renderPage(options?: { authSession?: { authenticated: boolean; expiresAt: number } | null }) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -281,11 +299,17 @@ function renderPage() {
     },
   });
 
-  return render(
+  if (options && Object.prototype.hasOwnProperty.call(options, "authSession")) {
+    queryClient.setQueryData(authSessionQueryKey, options.authSession ?? null);
+  }
+
+  render(
     <QueryClientProvider client={queryClient}>
       <BoardSnapshotPage />
     </QueryClientProvider>,
   );
+
+  return queryClient;
 }
 
 function mockSnapshot(overrides?: Partial<NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>>) {

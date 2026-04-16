@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  go:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -17,9 +17,6 @@ jobs:
       APP_PASSWORD: ci-test-password
       FLUX_PASSWORD: ci-test-password
       DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
-      BASE_URL: http://127.0.0.1:8080
-      SMOKE_TIMEOUT_MS: "120000"
-      TEST_RESULTS_DIR: test-results/github-ci
     services:
       postgres:
         image: postgres:16-alpine
@@ -61,11 +58,60 @@ jobs:
       - name: Verify web scaffold
         run: bash ./scripts/verify-web.sh
 
+  smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser:
+          - chromium
+          - firefox
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+      TEST_RESULTS_DIR: test-results/github-ci/${{ matrix.browser }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
       - name: Verify browser smoke
         run: bash ./scripts/verify-smoke.sh
@@ -74,7 +120,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-diagnostics
+          name: ci-diagnostics-${{ matrix.browser }}
           path: |
             test-results/
           if-no-files-found: ignore

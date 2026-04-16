@@ -3,7 +3,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError, loginWithPassword } from "../lib/api";
-import { useAuthSession } from "../lib/useAuthSession";
+import { setAuthSessionData, useAuthSession } from "../lib/useAuthSession";
 
 type LoginLocationState = {
   from?: string;
@@ -58,7 +58,7 @@ export function LoginPage() {
 
     try {
       const authSession = await loginWithPassword(password);
-      queryClient.setQueryData(["auth-session"], authSession);
+      setAuthSessionData(queryClient, authSession);
       await queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
       navigate(nextPath, { replace: true });
     } catch (error) {
