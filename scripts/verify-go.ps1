@@ -13,7 +13,7 @@ function Invoke-GoCommand {
   }
 }
 
-Invoke-GoCommand "[1/3] go test ./..." @("test", "./...")
+Invoke-GoCommand "[1/3] go test -count=1 ./..." @("test", "-count=1", "./...")
 
 Invoke-GoCommand "[2/3] go vet ./..." @("vet", "./...")
 
