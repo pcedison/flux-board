@@ -37,7 +37,7 @@ type ErrorEnvelope = {
   error?: string;
 };
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
 
   constructor(message: string, status: number) {
@@ -47,12 +47,21 @@ class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string): Promise<T> {
+type LoginResponse = {
+  expiresAt?: number;
+  ok?: boolean;
+};
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+
   const response = await fetch(path, {
+    ...init,
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -63,7 +72,7 @@ async function apiFetch<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function fetchSession(): Promise<AuthSession | null> {
+export async function fetchAuthSession(): Promise<AuthSession | null> {
   try {
     return await apiFetch<AuthSession>("/api/auth/me");
   } catch (error) {
@@ -72,6 +81,21 @@ async function fetchSession(): Promise<AuthSession | null> {
     }
     throw error;
   }
+}
+
+export async function loginWithPassword(password: string): Promise<AuthSession> {
+  const body = await apiFetch<LoginResponse>("/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password }),
+  });
+
+  return {
+    authenticated: true,
+    expiresAt: body.expiresAt ?? Date.now(),
+  };
 }
 
 async function fetchTasks(): Promise<Task[]> {
@@ -85,7 +109,7 @@ async function fetchArchivedTasks(): Promise<ArchivedTask[]> {
 }
 
 export async function fetchBoardSnapshot(): Promise<BoardSnapshot> {
-  const session = await fetchSession();
+  const session = await fetchAuthSession();
   if (!session) {
     return {
       session: null,

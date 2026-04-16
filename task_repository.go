@@ -11,14 +11,22 @@ import (
 
 var (
 	errTaskConflict      = errors.New("task conflict")
+	errTaskInvalidAnchor = errors.New("task invalid anchor")
 	errTaskNotFound      = errors.New("task not found")
 	errStoredTaskInvalid = errors.New("stored task is invalid")
 )
+
+type taskReorderInput struct {
+	Status       string
+	AnchorTaskID string
+	PlaceAfter   bool
+}
 
 type TaskRepository interface {
 	ListTasks(context.Context) ([]Task, error)
 	CreateTask(context.Context, Task) (Task, error)
 	UpdateTask(context.Context, string, Task) (Task, error)
+	ReorderTask(context.Context, string, taskReorderInput) (Task, error)
 	ArchiveTask(context.Context, string) (ArchivedTask, error)
 	ListArchived(context.Context) ([]ArchivedTask, error)
 	RestoreTask(context.Context, string) (Task, error)
@@ -130,6 +138,84 @@ func (r postgresTaskRepository) UpdateTask(ctx context.Context, id string, task 
 	task.Status = currentStatus
 	task.SortOrder = currentSortOrder
 	return task, nil
+}
+
+func (r postgresTaskRepository) ReorderTask(ctx context.Context, id string, reorder taskReorderInput) (Task, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return Task{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var current Task
+	err = tx.QueryRow(ctx, `
+		SELECT id, title, note, due, priority, status, sort_order, last_updated
+		FROM tasks
+		WHERE id=$1
+	`, id).Scan(
+		&current.ID,
+		&current.Title,
+		&current.Note,
+		&current.Due,
+		&current.Priority,
+		&current.Status,
+		&current.SortOrder,
+		&current.LastUpdated,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Task{}, errTaskNotFound
+	}
+	if err != nil {
+		return Task{}, err
+	}
+
+	if err := lockTaskLanes(ctx, tx, current.Status, reorder.Status); err != nil {
+		return Task{}, err
+	}
+	if err := deferTaskOrderConstraint(ctx, tx); err != nil {
+		return Task{}, err
+	}
+
+	sourceIDs, err := laneTaskIDs(ctx, tx, current.Status)
+	if err != nil {
+		return Task{}, err
+	}
+	sourceIDs = removeTaskID(sourceIDs, current.ID)
+
+	targetIDs := sourceIDs
+	if current.Status != reorder.Status {
+		targetIDs, err = laneTaskIDs(ctx, tx, reorder.Status)
+		if err != nil {
+			return Task{}, err
+		}
+	}
+
+	insertIdx, err := reorderInsertIndex(ctx, tx, reorder.Status, reorder.AnchorTaskID, reorder.PlaceAfter, targetIDs)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Task{}, errTaskInvalidAnchor
+	}
+	if err != nil {
+		return Task{}, err
+	}
+	targetIDs = insertAt(targetIDs, insertIdx, current.ID)
+
+	now := time.Now().UnixMilli()
+	if current.Status != reorder.Status {
+		if err := applyLaneOrder(ctx, tx, current.Status, sourceIDs, "", 0); err != nil {
+			return Task{}, err
+		}
+	}
+	if err := applyLaneOrder(ctx, tx, reorder.Status, targetIDs, current.ID, now); err != nil {
+		return Task{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Task{}, err
+	}
+
+	current.Status = reorder.Status
+	current.SortOrder = insertIdx
+	current.LastUpdated = now
+	return current, nil
 }
 
 func (r postgresTaskRepository) ArchiveTask(ctx context.Context, id string) (ArchivedTask, error) {

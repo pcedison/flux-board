@@ -98,6 +98,7 @@ type App struct {
 	loginMu           sync.Mutex
 	loginAttempts     map[string]loginAttemptState
 	passwordVerifier  func(context.Context, string) (bool, error)
+	readinessChecker  func(context.Context) error
 	sessionGetter     func(context.Context, string) (sessionState, error)
 	sessionCreator    func(context.Context, string, string, string, time.Time) error
 	sessionDeleter    func(context.Context, string) error

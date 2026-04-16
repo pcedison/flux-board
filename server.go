@@ -13,6 +13,8 @@ import (
 
 func newMux(app *App) (*http.ServeMux, error) {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", app.handleHealthz)
+	mux.HandleFunc("GET /readyz", app.handleReadyz)
 	mux.HandleFunc("POST /api/auth/login", app.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", app.handleLogout)
 	mux.HandleFunc("GET /api/auth/me", app.auth(app.handleGetSession))

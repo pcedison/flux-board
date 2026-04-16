@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 import { QueryState } from "../components/QueryState";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
@@ -29,7 +31,7 @@ function OverviewContent({ data }: { data: NonNullable<ReturnType<typeof useBoar
         <p className="meta">
           {data.session
             ? `Expires at ${new Date(data.session.expiresAt).toLocaleString()}`
-            : "This read-only shell stays unauthenticated until the future login UI lands."}
+            : "Use the new /login route to establish the shared session cookie before opening the guarded board snapshot."}
         </p>
       </section>
 
@@ -50,6 +52,11 @@ function OverviewContent({ data }: { data: NonNullable<ReturnType<typeof useBoar
           <li>Establish build and typecheck gates before interactive board work starts.</li>
           <li>Read real API data now so later mutation work has a stable transport seam.</li>
         </ul>
+        <div className="action-row">
+          <Link className="nav-pill nav-pill-active" to={data.session ? "/board" : "/login"}>
+            {data.session ? "Open guarded board" : "Open sign-in route"}
+          </Link>
+        </div>
       </section>
     </div>
   );

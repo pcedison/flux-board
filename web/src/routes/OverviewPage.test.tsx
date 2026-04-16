@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OverviewPage } from "./OverviewPage";
@@ -22,7 +23,11 @@ describe("OverviewPage", () => {
       isPending: true,
     } as ReturnType<typeof useBoardSnapshot>);
 
-    render(<OverviewPage />);
+    render(
+      <MemoryRouter>
+        <OverviewPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("Loading")).toBeInTheDocument();
     expect(screen.getByText("Reading the current auth and board snapshot from the Go API.")).toBeInTheDocument();
@@ -48,13 +53,18 @@ describe("OverviewPage", () => {
       isPending: false,
     } as ReturnType<typeof useBoardSnapshot>);
 
-    render(<OverviewPage />);
+    render(
+      <MemoryRouter>
+        <OverviewPage />
+      </MemoryRouter>,
+    );
 
     expect(screen.getByText("Authenticated session detected")).toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.getByText("Archived")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open guarded board" })).toHaveAttribute("href", "/board");
     expect(screen.getAllByText("1")).toHaveLength(4);
   });
 });

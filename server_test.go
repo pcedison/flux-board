@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,9 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, nil
+		},
+		readinessChecker: func(context.Context) error {
+			return nil
 		},
 		auditRecorder: func(context.Context, authAuditEvent) error {
 			return nil
@@ -32,6 +36,18 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 		body       string
 		wantStatus int
 	}{
+		{
+			name:       "healthz route",
+			method:     http.MethodGet,
+			target:     "/healthz",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "readyz route",
+			method:     http.MethodGet,
+			target:     "/readyz",
+			wantStatus: http.StatusOK,
+		},
 		{
 			name:       "login route",
 			method:     http.MethodPost,
@@ -81,6 +97,9 @@ func TestNewMuxServesEmbeddedFrontendRoot(t *testing.T) {
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return true, nil
 		},
+		readinessChecker: func(context.Context) error {
+			return nil
+		},
 		sessionCreator: func(context.Context, string, string, string, time.Time) error {
 			return nil
 		},
@@ -103,5 +122,72 @@ func TestNewMuxServesEmbeddedFrontendRoot(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(rec.Body.String()), "<!doctype html>") {
 		t.Fatalf("expected embedded frontend html, got %q", rec.Body.String())
+	}
+}
+
+func TestHandleReadyzReturnsServiceUnavailableWhenDBIsUnavailable(t *testing.T) {
+	app := &App{
+		readinessChecker: func(context.Context) error {
+			return context.DeadlineExceeded
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	app.handleReadyz(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected status 503, got %d", rec.Code)
+	}
+}
+
+func TestHandleHealthzReturnsProbeContract(t *testing.T) {
+	app := &App{}
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+
+	app.handleHealthz(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if cacheControl := rec.Header().Get("Cache-Control"); cacheControl != "no-store" {
+		t.Fatalf("expected Cache-Control no-store, got %q", cacheControl)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Fatalf("expected status ok body, got %+v", body)
+	}
+}
+
+func TestHandleReadyzReturnsReadyProbeContract(t *testing.T) {
+	app := &App{
+		readinessChecker: func(context.Context) error {
+			return nil
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	app.handleReadyz(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	if cacheControl := rec.Header().Get("Cache-Control"); cacheControl != "no-store" {
+		t.Fatalf("expected Cache-Control no-store, got %q", cacheControl)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if body["status"] != "ready" {
+		t.Fatalf("expected status ready body, got %+v", body)
 	}
 }
