@@ -21,7 +21,7 @@ if [ "$run_smoke" != "0" ]; then
   APP_BINARY="$binary_path" \
   VERIFY_SMOKE_BUILD=0 \
   TEST_RESULTS_DIR="${TEST_RESULTS_DIR:-$output_dir/smoke}" \
-  "$(dirname "$0")/verify-smoke.sh"
+  sh "$(dirname "$0")/verify-smoke.sh"
 else
   echo "[3/3] Skipping smoke because RELEASE_RUN_SMOKE=0"
 fi
