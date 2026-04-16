@@ -1086,7 +1086,7 @@
         api.get("/api/tasks"),
         api.get("/api/archived"),
       ]);
-      state.tasks    = (taskData.tasks    || []).sort((a, b) => a.sort_order - b.sort_order);
+      state.tasks    = taskData.tasks || [];
       state.archived = archivedData.tasks || [];
     }
 
@@ -1367,7 +1367,11 @@
         .findIndex((t) => t.id === taskId);
 
       renderBoard();
-      api.put(`/api/tasks/${taskId}`, task).catch(async () => {
+      api.post(`/api/tasks/${taskId}/reorder`, {
+        status: nextStatus,
+        anchorTaskId,
+        placeAfter,
+      }).catch(async () => {
         await loadFromServer().catch(() => {});
         renderBoard();
       });
@@ -1403,7 +1407,10 @@
       };
       insertTaskToLaneEnd(task);
       renderBoard();
-      api.post(`/api/archived/${taskId}/restore`).catch(() => {
+      api.post(`/api/archived/${taskId}/restore`).then(async () => {
+        await loadFromServer().catch(() => {});
+        renderBoard();
+      }).catch(() => {
         state.tasks    = state.tasks.filter((t) => t.id !== taskId);
         state.archived.splice(idx, 0, archived);
         renderBoard();
@@ -1577,10 +1584,13 @@
         sort_order:  0,
         lastUpdated: Date.now(),
       };
-      state.tasks.unshift(task);
+      insertTaskToLaneEnd(task);
       renderBoard();
       resetTaskForm();
-      api.post("/api/tasks", task).catch(() => {
+      api.post("/api/tasks", task).then(async () => {
+        await loadFromServer().catch(() => {});
+        renderBoard();
+      }).catch(() => {
         state.tasks = state.tasks.filter((t) => t.id !== task.id);
         renderBoard();
       });

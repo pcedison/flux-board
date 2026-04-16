@@ -65,6 +65,7 @@ type ArchivedTask struct {
 	Due        string `json:"due"`
 	Priority   string `json:"priority"`
 	Status     string `json:"status"`
+	SortOrder  int    `json:"sort_order"`
 	ArchivedAt int64  `json:"archivedAt"`
 }
 
@@ -367,7 +368,7 @@ func (a *App) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	rows, err := a.db.Query(r.Context(),
 		`SELECT id, title, note, due, priority, status, sort_order, last_updated
 		 FROM tasks
-		 ORDER BY status, sort_order, last_updated DESC`)
+		 ORDER BY status, sort_order, last_updated DESC, id`)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
@@ -414,16 +415,25 @@ func (a *App) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	task.Status = "queued"
 	task.LastUpdated = time.Now().UnixMilli()
-
-	var maxOrd int
-	if err := a.db.QueryRow(r.Context(),
-		`SELECT COALESCE(MAX(sort_order), 0) FROM tasks WHERE status = 'queued'`).Scan(&maxOrd); err != nil {
+	tx, err := a.db.Begin(r.Context())
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
-	task.SortOrder = maxOrd + 1
+	defer tx.Rollback(r.Context())
 
-	tag, err := a.db.Exec(r.Context(),
+	if err := lockTaskLanes(r.Context(), tx, task.Status); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	task.SortOrder, err = nextLaneSortOrder(r.Context(), tx, task.Status)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	tag, err := tx.Exec(r.Context(),
 		`INSERT INTO tasks (id, title, note, due, priority, status, sort_order, last_updated)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 ON CONFLICT (id) DO NOTHING`,
@@ -434,6 +444,10 @@ func (a *App) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if tag.RowsAffected() == 0 {
 		writeError(w, http.StatusConflict, "task id already exists")
+		return
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
 
@@ -453,32 +467,36 @@ func (a *App) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := validateTaskPayload(&task, false, true); err != nil {
+	if err := validateTaskPayload(&task, false, false); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if task.SortOrder < 0 {
-		writeError(w, http.StatusBadRequest, "invalid sort order")
+
+	var currentStatus string
+	var currentSortOrder int
+	if err := a.db.QueryRow(r.Context(),
+		`SELECT status, sort_order FROM tasks WHERE id=$1`, id,
+	).Scan(&currentStatus, &currentSortOrder); errors.Is(err, pgx.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
 
 	task.LastUpdated = time.Now().UnixMilli()
-
-	tag, err := a.db.Exec(r.Context(),
+	if _, err := a.db.Exec(r.Context(),
 		`UPDATE tasks
-		 SET title=$1, note=$2, due=$3, priority=$4, status=$5, sort_order=$6, last_updated=$7
-		 WHERE id=$8`,
-		task.Title, task.Note, task.Due, task.Priority, task.Status, task.SortOrder, task.LastUpdated, id)
-	if err != nil {
+		 SET title=$1, note=$2, due=$3, priority=$4, last_updated=$5
+		 WHERE id=$6`,
+		task.Title, task.Note, task.Due, task.Priority, task.LastUpdated, id); err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
-		return
-	}
-	if tag.RowsAffected() == 0 {
-		writeError(w, http.StatusNotFound, "not found")
 		return
 	}
 
 	task.ID = id
+	task.Status = currentStatus
+	task.SortOrder = currentSortOrder
 	jsonResp(w, task)
 }
 
@@ -500,9 +518,11 @@ func (a *App) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
 
 	var task ArchivedTask
 	err = tx.QueryRow(r.Context(),
-		`DELETE FROM tasks WHERE id=$1
-		 RETURNING id, title, note, due, priority, status`, id).
-		Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status)
+		`SELECT id, title, note, due, priority, status, sort_order
+		 FROM tasks
+		 WHERE id=$1
+		 FOR UPDATE`, id).
+		Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status, &task.SortOrder)
 	if err == pgx.ErrNoRows {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -512,11 +532,35 @@ func (a *App) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := lockTaskLanes(r.Context(), tx, task.Status); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	if err := deferTaskOrderConstraint(r.Context(), tx); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	if _, err := tx.Exec(r.Context(), `DELETE FROM tasks WHERE id=$1`, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
 	task.ArchivedAt = now
 	if _, err := tx.Exec(r.Context(),
-		`INSERT INTO archived_tasks (id, title, note, due, priority, status, archived_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, task.ArchivedAt); err != nil {
+		`INSERT INTO archived_tasks (id, title, note, due, priority, status, sort_order, archived_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, task.SortOrder, task.ArchivedAt); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	remainingIDs, err := laneTaskIDs(r.Context(), tx, task.Status)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+	if err := applyLaneOrder(r.Context(), tx, task.Status, remainingIDs, "", 0); err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
@@ -538,9 +582,9 @@ func (a *App) handleGetArchived(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := a.db.Query(r.Context(),
-		`SELECT id, title, note, due, priority, status, archived_at
+		`SELECT id, title, note, due, priority, status, sort_order, archived_at
 		 FROM archived_tasks
-		 ORDER BY archived_at DESC`)
+		 ORDER BY archived_at DESC, id`)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
@@ -557,6 +601,7 @@ func (a *App) handleGetArchived(w http.ResponseWriter, r *http.Request) {
 			&task.Due,
 			&task.Priority,
 			&task.Status,
+			&task.SortOrder,
 			&task.ArchivedAt,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "db error")
@@ -592,8 +637,8 @@ func (a *App) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 	var task Task
 	err = tx.QueryRow(r.Context(),
 		`DELETE FROM archived_tasks WHERE id=$1
-		 RETURNING id, title, note, due, priority, status`, id).
-		Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status)
+		 RETURNING id, title, note, due, priority, status, sort_order`, id).
+		Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status, &task.SortOrder)
 	if err == pgx.ErrNoRows {
 		writeError(w, http.StatusNotFound, "not found")
 		return
@@ -609,22 +654,44 @@ func (a *App) handleRestoreTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task.LastUpdated = now
-
-	var maxOrd int
-	if err := tx.QueryRow(r.Context(),
-		`SELECT COALESCE(MAX(sort_order), 0) FROM tasks WHERE status=$1`, task.Status).Scan(&maxOrd); err != nil {
+	if err := lockTaskLanes(r.Context(), tx, task.Status); err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
-	task.SortOrder = maxOrd + 1
+	if err := deferTaskOrderConstraint(r.Context(), tx); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	laneIDs, err := laneTaskIDs(r.Context(), tx, task.Status)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	insertIdx := task.SortOrder
+	if insertIdx < 0 {
+		insertIdx = 0
+	}
+	if insertIdx > len(laneIDs) {
+		insertIdx = len(laneIDs)
+	}
+	laneIDs = insertAt(laneIDs, insertIdx, task.ID)
 
 	if _, err := tx.Exec(r.Context(),
 		`INSERT INTO tasks (id, title, note, due, priority, status, sort_order, last_updated)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, task.SortOrder, task.LastUpdated); err != nil {
+		task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, insertIdx, task.LastUpdated); err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")
 		return
 	}
+
+	if err := applyLaneOrder(r.Context(), tx, task.Status, laneIDs, task.ID, task.LastUpdated); err != nil {
+		writeError(w, http.StatusInternalServerError, "db error")
+		return
+	}
+
+	task.SortOrder = insertIdx
 
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "db error")

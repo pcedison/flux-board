@@ -11,6 +11,15 @@ jobs:
   go:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
+      TEST_RESULTS_DIR: test-results/github-ci
     services:
       postgres:
         image: postgres:16-alpine
@@ -25,15 +34,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
-
-    env:
-      APP_ENV: development
-      APP_PASSWORD: ci-test-password
-      FLUX_PASSWORD: ci-test-password
-      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
-      BASE_URL: http://127.0.0.1:8080
-      SMOKE_TIMEOUT_MS: "120000"
-      TEST_RESULTS_DIR: test-results/github-ci
 
     steps:
       - name: Checkout

@@ -59,8 +59,8 @@ page.on("response", async (res) => {
     url.endsWith("/api/auth/login") ||
     url.endsWith("/api/auth/me") ||
     url.endsWith("/api/auth/logout") ||
-    url.endsWith("/api/tasks") ||
-    url.endsWith("/api/archived")
+    url.includes("/api/tasks") ||
+    url.includes("/api/archived")
   ) {
     console.log(`[response] ${res.request().method()} ${url} -> ${res.status()}`);
   }
@@ -118,6 +118,56 @@ try {
   const archived = await requestJson(page, "/api/archived");
   assertStatus(archived.status === 200, `Expected /api/archived to return 200, got ${archived.status}`);
   assertArray(archived.body.tasks, "archived tasks");
+
+  const smokeTaskTitle = `Smoke task ${Date.now()}`;
+
+  logStep("Create task");
+  const taskCreateResponse = page.waitForResponse(
+    (res) => res.url().endsWith("/api/tasks") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await page.locator("#openModalBtn").click();
+  await page.locator("#taskTitle").fill(smokeTaskTitle);
+  await page.locator("#taskDue").fill("2026-04-30");
+  await page.locator("#taskPriority").selectOption("high");
+  await page.locator("#submitBtn").click();
+  const createResponse = await taskCreateResponse;
+  if (createResponse.status() !== 201) {
+    const body = await safeReadJson(createResponse);
+    throw new Error(`Task create failed with ${createResponse.status()}: ${JSON.stringify(body)}`);
+  }
+  const createdCard = page.locator(".task-card", { hasText: smokeTaskTitle }).first();
+  await createdCard.waitFor({ state: "visible", timeout: 10000 });
+
+  logStep("Archive task");
+  const taskArchiveResponse = page.waitForResponse(
+    (res) => res.url().includes("/api/tasks/") && res.request().method() === "DELETE",
+    { timeout: 10000 }
+  );
+  await createdCard.locator(".card-menu-trigger").click();
+  await createdCard.locator("button[data-action='archive']").click();
+  const archiveResponse = await taskArchiveResponse;
+  if (archiveResponse.status() !== 200) {
+    const body = await safeReadJson(archiveResponse);
+    throw new Error(`Task archive failed with ${archiveResponse.status()}: ${JSON.stringify(body)}`);
+  }
+  await createdCard.waitFor({ state: "detached", timeout: 10000 });
+
+  logStep("Restore task");
+  await page.locator("#archiveToggleBtn").click();
+  const archivedItem = page.locator(".archive-item", { hasText: smokeTaskTitle }).first();
+  await archivedItem.waitFor({ state: "visible", timeout: 10000 });
+  const taskRestoreResponse = page.waitForResponse(
+    (res) => res.url().includes("/api/archived/") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await archivedItem.locator("button[data-action='restore']").click();
+  const restoreResponse = await taskRestoreResponse;
+  if (restoreResponse.status() !== 200) {
+    const body = await safeReadJson(restoreResponse);
+    throw new Error(`Task restore failed with ${restoreResponse.status()}: ${JSON.stringify(body)}`);
+  }
+  await page.locator(".task-card", { hasText: smokeTaskTitle }).first().waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Logout");
   const logout = await requestJson(page, "/api/auth/logout", { method: "POST" });

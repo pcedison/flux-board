@@ -164,10 +164,10 @@ func TestIntegrationInitSchemaAppliesMigrations(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate schema_migrations: %v", err)
 	}
-	if len(versions) != 1 || versions[0] != "0001_initial" {
+	if len(versions) != 2 || versions[0] != "0001_initial" || versions[1] != "0002_task_order_constraints" {
 		t.Fatalf("expected migration history [0001_initial], got %+v", versions)
 	}
-	if len(checksums) != 1 || checksums[0] == "" {
+	if len(checksums) != 2 || checksums[0] == "" || checksums[1] == "" {
 		t.Fatalf("expected non-empty migration checksum, got %+v", checksums)
 	}
 
@@ -181,6 +181,180 @@ func TestIntegrationInitSchemaAppliesMigrations(t *testing.T) {
 		}
 		if resolved == "" {
 			t.Fatalf("expected schema object %s to exist after initSchema", objectName)
+		}
+	}
+
+	for _, constraintName := range requiredSchemaConstraints {
+		var exists bool
+		if err := app.db.QueryRow(context.Background(), `
+			SELECT EXISTS (
+				SELECT 1
+				FROM pg_constraint c
+				JOIN pg_class r ON r.oid = c.conrelid
+				JOIN pg_namespace n ON n.oid = r.relnamespace
+				WHERE c.conname = $1
+				  AND n.nspname = current_schema()
+			)
+		`, constraintName).Scan(&exists); err != nil {
+			t.Fatalf("check schema constraint %s: %v", constraintName, err)
+		}
+		if !exists {
+			t.Fatalf("expected schema constraint %s to exist after initSchema", constraintName)
+		}
+	}
+}
+
+func TestIntegrationTaskReorderAndArchiveRestore(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration reorder test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	createTaskForIntegration(t, app, Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
+	createTaskForIntegration(t, app, Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "high"})
+	createTaskForIntegration(t, app, Task{ID: "task-c", Title: "Task C", Due: "2026-04-22", Priority: "critical"})
+
+	reorderReq := httptest.NewRequest(http.MethodPost, "/api/tasks/task-c/reorder", strings.NewReader(`{"status":"queued","anchorTaskId":"task-b","placeAfter":false}`))
+	reorderReq.SetPathValue("id", "task-c")
+	reorderRec := httptest.NewRecorder()
+	app.handleReorderTask(reorderRec, reorderReq)
+	if reorderRec.Code != http.StatusOK {
+		t.Fatalf("expected reorder status 200, got %d body=%s", reorderRec.Code, reorderRec.Body.String())
+	}
+
+	assertLaneOrder(t, app, "queued", []string{"task-a", "task-c", "task-b"})
+
+	archiveReq := httptest.NewRequest(http.MethodDelete, "/api/tasks/task-c", nil)
+	archiveReq.SetPathValue("id", "task-c")
+	archiveRec := httptest.NewRecorder()
+	app.handleArchiveTask(archiveRec, archiveReq)
+	if archiveRec.Code != http.StatusOK {
+		t.Fatalf("expected archive status 200, got %d body=%s", archiveRec.Code, archiveRec.Body.String())
+	}
+
+	assertLaneOrder(t, app, "queued", []string{"task-a", "task-b"})
+
+	var archivedOrder int
+	if err := app.db.QueryRow(context.Background(), `SELECT sort_order FROM archived_tasks WHERE id='task-c'`).Scan(&archivedOrder); err != nil {
+		t.Fatalf("query archived sort order: %v", err)
+	}
+	if archivedOrder != 1 {
+		t.Fatalf("expected archived task sort order 1, got %d", archivedOrder)
+	}
+
+	restoreReq := httptest.NewRequest(http.MethodPost, "/api/archived/task-c/restore", nil)
+	restoreReq.SetPathValue("id", "task-c")
+	restoreRec := httptest.NewRecorder()
+	app.handleRestoreTask(restoreRec, restoreReq)
+	if restoreRec.Code != http.StatusOK {
+		t.Fatalf("expected restore status 200, got %d body=%s", restoreRec.Code, restoreRec.Body.String())
+	}
+
+	assertLaneOrder(t, app, "queued", []string{"task-a", "task-c", "task-b"})
+}
+
+func TestIntegrationUpdateTaskDoesNotClobberOrdering(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration update test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	createTaskForIntegration(t, app, Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
+	createTaskForIntegration(t, app, Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "medium"})
+
+	reorderReq := httptest.NewRequest(http.MethodPost, "/api/tasks/task-b/reorder", strings.NewReader(`{"status":"active"}`))
+	reorderReq.SetPathValue("id", "task-b")
+	reorderRec := httptest.NewRecorder()
+	app.handleReorderTask(reorderRec, reorderReq)
+	if reorderRec.Code != http.StatusOK {
+		t.Fatalf("expected reorder-to-active status 200, got %d body=%s", reorderRec.Code, reorderRec.Body.String())
+	}
+
+	updateReq := httptest.NewRequest(http.MethodPut, "/api/tasks/task-b", strings.NewReader(`{
+		"title":"Task B updated",
+		"note":"changed",
+		"due":"2026-04-30",
+		"priority":"high",
+		"status":"queued",
+		"sort_order":99
+	}`))
+	updateReq.SetPathValue("id", "task-b")
+	updateRec := httptest.NewRecorder()
+	app.handleUpdateTask(updateRec, updateReq)
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected update status 200, got %d body=%s", updateRec.Code, updateRec.Body.String())
+	}
+
+	var task Task
+	if err := json.NewDecoder(updateRec.Body).Decode(&task); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if task.Status != "active" || task.SortOrder != 0 {
+		t.Fatalf("expected preserved ordering metadata, got %+v", task)
+	}
+	if task.Title != "Task B updated" || task.Priority != "high" || task.Note != "changed" || task.Due != "2026-04-30" {
+		t.Fatalf("expected content update to persist, got %+v", task)
+	}
+
+	assertLaneOrder(t, app, "queued", []string{"task-a"})
+	assertLaneOrder(t, app, "active", []string{"task-b"})
+}
+
+func createTaskForIntegration(t *testing.T, app *App, task Task) {
+	t.Helper()
+
+	body := fmt.Sprintf(`{"id":"%s","title":"%s","note":"","due":"%s","priority":"%s"}`, task.ID, task.Title, task.Due, task.Priority)
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	app.handleCreateTask(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func assertLaneOrder(t *testing.T, app *App, status string, expectedIDs []string) {
+	t.Helper()
+
+	rows, err := app.db.Query(context.Background(), `
+		SELECT id, sort_order
+		FROM tasks
+		WHERE status=$1
+		ORDER BY sort_order ASC, last_updated DESC, id ASC
+	`, status)
+	if err != nil {
+		t.Fatalf("query lane order for %s: %v", status, err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	idx := 0
+	for rows.Next() {
+		var id string
+		var sortOrder int
+		if err := rows.Scan(&id, &sortOrder); err != nil {
+			t.Fatalf("scan lane order for %s: %v", status, err)
+		}
+		if sortOrder != idx {
+			t.Fatalf("expected contiguous sort order for %s at %d, got %d", status, idx, sortOrder)
+		}
+		ids = append(ids, id)
+		idx++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate lane order for %s: %v", status, err)
+	}
+	if len(ids) != len(expectedIDs) {
+		t.Fatalf("expected lane %s ids %+v, got %+v", status, expectedIDs, ids)
+	}
+	for i := range expectedIDs {
+		if ids[i] != expectedIDs[i] {
+			t.Fatalf("expected lane %s ids %+v, got %+v", status, expectedIDs, ids)
 		}
 	}
 }
