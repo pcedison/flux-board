@@ -8,6 +8,7 @@ const password = process.env.FLUX_PASSWORD ?? process.env.APP_PASSWORD ?? "";
 const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
 const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
+const smokeTimeoutMs = parseInteger(process.env.SMOKE_TIMEOUT_MS, 120000);
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const resultsDir =
   process.env.TEST_RESULTS_DIR ??
@@ -19,6 +20,14 @@ if (!password) {
 }
 
 await mkdir(resultsDir, { recursive: true });
+
+const overallTimeout = setTimeout(() => {
+  console.error(`Smoke timed out after ${smokeTimeoutMs}ms.`);
+  process.exit(1);
+}, smokeTimeoutMs);
+if (typeof overallTimeout.unref === "function") {
+  overallTimeout.unref();
+}
 
 const browser = await chromium.launch({
   headless,
@@ -161,6 +170,7 @@ try {
   process.exitCode = 1;
 } finally {
   await browser.close();
+  clearTimeout(overallTimeout);
 }
 
 async function requestJson(page, url, init = {}) {

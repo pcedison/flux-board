@@ -32,6 +32,7 @@ jobs:
       FLUX_PASSWORD: ci-test-password
       DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
       BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
       TEST_RESULTS_DIR: test-results/github-ci
 
     steps:
@@ -86,7 +87,7 @@ jobs:
           exit 1
 
       - name: Smoke login
-        run: npm run smoke:login
+        run: timeout 180s npm run smoke:login
 
       - name: Show server log on failure
         if: failure()
