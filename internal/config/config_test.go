@@ -5,6 +5,8 @@ import "testing"
 func TestLoadDefaultsProductionCookieSecure(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("APP_PASSWORD", "secret")
+	t.Setenv("APP_ENV", "")
+	t.Setenv("PORT", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -33,7 +35,9 @@ func TestLoadDevelopmentDisablesSecureCookie(t *testing.T) {
 }
 
 func TestLoadRequiresDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("APP_PASSWORD", "secret")
+	t.Setenv("APP_ENV", "")
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected missing DATABASE_URL to fail")
