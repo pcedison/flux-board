@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { DndContext, PointerSensor, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, MouseSensor, TouchSensor, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 
 import type { TaskPriority } from "../lib/api";
 import { QueryState } from "../components/QueryState";
@@ -42,7 +42,10 @@ function BoardSnapshotContent({
   data: BoardSnapshotData;
   mutations: ReturnType<typeof useBoardMutations>;
 }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 125, tolerance: 8 } }),
+  );
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dueInputRef = useRef<HTMLInputElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
