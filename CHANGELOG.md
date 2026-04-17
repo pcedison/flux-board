@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- W9 remains in progress for structured logging, Prometheus metrics, broader browser
-  coverage, and exact-head release closure.
+- Future work can build on the current observability, release, and extension seams
+  without reopening the initial public-fork baseline.
+
+## [0.1.1] - 2026-04-17
+
+### Fixed
+
+- Corrected the tag-triggered GitHub Release workflow so release metadata is staged
+  in a non-hidden directory before `actions/upload-artifact@v4` runs, allowing the
+  release job to publish notes and checksums on the exact tagged head.
 
 ## [0.1.0] - 2026-04-17
 
