@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { DndContext, MouseSensor, TouchSensor, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, MouseSensor, TouchSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 
 import type { TaskPriority } from "../lib/api";
 import { QueryState } from "../components/QueryState";
@@ -318,7 +318,7 @@ function BoardSnapshotContent({
   }
 
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={handleDragEnd}>
       <div className="board-grid" aria-busy={isBusy}>
         <BoardStatusBanner error={actionError} status={actionStatus} />
 
