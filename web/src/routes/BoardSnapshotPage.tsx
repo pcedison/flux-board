@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { DndContext, PointerSensor, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
@@ -76,7 +76,7 @@ function BoardSnapshotContent({
     });
   }, [data.tasks]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!focusTarget) {
       return;
     }
@@ -88,6 +88,24 @@ function BoardSnapshotContent({
     }
 
     if (focusTarget.kind === "task") {
+      const taskSnapshot = data.tasks.find((task) => task.id === focusTarget.id);
+      if (!taskSnapshot) {
+        return;
+      }
+
+      if (focusTarget.status && taskSnapshot.status !== focusTarget.status) {
+        return;
+      }
+
+      if (focusTarget.lastUpdated && taskSnapshot.lastUpdated < focusTarget.lastUpdated) {
+        return;
+      }
+
+      if (activeCardId !== focusTarget.id) {
+        setActiveCardId(focusTarget.id);
+        return;
+      }
+
       const taskCard = cardRefs.current.get(focusTarget.id);
       if (taskCard) {
         taskCard.focus();
@@ -101,7 +119,7 @@ function BoardSnapshotContent({
       archiveButton.focus();
       setFocusTarget(null);
     }
-  }, [data.archived, data.tasks, focusTarget]);
+  }, [activeCardId, data.archived, data.tasks, focusTarget]);
 
   function setCardRef(id: string, element: HTMLElement | null) {
     if (element) {
@@ -173,9 +191,14 @@ function BoardSnapshotContent({
     setActionError(null);
     setActionStatus(null);
     try {
-      await mutations.moveTask.mutateAsync(move);
+      const movedTask = await mutations.moveTask.mutateAsync(move);
       setActionStatus(announcement);
-      setFocusTarget({ kind: "task", id: move.id });
+      setFocusTarget({
+        kind: "task",
+        id: movedTask.id,
+        status: movedTask.status,
+        lastUpdated: movedTask.lastUpdated,
+      });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);
@@ -199,9 +222,14 @@ function BoardSnapshotContent({
     setActionError(null);
     setActionStatus(null);
     try {
-      await mutations.restoreTask.mutateAsync(id);
+      const restoredTask = await mutations.restoreTask.mutateAsync(id);
       setActionStatus(`Restored ${taskTitle} to ${status}.`);
-      setFocusTarget({ kind: "task", id });
+      setFocusTarget({
+        kind: "task",
+        id: restoredTask.id,
+        status: restoredTask.status,
+        lastUpdated: restoredTask.lastUpdated,
+      });
     } catch (error) {
       setActionError(readErrorMessage(error));
       setActionStatus(null);

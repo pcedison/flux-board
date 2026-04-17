@@ -1,5 +1,5 @@
 # Build output
-flux-board
+/flux-board
 flux-board.exe
 *.exe
 
@@ -30,3 +30,6 @@ step5-after-login.png
 # OS
 .DS_Store
 Thumbs.db
+
+# Local agent/editor state
+.claude/

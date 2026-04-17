@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -29,7 +29,7 @@ func (a *App) runCleanupLoop(ctx context.Context, interval time.Duration, label 
 			err := cleanup(cleanupCtx)
 			cancel()
 			if err != nil && ctx.Err() == nil && !errors.Is(err, context.Canceled) {
-				log.Printf("%s error: %v", label, err)
+				slog.Default().Error("background cleanup failed", slog.String("cleanup", label), slog.Any("err", err))
 			}
 		}
 	}

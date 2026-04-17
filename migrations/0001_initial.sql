@@ -1,3 +1,7 @@
+-- W9/5-B enterprise seam:
+-- future multi-workspace support should add a `workspace_id` foreign key in a
+-- new migration after backfilling a default workspace. Do not overload task IDs
+-- or status values with tenant scope in the current single-board schema.
 CREATE TABLE IF NOT EXISTS tasks (
   id           TEXT    PRIMARY KEY,
   title        TEXT    NOT NULL,
@@ -23,6 +27,10 @@ CREATE TABLE IF NOT EXISTS archived_tasks (
 CREATE INDEX IF NOT EXISTS idx_archived_tasks_archived_at
   ON archived_tasks(archived_at DESC);
 
+-- W9/5-B enterprise seam:
+-- keep `username` as the local principal key for the current baseline. Future
+-- OIDC/SAML identities should link to this table through a separate mapping
+-- table instead of replacing the primary key in place.
 CREATE TABLE IF NOT EXISTS users (
   username      TEXT PRIMARY KEY,
   password_hash TEXT NOT NULL,
@@ -31,6 +39,10 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    BIGINT NOT NULL
 );
 
+-- W9/5-B enterprise seam:
+-- sessions should continue to reference the local principal. Future provider
+-- metadata or external-session correlation should be added in a later migration
+-- without breaking the current logout/revocation model.
 CREATE TABLE IF NOT EXISTS sessions (
   token        TEXT PRIMARY KEY,
   username     TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
@@ -43,6 +55,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_username ON sessions(username);
 
+-- W9/5-B enterprise seam:
+-- audit rows are global today. A later workspace-aware auth design can decide
+-- whether to add `workspace_id` or a membership reference after existing rows
+-- have been backfilled into a default workspace context.
 CREATE TABLE IF NOT EXISTS auth_audit_logs (
   id         BIGSERIAL PRIMARY KEY,
   username   TEXT NOT NULL DEFAULT '',

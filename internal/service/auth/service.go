@@ -5,13 +5,16 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
 	"flux-board/internal/domain"
+	"flux-board/internal/observability/tracing"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -28,6 +31,8 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrInvalidSession  = errors.New("invalid session")
 )
+
+const tracerScope = "service/auth"
 
 type Service interface {
 	Authenticate(context.Context, string, string) (LoginResult, error)
@@ -134,8 +139,15 @@ func (t *LoginTracker) Clear(clientID string) {
 }
 
 func (s service) Authenticate(ctx context.Context, password, clientIP string) (LoginResult, error) {
+	ctx, span := tracing.StartInternalSpan(ctx, tracerScope, "auth.authenticate",
+		attribute.String("auth.username", BootstrapAdmin),
+		attribute.Bool("auth.client_present", clientIP != ""),
+	)
+	defer span.End()
+
 	now := s.now()
 	if !s.tracker.Allow(clientIP, now) {
+		span.SetAttributes(attribute.String("auth.outcome", "blocked"))
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			EventType: "login",
 			Outcome:   "blocked",
@@ -147,6 +159,8 @@ func (s service) Authenticate(ctx context.Context, password, clientIP string) (L
 
 	match, err := s.verifyLoginPassword(ctx, password)
 	if err != nil {
+		span.SetAttributes(attribute.String("auth.outcome", "error"))
+		tracing.RecordError(span, err)
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			Username:  BootstrapAdmin,
 			EventType: "login",
@@ -157,6 +171,7 @@ func (s service) Authenticate(ctx context.Context, password, clientIP string) (L
 		return LoginResult{}, err
 	}
 	if !match {
+		span.SetAttributes(attribute.String("auth.outcome", "failed"))
 		s.tracker.RecordFailure(clientIP, now)
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			Username:  BootstrapAdmin,
@@ -169,9 +184,23 @@ func (s service) Authenticate(ctx context.Context, password, clientIP string) (L
 
 	s.tracker.Clear(clientIP)
 
-	token := s.newToken()
+	token, err := s.newToken()
+	if err != nil {
+		span.SetAttributes(attribute.String("auth.outcome", "error"))
+		tracing.RecordError(span, err)
+		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
+			Username:  BootstrapAdmin,
+			EventType: "login",
+			Outcome:   "error",
+			ClientIP:  clientIP,
+			Details:   "token generation failed",
+		})
+		return LoginResult{}, err
+	}
 	expiresAt := now.Add(SessionDuration)
 	if err := s.createSession(ctx, token, BootstrapAdmin, clientIP, expiresAt); err != nil {
+		span.SetAttributes(attribute.String("auth.outcome", "error"))
+		tracing.RecordError(span, err)
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			Username:  BootstrapAdmin,
 			EventType: "login",
@@ -188,6 +217,10 @@ func (s service) Authenticate(ctx context.Context, password, clientIP string) (L
 		Outcome:   "success",
 		ClientIP:  clientIP,
 	})
+	span.SetAttributes(
+		attribute.String("auth.outcome", "success"),
+		attribute.String("auth.session.username", BootstrapAdmin),
+	)
 
 	return LoginResult{
 		Token:     token,
@@ -197,7 +230,15 @@ func (s service) Authenticate(ctx context.Context, password, clientIP string) (L
 }
 
 func (s service) Logout(ctx context.Context, token, clientIP string) error {
+	ctx, span := tracing.StartInternalSpan(ctx, tracerScope, "auth.logout",
+		attribute.String("auth.username", BootstrapAdmin),
+		attribute.Bool("auth.token_present", token != ""),
+	)
+	defer span.End()
+
 	if err := s.deleteSession(ctx, token); err != nil {
+		span.SetAttributes(attribute.String("auth.outcome", "error"))
+		tracing.RecordError(span, err)
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			EventType: "logout",
 			Outcome:   "error",
@@ -213,13 +254,20 @@ func (s service) Logout(ctx context.Context, token, clientIP string) error {
 		Outcome:   "success",
 		ClientIP:  clientIP,
 	})
+	span.SetAttributes(attribute.String("auth.outcome", "success"))
 	return nil
 }
 
 func (s service) SessionFromToken(ctx context.Context, token, clientIP string) (domain.Session, error) {
+	ctx, span := tracing.StartInternalSpan(ctx, tracerScope, "auth.session_from_token",
+		attribute.Bool("auth.token_present", token != ""),
+	)
+	defer span.End()
+
 	session, err := s.getActiveSession(ctx, token)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
+			span.SetAttributes(attribute.String("auth.outcome", "invalid"))
 			s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 				EventType: "session",
 				Outcome:   "invalid",
@@ -229,6 +277,8 @@ func (s service) SessionFromToken(ctx context.Context, token, clientIP string) (
 			return domain.Session{}, ErrInvalidSession
 		}
 
+		span.SetAttributes(attribute.String("auth.outcome", "error"))
+		tracing.RecordError(span, err)
 		s.recordAuthEvent(ctx, domain.AuthAuditEvent{
 			EventType: "session",
 			Outcome:   "error",
@@ -238,6 +288,10 @@ func (s service) SessionFromToken(ctx context.Context, token, clientIP string) (
 		return domain.Session{}, err
 	}
 
+	span.SetAttributes(
+		attribute.String("auth.outcome", "success"),
+		attribute.String("auth.session.username", session.Username),
+	)
 	return session, nil
 }
 
@@ -294,7 +348,7 @@ func (s service) recordAuthEvent(ctx context.Context, event domain.AuthAuditEven
 
 	if s.options.AuditRecorder != nil {
 		if err := s.options.AuditRecorder(ctx, event); err != nil {
-			log.Printf("auth audit recorder error request_id=%s: %v", event.RequestID, err)
+			slog.Default().Error("auth audit recorder error", slog.String("request_id", event.RequestID), slog.Any("err", err))
 		}
 		return
 	}
@@ -302,7 +356,7 @@ func (s service) recordAuthEvent(ctx context.Context, event domain.AuthAuditEven
 		return
 	}
 	if err := s.repo.RecordAuthEvent(ctx, event); err != nil {
-		log.Printf("auth audit insert error request_id=%s: %v", event.RequestID, err)
+		slog.Default().Error("auth audit insert error", slog.String("request_id", event.RequestID), slog.Any("err", err))
 	}
 }
 
@@ -313,14 +367,14 @@ func (s service) now() time.Time {
 	return time.Now()
 }
 
-func (s service) newToken() string {
+func (s service) newToken() (string, error) {
 	if s.options.TokenGenerator != nil {
-		return s.options.TokenGenerator()
+		return s.options.TokenGenerator(), nil
 	}
 
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {
-		log.Fatalf("generate token: %v", err)
+		return "", fmt.Errorf("generate token: %w", err)
 	}
-	return hex.EncodeToString(bytes)
+	return hex.EncodeToString(bytes), nil
 }

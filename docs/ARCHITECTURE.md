@@ -50,5 +50,33 @@ Flux Board currently runs as a single Go application that:
 - touch, keyboard, and mouse friendly movement
 - mobile/tablet/desktop responsive layouts
 
+## Enterprise Extension Seams
+- Current scope remains intentionally narrow: one bootstrap-created admin, one board domain, and one runtime-owned workspace. `W9/5-B` documents expansion seams only; it does not implement RBAC, SSO, or multi-workspace behavior.
+- Identity seam:
+  - keep `users.username` as the canonical local principal key for now
+  - future OIDC/SAML identities should map into that local principal through a separate identity-link table such as `user_identities(provider, external_subject, username, created_at, updated_at)` instead of replacing the current primary key
+  - `sessions` should continue to point at the local principal so logout, revocation, and audit behavior do not become provider-specific
+- RBAC seam:
+  - the current `users.role = 'admin'` column is a bootstrap compatibility field, not the final authorization model
+  - future authorization should move into explicit role bindings or workspace membership rows, not into more string states on `users.role`
+  - transport should authenticate and attach principal/workspace context; authorization decisions should live in service-layer policy checks so later enterprise rules do not spread across handlers
+- Workspace seam:
+  - future multi-workspace support should introduce first-class `workspaces` and `workspace_memberships` tables
+  - board-owned rows should gain a `workspace_id` foreign key in a later migration instead of encoding tenant scope in task IDs, status values, or route-only conventions
+  - once rows are workspace-scoped, ordering and lookup constraints must widen accordingly, for example `(workspace_id, status, sort_order)` for lane ordering
+- Recommended migration order for later enterprise work:
+  1. add a default workspace and backfill existing rows into it
+  2. add workspace membership and external identity-link tables
+  3. widen task/archive constraints and indexes to include `workspace_id`
+  4. teach repositories and services to require explicit workspace scope on every board query
+- Future enterprise slices should extend the current seams instead of replacing them wholesale:
+  - `internal/service/auth` is the policy entrypoint for login/session/identity decisions
+  - `internal/store/postgres` is the place to add workspace-aware queries and identity-link persistence
+  - `internal/transport/http` should gain one canonical workspace-resolution path per request instead of ad hoc header or query parsing
+- Non-goals for the current head:
+  - no IdP callback flow
+  - no SCIM or JIT provisioning
+  - no claim that the current schema already provides tenant isolation
+
 ## Source Of Truth
 Execution priority and rollout order are defined in [docs/MASTER_PLAN.md](MASTER_PLAN.md).

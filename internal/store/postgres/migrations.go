@@ -5,16 +5,20 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"path"
 	"sort"
 	"strings"
 	"time"
 
+	"flux-board/internal/observability/tracing"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const migrationLockID int64 = 4_247_155_010_001
+const postgresTracerScope = "store/postgres"
 
 var RequiredSchemaObjects = []string{
 	"schema_migrations",
@@ -43,29 +47,58 @@ var RequiredSchemaConstraints = []string{
 }
 
 func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	return pgxpool.New(ctx, databaseURL)
+	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.connect",
+		attribute.String("db.system", "postgresql"),
+	)
+	defer span.End()
+
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		tracing.RecordError(span, err)
+		return nil, err
+	}
+	return pool, nil
 }
 
 func InitializeSchema(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, migrationPattern, bootstrapUsername, bootstrapPassword string) error {
+	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.initialize_schema",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("migration.pattern", migrationPattern),
+	)
+	defer span.End()
+
 	if err := RunMigrations(ctx, db, migrationFS, migrationPattern); err != nil {
+		tracing.RecordError(span, err)
 		return err
 	}
-	return NewAuthRepository(db).EnsureBootstrapAdmin(ctx, bootstrapUsername, bootstrapPassword)
+	if err := NewAuthRepository(db).EnsureBootstrapAdmin(ctx, bootstrapUsername, bootstrapPassword); err != nil {
+		tracing.RecordError(span, err)
+		return err
+	}
+	return nil
 }
 
 func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, migrationPattern string) error {
+	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.run_migrations",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("migration.pattern", migrationPattern),
+	)
+	defer span.End()
+
 	conn, err := db.Acquire(ctx)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("acquire migration connection: %w", err)
 	}
 	defer conn.Release()
 
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, migrationLockID); err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("acquire migration lock: %w", err)
 	}
 	defer func() {
 		if _, unlockErr := conn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, migrationLockID); unlockErr != nil {
-			log.Printf("migration unlock error: %v", unlockErr)
+			slog.Default().Error("migration unlock error", slog.Any("err", unlockErr))
 		}
 	}()
 
@@ -76,31 +109,37 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 			applied_at BIGINT NOT NULL
 		)
 	`); err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("create schema_migrations: %w", err)
 	}
 	if _, err := conn.Exec(ctx, `
 		ALTER TABLE schema_migrations
 		ADD COLUMN IF NOT EXISTS checksum TEXT NOT NULL DEFAULT ''
 	`); err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("ensure schema_migrations checksum: %w", err)
 	}
 
 	entries, err := fs.Glob(migrationFS, migrationPattern)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return fmt.Errorf("glob migrations: %w", err)
 	}
 	sort.Strings(entries)
+	span.SetAttributes(attribute.Int("migration.count", len(entries)))
 
 	for _, entry := range entries {
 		version := migrationVersion(entry)
 		sqlBytes, err := fs.ReadFile(migrationFS, entry)
 		if err != nil {
+			tracing.RecordError(span, err)
 			return fmt.Errorf("read migration %s: %w", entry, err)
 		}
 		checksum := migrationChecksum(sqlBytes)
 
 		applied, recordedChecksum, err := migrationState(ctx, conn, version)
 		if err != nil {
+			tracing.RecordError(span, err)
 			return err
 		}
 		if applied {
@@ -110,22 +149,27 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 					checksum,
 					version,
 				); err != nil {
+					tracing.RecordError(span, err)
 					return fmt.Errorf("backfill migration checksum %s: %w", entry, err)
 				}
 				continue
 			}
 			if recordedChecksum != checksum {
-				return fmt.Errorf("migration %s checksum mismatch: recorded=%s current=%s", version, recordedChecksum, checksum)
+				err := fmt.Errorf("migration %s checksum mismatch: recorded=%s current=%s", version, recordedChecksum, checksum)
+				tracing.RecordError(span, err)
+				return err
 			}
 			continue
 		}
 
 		tx, err := conn.Begin(ctx)
 		if err != nil {
+			tracing.RecordError(span, err)
 			return fmt.Errorf("begin migration %s: %w", entry, err)
 		}
 		if _, err := tx.Exec(ctx, string(sqlBytes)); err != nil {
 			tx.Rollback(ctx)
+			tracing.RecordError(span, err)
 			return fmt.Errorf("apply migration %s: %w", entry, err)
 		}
 		if _, err := tx.Exec(ctx,
@@ -135,24 +179,50 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 			time.Now().UnixMilli(),
 		); err != nil {
 			tx.Rollback(ctx)
+			tracing.RecordError(span, err)
 			return fmt.Errorf("record migration %s: %w", entry, err)
 		}
 		if err := tx.Commit(ctx); err != nil {
+			tracing.RecordError(span, err)
 			return fmt.Errorf("commit migration %s: %w", entry, err)
 		}
 	}
 
-	return validateSchemaBaseline(ctx, conn)
+	if err := validateSchemaBaseline(ctx, conn); err != nil {
+		tracing.RecordError(span, err)
+		return err
+	}
+	return nil
 }
 
 func CleanupArchivedTasks(ctx context.Context, db *pgxpool.Pool, archiveRetention time.Duration) error {
+	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.cleanup_archived_tasks",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "DELETE"),
+		attribute.String("db.collection", "archived_tasks"),
+	)
+	defer span.End()
+
 	cutoff := time.Now().Add(-archiveRetention).UnixMilli()
 	_, err := db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff)
+	if err != nil {
+		tracing.RecordError(span, err)
+	}
 	return err
 }
 
 func CleanupExpiredSessions(ctx context.Context, db *pgxpool.Pool, now time.Time) error {
+	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.cleanup_expired_sessions",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "DELETE"),
+		attribute.String("db.collection", "sessions"),
+	)
+	defer span.End()
+
 	_, err := db.Exec(ctx, `DELETE FROM sessions WHERE expires_at < $1 OR revoked_at IS NOT NULL`, now.UnixMilli())
+	if err != nil {
+		tracing.RecordError(span, err)
+	}
 	return err
 }
 

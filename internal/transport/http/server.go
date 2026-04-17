@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	stdhttp "net/http"
 	"strings"
 	"time"
 )
 
 type MuxOptions struct {
-	LegacyFS fs.FS
-	WebFS    fs.FS
+	LegacyFS      fs.FS
+	WebFS         fs.FS
+	Observability *Observability
 }
 
 type ServerOptions struct {
@@ -21,6 +22,7 @@ type ServerOptions struct {
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
 	IdleTimeout       time.Duration
+	Observability     *Observability
 }
 
 func NewMux(handler *Handler, options MuxOptions) (*stdhttp.ServeMux, error) {
@@ -29,8 +31,10 @@ func NewMux(handler *Handler, options MuxOptions) (*stdhttp.ServeMux, error) {
 	}
 
 	mux := stdhttp.NewServeMux()
+	observability := ensureObservability(options.Observability)
 	mux.HandleFunc("GET /healthz", handler.HandleHealthz)
 	mux.HandleFunc("GET /readyz", handler.HandleReadyz)
+	mux.Handle("GET /metrics", observability.MetricsHandler())
 	mux.HandleFunc("POST /api/auth/login", handler.HandleLogin)
 	mux.HandleFunc("POST /api/auth/logout", handler.HandleLogout)
 	mux.HandleFunc("GET /api/auth/me", handler.Auth(handler.HandleGetSession))
@@ -72,9 +76,10 @@ func SecurityHeaders(next stdhttp.Handler) stdhttp.Handler {
 }
 
 func NewServer(port string, handler stdhttp.Handler, options ServerOptions) *stdhttp.Server {
+	observability := ensureObservability(options.Observability)
 	return &stdhttp.Server{
 		Addr:              ":" + port,
-		Handler:           ObservabilityMiddleware(handler),
+		Handler:           observability.Middleware(handler),
 		ReadHeaderTimeout: options.ReadHeaderTimeout,
 		ReadTimeout:       options.ReadTimeout,
 		WriteTimeout:      options.WriteTimeout,
@@ -88,7 +93,7 @@ func InstallGracefulShutdown(server *stdhttp.Server, shutdownSignals context.Con
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("server shutdown error: %v", err)
+			slog.Default().Error("server shutdown error", slog.Any("err", err))
 		}
 	}()
 }

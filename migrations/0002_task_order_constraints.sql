@@ -1,6 +1,12 @@
 ALTER TABLE archived_tasks
   ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 2147483647;
 
+-- W9/5-B enterprise seam:
+-- if board rows later become workspace-scoped, the ordering guarantees in this
+-- migration must widen only after every existing row is backfilled into a
+-- default workspace. The future uniqueness target is expected to become
+-- `(workspace_id, status, sort_order)`, not a route-only convention.
+
 WITH ranked AS (
   SELECT
     id,
