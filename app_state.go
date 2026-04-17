@@ -7,8 +7,10 @@ import (
 
 	"flux-board/internal/domain"
 	authservice "flux-board/internal/service/auth"
+	transporthttp "flux-board/internal/transport/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type sessionState = domain.Session
@@ -22,6 +24,8 @@ type App struct {
 	authSvc           AuthService
 	authRepo          domain.AuthRepository
 	authTracker       *authservice.LoginTracker
+	metricsRegistry   *prometheus.Registry
+	observability     *transporthttp.Observability
 	bootstrapPassword string
 	cookieSecure      bool
 	webRuntimeFS      fs.FS

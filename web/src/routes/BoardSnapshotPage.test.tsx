@@ -207,20 +207,59 @@ describe("BoardSnapshotPage", () => {
   });
 
   it("limits move pending state to the active card and restores focus to that card after success", async () => {
-    mockSnapshot();
+    let snapshotData: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]> = {
+      session: { authenticated: true, expiresAt: 1 },
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "queued",
+          sort_order: 0,
+          lastUpdated: 1,
+        },
+        {
+          id: "b",
+          title: "Do me",
+          note: "",
+          due: "2026-04-21",
+          priority: "high",
+          status: "active",
+          sort_order: 1,
+          lastUpdated: 2,
+        },
+      ],
+      archived: [
+        {
+          id: "c",
+          title: "Archived",
+          note: "",
+          due: "2026-04-22",
+          priority: "critical",
+          status: "done",
+          sort_order: 0,
+          archivedAt: 3,
+        },
+      ],
+    };
+    mockedUseBoardSnapshot.mockImplementation(
+      () =>
+        ({
+          data: snapshotData,
+          error: null,
+          isPending: false,
+        }) as ReturnType<typeof useBoardSnapshot>,
+    );
     const deferred = createDeferred<Awaited<ReturnType<typeof moveTask>>>();
     mockedMoveTask.mockReturnValueOnce(deferred.promise);
 
-    renderPage();
+    const { queryClient, rerender } = renderPageView();
 
     const moveButton = screen.getByRole("button", { name: "Move to Active (Queue me)" });
     const archiveButton = screen.getByRole("button", { name: "Archive Queue me" });
     const unrelatedButton = screen.getByRole("button", { name: "Back to Queued (Do me)" });
-    const movedCard = screen.getByText("Queue me").closest("article");
-
-    if (!movedCard) {
-      throw new Error("expected moved card article");
-    }
 
     fireEvent.click(moveButton);
 
@@ -239,7 +278,148 @@ describe("BoardSnapshotPage", () => {
       lastUpdated: 10,
     });
 
+    snapshotData = {
+      ...snapshotData,
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "active",
+          sort_order: 0,
+          lastUpdated: 10,
+        },
+        {
+          id: "b",
+          title: "Do me",
+          note: "",
+          due: "2026-04-21",
+          priority: "high",
+          status: "active",
+          sort_order: 1,
+          lastUpdated: 2,
+        },
+      ],
+    };
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <BoardSnapshotPage />
+      </QueryClientProvider>,
+    );
+
+    const movedCard = screen.getByText("Queue me").closest("article");
+    if (!movedCard) {
+      throw new Error("expected moved card article");
+    }
+
     await waitFor(() => expect(movedCard).toHaveFocus());
+  });
+
+  it("waits for the refreshed snapshot before restoring focus after a lane move", async () => {
+    const deferred = createDeferred<Awaited<ReturnType<typeof moveTask>>>();
+    mockedMoveTask.mockReturnValueOnce(deferred.promise);
+
+    let snapshotData: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]> = {
+      session: { authenticated: true, expiresAt: 1 },
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "queued",
+          sort_order: 0,
+          lastUpdated: 1,
+        },
+        {
+          id: "b",
+          title: "Do me",
+          note: "",
+          due: "2026-04-21",
+          priority: "high",
+          status: "active",
+          sort_order: 1,
+          lastUpdated: 2,
+        },
+      ],
+      archived: [],
+    };
+
+    mockedUseBoardSnapshot.mockImplementation(
+      () =>
+        ({
+          data: snapshotData,
+          error: null,
+          isPending: false,
+        }) as ReturnType<typeof useBoardSnapshot>,
+    );
+
+    const { queryClient, rerender } = renderPageView();
+
+    const queuedCard = screen.getByText("Queue me").closest("article");
+    if (!queuedCard) {
+      throw new Error("expected queued card article");
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
+
+    deferred.resolve({
+      id: "a",
+      title: "Queue me",
+      note: "first lane",
+      due: "2026-04-20",
+      priority: "medium",
+      status: "active",
+      sort_order: 0,
+      lastUpdated: 10,
+    });
+
+    await waitFor(() => expect(screen.getByText("Moved Queue me to Active.")).toBeInTheDocument());
+    expect(queuedCard).not.toHaveFocus();
+
+    snapshotData = {
+      ...snapshotData,
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "active",
+          sort_order: 0,
+          lastUpdated: 10,
+        },
+        {
+          id: "b",
+          title: "Do me",
+          note: "",
+          due: "2026-04-21",
+          priority: "high",
+          status: "active",
+          sort_order: 1,
+          lastUpdated: 2,
+        },
+      ],
+    };
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <BoardSnapshotPage />
+      </QueryClientProvider>,
+    );
+
+    const movedCard = screen.getByText("Queue me").closest("article");
+    if (!movedCard) {
+      throw new Error("expected moved card article");
+    }
+
+    await waitFor(() => expect(movedCard).toHaveFocus());
+    await waitFor(() => expect(movedCard).toHaveAttribute("tabindex", "0"));
   });
 
   it("uses explicit move-up and move-down controls for lane-local reorder fallback", async () => {
@@ -438,6 +618,10 @@ describe("BoardSnapshotPage", () => {
 });
 
 function renderPage(options?: { authSession?: { authenticated: boolean; expiresAt: number } | null }) {
+  return renderPageView(options).queryClient;
+}
+
+function renderPageView(options?: { authSession?: { authenticated: boolean; expiresAt: number } | null }) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -450,13 +634,13 @@ function renderPage(options?: { authSession?: { authenticated: boolean; expiresA
     queryClient.setQueryData(authSessionQueryKey, options.authSession ?? null);
   }
 
-  render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <BoardSnapshotPage />
     </QueryClientProvider>,
   );
 
-  return queryClient;
+  return { queryClient, ...view };
 }
 
 function mockSnapshot(overrides?: Partial<NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>>) {

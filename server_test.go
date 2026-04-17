@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestNewMuxRegistersCoreRoutes(t *testing.T) {
@@ -45,6 +47,12 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 			name:       "readyz route",
 			method:     http.MethodGet,
 			target:     "/readyz",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "metrics route",
+			method:     http.MethodGet,
+			target:     "/metrics",
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -121,6 +129,55 @@ func TestNewMuxServesReactRuntimeRoot(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Flux Board Web Runtime") {
 		t.Fatalf("expected react runtime html, got %q", rec.Body.String())
+	}
+}
+
+func TestMetricsRouteIsUnauthenticatedAndUsesNormalizedPatterns(t *testing.T) {
+	registry := prometheus.NewRegistry()
+	app := &App{
+		metricsRegistry: registry,
+		passwordVerifier: func(context.Context, string) (bool, error) {
+			return false, nil
+		},
+		readinessChecker: func(context.Context) error {
+			return nil
+		},
+		auditRecorder: func(context.Context, authAuditEvent) error {
+			return nil
+		},
+	}
+
+	mux, err := newMux(app)
+	if err != nil {
+		t.Fatalf("newMux returned error: %v", err)
+	}
+	server := newHTTPServer("8080", app.securityHeaders(mux), app.observabilityRuntime())
+
+	taskReq := httptest.NewRequest(http.MethodPut, "/api/tasks/task-123", strings.NewReader(`{"title":"Renamed"}`))
+	taskReq.RemoteAddr = "127.0.0.1:1234"
+	taskRec := httptest.NewRecorder()
+	server.Handler.ServeHTTP(taskRec, taskReq)
+
+	if taskRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized status for protected task route, got %d", taskRec.Code)
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	server.Handler.ServeHTTP(metricsRec, metricsReq)
+
+	if metricsRec.Code != http.StatusOK {
+		t.Fatalf("expected metrics status 200, got %d", metricsRec.Code)
+	}
+	body := metricsRec.Body.String()
+	if !strings.Contains(body, "flux_board_http_requests_total") {
+		t.Fatalf("expected request counter in metrics output, got %q", body)
+	}
+	if !strings.Contains(body, `route="/api/tasks/{id}"`) {
+		t.Fatalf("expected normalized task route label, got %q", body)
+	}
+	if strings.Contains(body, `route="/api/tasks/task-123"`) {
+		t.Fatalf("expected raw task path to be normalized, got %q", body)
 	}
 }
 

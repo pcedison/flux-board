@@ -22,6 +22,13 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 - if proxy headers are passed through, the proxy must be the sole writer of `X-Forwarded-For` and `X-Real-IP`
 - public internet deployment should still be treated as restricted or development-stage until later waves close
 
+## Enterprise Deployment Seams
+- These seams are documentation only for `W9/5-B`; the current runtime does not yet enable RBAC, SSO, SCIM, or multi-workspace routing.
+- Keep the local bootstrap-admin login path available as the break-glass path until any future SSO rollout is independently verified and remotely closed.
+- Future SSO work should trust only explicit app-owned callback flows; do not introduce ambient identity headers from the reverse proxy as an unofficial auth path.
+- Future workspace rollout should happen after a default-workspace backfill migration, so existing single-board rows can be promoted safely before any workspace-specific routing or access policy is enabled.
+- If later enterprise slices add IdP or workspace env vars, deployment docs should treat them as opt-in and keep the current `DATABASE_URL` plus bootstrap-admin startup path as the fallback until the new path is proven.
+
 ## Verification After Deploy
 1. run backend verification with `./scripts/verify-go.ps1` or `./scripts/verify-go.sh`
 2. set `FLUX_PASSWORD` or `APP_PASSWORD` for the current bootstrap admin, then run browser smoke with `npm run smoke:login`
@@ -69,4 +76,5 @@ If rollback fails any readiness or smoke step, keep the app out of rotation and 
 ## Current Non-Goals
 - no final multi-board/domain migration strategy yet beyond the current baseline
 - no multi-user auth model yet
+- no production SSO, SCIM, or workspace-aware routing yet
 - no final W8/W9 polish beyond the current runtime takeover baseline

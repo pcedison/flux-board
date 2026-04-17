@@ -14,6 +14,7 @@ const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
 const smokeTimeoutMs = parseInteger(process.env.SMOKE_TIMEOUT_MS, 120000);
 const desktopViewport = { width: 1440, height: 960 };
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+const runSeed = `${Date.now()}-${process.pid}`;
 const resultsDir =
   process.env.TEST_RESULTS_DIR ??
   path.join("test-results", "e2e", `board-dnd-smoke-${timestamp}`);
@@ -67,7 +68,7 @@ try {
   await page.getByRole("heading", { name: "Create task" }).waitFor();
 
   logStep("Create tasks");
-  const firstTaskTitle = `DnD smoke first ${Date.now()}`;
+  const firstTaskTitle = `DnD smoke first ${runSeed}`;
   const secondTaskTitle = `${firstTaskTitle} next`;
 
   await createQueuedTask(page, {
@@ -200,16 +201,31 @@ async function dragPointerToTarget(page, sourceLocator, targetLocator) {
   assertStatus(targetBox != null, "Drag target should be visible.");
 
   const source = centerPoint(sourceBox);
-  const target = centerPoint(targetBox);
+  const target =
+    browserName === "webkit"
+      ? {
+          x: targetBox.x + targetBox.width / 2,
+          y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
+        }
+      : centerPoint(targetBox);
   const midPoint = {
     x: source.x + Math.max(16, Math.min(48, Math.abs(target.x - source.x) / 3)),
     y: source.y + Math.max(16, Math.min(48, Math.abs(target.y - source.y) / 3)),
   };
 
+  await sourceLocator.hover();
   await page.mouse.move(source.x, source.y);
   await page.mouse.down();
-  await page.mouse.move(midPoint.x, midPoint.y);
-  await page.mouse.move(target.x, target.y, { steps: 12 });
+  if (browserName === "webkit") {
+    await page.mouse.move(source.x, source.y + 20, { steps: 4 });
+    await page.waitForTimeout(75);
+    await page.mouse.move(midPoint.x, midPoint.y, { steps: 8 });
+    await page.mouse.move(target.x, target.y, { steps: 12 });
+    await page.waitForTimeout(75);
+  } else {
+    await page.mouse.move(midPoint.x, midPoint.y);
+    await page.mouse.move(target.x, target.y, { steps: 12 });
+  }
   await page.mouse.up();
 }
 

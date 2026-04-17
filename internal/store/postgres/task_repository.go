@@ -8,12 +8,15 @@ import (
 	"time"
 
 	"flux-board/internal/domain"
+	"flux-board/internal/observability/tracing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const taskOrderConstraintName = "tasks_status_sort_order_unique"
+const taskRepositoryTracerScope = "store/postgres/tasks"
 
 var taskLaneLockIDs = map[string]int64{
 	"active": 31_002,
@@ -34,12 +37,20 @@ func NewTaskRepository(db *pgxpool.Pool, archiveRetention time.Duration) *TaskRe
 }
 
 func (r *TaskRepository) ListTasks(ctx context.Context) ([]domain.Task, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.list",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "SELECT"),
+		attribute.String("db.collection", "tasks"),
+	)
+	defer span.End()
+
 	rows, err := r.db.Query(ctx, `
 		SELECT id, title, note, due, priority, status, sort_order, last_updated
 		FROM tasks
 		ORDER BY status, sort_order, last_updated DESC, id
 	`)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -57,33 +68,46 @@ func (r *TaskRepository) ListTasks(ctx context.Context) ([]domain.Task, error) {
 			&task.SortOrder,
 			&task.LastUpdated,
 		); err != nil {
+			tracing.RecordError(span, err)
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
 
 	if err := rows.Err(); err != nil {
+		tracing.RecordError(span, err)
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("flux.tasks.count", len(tasks)))
 	return tasks, nil
 }
 
 func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.create",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "tasks"),
+		attribute.String("task.status", "queued"),
+	)
+	defer span.End()
+
 	task.Status = "queued"
 	task.LastUpdated = time.Now().UnixMilli()
 
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	defer tx.Rollback(ctx)
 
 	if err := lockTaskLanes(ctx, tx, task.Status); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	task.SortOrder, err = nextLaneSortOrder(ctx, tx, task.Status)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
@@ -93,24 +117,35 @@ func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) (doma
 		ON CONFLICT (id) DO NOTHING
 	`, task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, task.SortOrder, task.LastUpdated)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	if tag.RowsAffected() == 0 {
 		return domain.Task{}, domain.ErrTaskConflict
 	}
 	if err := tx.Commit(ctx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
+	span.SetAttributes(attribute.Int("task.sort_order", task.SortOrder))
 	return task, nil
 }
 
 func (r *TaskRepository) UpdateTask(ctx context.Context, id string, task domain.Task) (domain.Task, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.update",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "tasks"),
+	)
+	defer span.End()
+
 	var currentStatus string
 	var currentSortOrder int
 	if err := r.db.QueryRow(ctx, `SELECT status, sort_order FROM tasks WHERE id=$1`, id).Scan(&currentStatus, &currentSortOrder); errors.Is(err, pgx.ErrNoRows) {
+		tracing.RecordError(span, err)
 		return domain.Task{}, domain.ErrTaskNotFound
 	} else if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
@@ -120,18 +155,32 @@ func (r *TaskRepository) UpdateTask(ctx context.Context, id string, task domain.
 		SET title=$1, note=$2, due=$3, priority=$4, last_updated=$5
 		WHERE id=$6
 	`, task.Title, task.Note, task.Due, task.Priority, task.LastUpdated, id); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	task.ID = id
 	task.Status = currentStatus
 	task.SortOrder = currentSortOrder
+	span.SetAttributes(
+		attribute.String("task.status", task.Status),
+		attribute.Int("task.sort_order", task.SortOrder),
+	)
 	return task, nil
 }
 
 func (r *TaskRepository) ReorderTask(ctx context.Context, id string, reorder domain.TaskReorderInput) (domain.Task, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.reorder",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "tasks"),
+		attribute.String("task.target_status", reorder.Status),
+		attribute.Bool("task.anchor_present", strings.TrimSpace(reorder.AnchorTaskID) != ""),
+	)
+	defer span.End()
+
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	defer tx.Rollback(ctx)
@@ -152,21 +201,26 @@ func (r *TaskRepository) ReorderTask(ctx context.Context, id string, reorder dom
 		&current.LastUpdated,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
+		tracing.RecordError(span, err)
 		return domain.Task{}, domain.ErrTaskNotFound
 	}
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	if err := lockTaskLanes(ctx, tx, current.Status, reorder.Status); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	if err := deferTaskOrderConstraint(ctx, tx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	sourceIDs, err := laneTaskIDs(ctx, tx, current.Status)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	sourceIDs = removeTaskID(sourceIDs, current.ID)
@@ -175,15 +229,18 @@ func (r *TaskRepository) ReorderTask(ctx context.Context, id string, reorder dom
 	if current.Status != reorder.Status {
 		targetIDs, err = laneTaskIDs(ctx, tx, reorder.Status)
 		if err != nil {
+			tracing.RecordError(span, err)
 			return domain.Task{}, err
 		}
 	}
 
 	insertIdx, err := reorderInsertIndex(ctx, tx, reorder.Status, reorder.AnchorTaskID, reorder.PlaceAfter, targetIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
+		tracing.RecordError(span, err)
 		return domain.Task{}, domain.ErrTaskInvalidAnchor
 	}
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	targetIDs = insertAt(targetIDs, insertIdx, current.ID)
@@ -191,26 +248,40 @@ func (r *TaskRepository) ReorderTask(ctx context.Context, id string, reorder dom
 	now := time.Now().UnixMilli()
 	if current.Status != reorder.Status {
 		if err := applyLaneOrder(ctx, tx, current.Status, sourceIDs, "", 0); err != nil {
+			tracing.RecordError(span, err)
 			return domain.Task{}, err
 		}
 	}
 	if err := applyLaneOrder(ctx, tx, reorder.Status, targetIDs, current.ID, now); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	current.Status = reorder.Status
 	current.SortOrder = insertIdx
 	current.LastUpdated = now
+	span.SetAttributes(
+		attribute.String("task.status", current.Status),
+		attribute.Int("task.sort_order", current.SortOrder),
+	)
 	return current, nil
 }
 
 func (r *TaskRepository) ArchiveTask(ctx context.Context, id string) (domain.ArchivedTask, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.archive",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "tasks"),
+	)
+	defer span.End()
+
 	now := time.Now().UnixMilli()
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 	defer tx.Rollback(ctx)
@@ -223,20 +294,25 @@ func (r *TaskRepository) ArchiveTask(ctx context.Context, id string) (domain.Arc
 		FOR UPDATE
 	`, id).Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status, &task.SortOrder)
 	if errors.Is(err, pgx.ErrNoRows) {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, domain.ErrTaskNotFound
 	}
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 
 	if err := lockTaskLanes(ctx, tx, task.Status); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 	if err := deferTaskOrderConstraint(ctx, tx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 
 	if _, err := tx.Exec(ctx, `DELETE FROM tasks WHERE id=$1`, id); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 
@@ -245,26 +321,38 @@ func (r *TaskRepository) ArchiveTask(ctx context.Context, id string) (domain.Arc
 		INSERT INTO archived_tasks (id, title, note, due, priority, status, sort_order, archived_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`, task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, task.SortOrder, task.ArchivedAt); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 
 	remainingIDs, err := laneTaskIDs(ctx, tx, task.Status)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 	if err := applyLaneOrder(ctx, tx, task.Status, remainingIDs, "", 0); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
+	span.SetAttributes(attribute.String("task.status", task.Status))
 	return task, nil
 }
 
 func (r *TaskRepository) ListArchived(ctx context.Context) ([]domain.ArchivedTask, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.list_archived",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "archived_tasks"),
+	)
+	defer span.End()
+
 	cutoff := time.Now().Add(-r.archiveRetention).UnixMilli()
 	if _, err := r.db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff); err != nil {
+		tracing.RecordError(span, err)
 		return nil, err
 	}
 
@@ -274,6 +362,7 @@ func (r *TaskRepository) ListArchived(ctx context.Context) ([]domain.ArchivedTas
 		ORDER BY archived_at DESC, id
 	`)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -291,21 +380,31 @@ func (r *TaskRepository) ListArchived(ctx context.Context) ([]domain.ArchivedTas
 			&task.SortOrder,
 			&task.ArchivedAt,
 		); err != nil {
+			tracing.RecordError(span, err)
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
 
 	if err := rows.Err(); err != nil {
+		tracing.RecordError(span, err)
 		return nil, err
 	}
+	span.SetAttributes(attribute.Int("flux.archived_tasks.count", len(tasks)))
 	return tasks, nil
 }
 
 func (r *TaskRepository) RestoreTask(ctx context.Context, id string) (domain.Task, error) {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.restore",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.collection", "archived_tasks"),
+	)
+	defer span.End()
+
 	now := time.Now().UnixMilli()
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	defer tx.Rollback(ctx)
@@ -316,26 +415,32 @@ func (r *TaskRepository) RestoreTask(ctx context.Context, id string) (domain.Tas
 		RETURNING id, title, note, due, priority, status, sort_order
 	`, id).Scan(&task.ID, &task.Title, &task.Note, &task.Due, &task.Priority, &task.Status, &task.SortOrder)
 	if errors.Is(err, pgx.ErrNoRows) {
+		tracing.RecordError(span, err)
 		return domain.Task{}, domain.ErrTaskNotFound
 	}
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	if err := domain.ValidateTaskPayload(&task, true, true); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, domain.ErrStoredTaskInvalid
 	}
 
 	task.LastUpdated = now
 	if err := lockTaskLanes(ctx, tx, task.Status); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 	if err := deferTaskOrderConstraint(ctx, tx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	laneIDs, err := laneTaskIDs(ctx, tx, task.Status)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
@@ -352,23 +457,38 @@ func (r *TaskRepository) RestoreTask(ctx context.Context, id string) (domain.Tas
 		INSERT INTO tasks (id, title, note, due, priority, status, sort_order, last_updated)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`, task.ID, task.Title, task.Note, task.Due, task.Priority, task.Status, insertIdx, task.LastUpdated); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	if err := applyLaneOrder(ctx, tx, task.Status, laneIDs, task.ID, task.LastUpdated); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
 
 	task.SortOrder = insertIdx
 	if err := tx.Commit(ctx); err != nil {
+		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
+	span.SetAttributes(
+		attribute.String("task.status", task.Status),
+		attribute.Int("task.sort_order", task.SortOrder),
+	)
 	return task, nil
 }
 
 func (r *TaskRepository) DeleteArchived(ctx context.Context, id string) error {
+	ctx, span := tracing.StartClientSpan(ctx, taskRepositoryTracerScope, "postgres.tasks.delete_archived",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "DELETE"),
+		attribute.String("db.collection", "archived_tasks"),
+	)
+	defer span.End()
+
 	tag, err := r.db.Exec(ctx, `DELETE FROM archived_tasks WHERE id=$1`, id)
 	if err != nil {
+		tracing.RecordError(span, err)
 		return err
 	}
 	if tag.RowsAffected() == 0 {

@@ -16,6 +16,13 @@ $baseURL = if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) {
   $env:BASE_URL.TrimEnd("/")
 }
 $env:BASE_URL = $baseURL
+$forcedAppEnv = $false
+
+if ([string]::IsNullOrWhiteSpace($env:APP_ENV) -and $baseURL -match '^http://(127\.0\.0\.1|localhost)(:\d+)?$') {
+  Write-Host "[prep] APP_ENV is unset on loopback HTTP; forcing APP_ENV=development so browser session cookies remain smoke-testable."
+  $env:APP_ENV = "development"
+  $forcedAppEnv = $true
+}
 
 if ([string]::IsNullOrWhiteSpace($env:PLAYWRIGHT_BROWSER)) {
   $env:PLAYWRIGHT_BROWSER = "chromium"
@@ -146,6 +153,9 @@ try {
   Write-Host "Smoke verification failed. Results: $resultsDir"
   throw
 } finally {
+  if ($forcedAppEnv) {
+    Remove-Item Env:APP_ENV -ErrorAction SilentlyContinue
+  }
   if ($process -and -not $process.HasExited) {
     Stop-Process -Id $process.Id -Force
   }

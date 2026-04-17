@@ -69,6 +69,7 @@ jobs:
         browser:
           - chromium
           - firefox
+          - webkit
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       APP_ENV: development
@@ -136,6 +137,7 @@ jobs:
         browser:
           - chromium
           - firefox
+          - webkit
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       APP_ENV: development
@@ -203,6 +205,7 @@ jobs:
         browser:
           - chromium
           - firefox
+          - webkit
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       APP_ENV: development
@@ -267,7 +270,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox]
+        browser: [chromium, firefox, webkit]
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       APP_ENV: development

@@ -17,6 +17,17 @@ export TEST_RESULTS_DIR="$results_dir"
 export BASE_URL="$base_url"
 export PLAYWRIGHT_BROWSER="$playwright_browser"
 
+forced_app_env=0
+if [ -z "${APP_ENV:-}" ]; then
+  case "$base_url" in
+    http://127.0.0.1|http://127.0.0.1:*|http://localhost|http://localhost:*)
+      echo "[prep] APP_ENV is unset on loopback HTTP; forcing APP_ENV=development so browser session cookies remain smoke-testable."
+      export APP_ENV="development"
+      forced_app_env=1
+      ;;
+  esac
+fi
+
 mkdir -p "$results_dir"
 
 stdout_log="$results_dir/server.stdout.log"
@@ -47,6 +58,9 @@ show_server_logs() {
 }
 
 cleanup() {
+  if [ "$forced_app_env" = "1" ]; then
+    unset APP_ENV || true
+  fi
   if [ -n "$server_pid" ] && kill -0 "$server_pid" 2>/dev/null; then
     kill "$server_pid" 2>/dev/null || true
     wait "$server_pid" 2>/dev/null || true

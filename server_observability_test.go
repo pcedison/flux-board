@@ -3,20 +3,27 @@ package main
 import (
 	"bytes"
 	"context"
-	"log"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	transporthttp "flux-board/internal/transport/http"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestNewHTTPServerAddsRequestIDHeaderToObservedRoutes(t *testing.T) {
+	observability := transporthttp.NewObservability(transporthttp.ObservabilityOptions{
+		Registry: prometheus.NewRegistry(),
+	})
 	server := newHTTPServer("8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := requestIDFromContext(r.Context()); got == "" {
 			t.Fatal("expected request id in context")
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}))
+	}), observability)
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
@@ -31,38 +38,48 @@ func TestNewHTTPServerAddsRequestIDHeaderToObservedRoutes(t *testing.T) {
 	}
 }
 
-func TestNewHTTPServerLogsObservedRequestsOnly(t *testing.T) {
+func TestNewHTTPServerLogsObservedRequestsAsStructuredJSONOnly(t *testing.T) {
 	var logBuffer bytes.Buffer
-	originalWriter := log.Writer()
-	originalFlags := log.Flags()
-	log.SetOutput(&logBuffer)
-	log.SetFlags(0)
-	t.Cleanup(func() {
-		log.SetOutput(originalWriter)
-		log.SetFlags(originalFlags)
+	observability := transporthttp.NewObservability(transporthttp.ObservabilityOptions{
+		Logger:   transporthttp.NewLogger("production", &logBuffer),
+		Registry: prometheus.NewRegistry(),
 	})
-
 	server := newHTTPServer("8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if shouldObserveRequest(r.URL.Path) && requestIDFromContext(r.Context()) == "" {
 			t.Fatal("expected request id in context")
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
-	}))
+	}), observability)
 
 	apiReq := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	apiReq.RemoteAddr = "127.0.0.1:1234"
 	apiRec := httptest.NewRecorder()
 	server.Handler.ServeHTTP(apiRec, apiReq)
 
-	if !strings.Contains(logBuffer.String(), "path=/readyz") {
-		t.Fatalf("expected access log for observed route, got %q", logBuffer.String())
+	lines := strings.Split(strings.TrimSpace(logBuffer.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected one structured log line, got %d (%q)", len(lines), logBuffer.String())
 	}
-	if !strings.Contains(logBuffer.String(), "status=200") {
-		t.Fatalf("expected status in access log, got %q", logBuffer.String())
+
+	var entry map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &entry); err != nil {
+		t.Fatalf("decode structured log: %v", err)
 	}
-	if !strings.Contains(logBuffer.String(), "request_id="+apiRec.Header().Get(requestIDHeader)) {
-		t.Fatalf("expected request id in access log, got %q", logBuffer.String())
+	if entry["msg"] != "http access" {
+		t.Fatalf("expected access log message, got %+v", entry)
+	}
+	if entry["path"] != "/readyz" {
+		t.Fatalf("expected path /readyz, got %+v", entry)
+	}
+	if entry["route"] != "/readyz" {
+		t.Fatalf("expected normalized route /readyz, got %+v", entry)
+	}
+	if entry["status"] != float64(http.StatusOK) {
+		t.Fatalf("expected status 200, got %+v", entry)
+	}
+	if entry["request_id"] != apiRec.Header().Get(requestIDHeader) {
+		t.Fatalf("expected request id %q, got %+v", apiRec.Header().Get(requestIDHeader), entry)
 	}
 
 	logBuffer.Reset()

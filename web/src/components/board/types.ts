@@ -19,5 +19,5 @@ export type MoveTaskRequest = {
 
 export type FocusTarget =
   | { kind: "archived"; id: string }
-  | { kind: "task"; id: string }
+  | { kind: "task"; id: string; lastUpdated?: number; status?: TaskStatus }
   | { kind: "title" };
