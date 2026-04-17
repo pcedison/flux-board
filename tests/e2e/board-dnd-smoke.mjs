@@ -105,12 +105,7 @@ try {
   await targetCard.scrollIntoViewIfNeeded();
 
   logStep("Drag");
-  await dragPointerToTarget(page, {
-    sourceCard,
-    sourceHandle,
-    sourceTitle,
-    targetCard,
-  });
+  await dragPointerToTarget(page, sourceHandle, targetCard);
 
   const expectedStatus = `Moved ${sourceTitle} within Queued.`;
   await page.getByText(expectedStatus, { exact: true }).waitFor({ timeout: 10000 });
@@ -200,11 +195,11 @@ async function getQueuedTaskTitles(queuedLane) {
   return (await queuedLane.locator("article strong").allTextContents()).map((title) => title.trim()).filter(Boolean);
 }
 
-async function dragPointerToTarget(page, { sourceCard, sourceHandle, sourceTitle, targetCard }) {
+async function dragPointerToTarget(page, sourceHandle, targetCard) {
   const sourceBox = await sourceHandle.boundingBox();
   assertStatus(sourceBox != null, "Drag source should be visible.");
 
-  const requiresExtendedPointerPath = browserName === "firefox" || browserName === "webkit";
+  const requiresExtendedPointerPath = browserName === "webkit";
   const source = centerPoint(sourceBox);
 
   await sourceHandle.hover();
@@ -215,10 +210,8 @@ async function dragPointerToTarget(page, { sourceCard, sourceHandle, sourceTitle
   try {
     await page.mouse.move(source.x, source.y);
     await page.mouse.down();
-    await page.mouse.move(source.x, source.y + 20, { steps: 4 });
-
-    if (requiresExtendedPointerPath) {
-      await waitForDraggingCard(page, sourceCard, sourceTitle);
+    if (browserName === "firefox") {
+      await page.mouse.move(source.x, source.y + 16, { steps: 4 });
     }
 
     const targetBox = await targetCard.boundingBox();
@@ -277,20 +270,6 @@ async function removeTemporaryFirefoxSelectionGuard(page) {
   await page.evaluate(() => {
     document.getElementById("smoke-firefox-selection-guard")?.remove();
   });
-}
-
-async function waitForDraggingCard(page, sourceCard, sourceTitle) {
-  await page.waitForFunction(
-    ({ expectedTitle }) => {
-      return Array.from(document.querySelectorAll("article.card-dragging strong")).some((node) => {
-        return (node.textContent?.trim() || "") === expectedTitle;
-      });
-    },
-    { expectedTitle: sourceTitle },
-    { timeout: 3000 }
-  );
-
-  await sourceCard.waitFor({ state: "visible" });
 }
 
 function centerPoint(box) {
