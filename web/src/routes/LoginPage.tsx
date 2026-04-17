@@ -79,8 +79,8 @@ export function LoginPage() {
       <section className="panel">
         <h2>Sign in to view the board</h2>
         <p className="meta">
-          This W7 slice keeps board data read-only, but it now respects the real session boundary. Use
-          the existing Flux Board password here to open the protected board snapshot route.
+          Use the existing Flux Board password here to open the canonical React board runtime on
+          `/board`. The legacy embedded UI now lives behind `/legacy/` as a rollback path.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -116,7 +116,7 @@ export function LoginPage() {
         <h2>What this route does</h2>
         <ul className="checklist">
           <li>Protects `/board` until an authenticated session cookie is present.</li>
-          <li>Reuses the current Go auth/session API without introducing board mutations yet.</li>
+          <li>Reuses the current Go auth/session API for the production React runtime.</li>
           <li>
             Redirects you back to <code>{nextPath}</code> once the session is established.
           </li>

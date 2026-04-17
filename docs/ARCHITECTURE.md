@@ -12,7 +12,7 @@ Flux Board currently runs as a single Go application that:
 2. the app creates a `pgxpool` connection
 3. schema bootstrap runs directly from the app, including first-run bootstrap admin/session tables
 4. auth, tasks, and archive routes are registered with shared middleware
-5. embedded files under `static/` are served by the same process, and a built `web/dist` can be exposed on `/next/` as a preview runtime route
+5. a built `web/dist` is served by the same process as the canonical React runtime on `/`, `static/index.html` is preserved on `/legacy/` as the rollback shell, and old `/next/*` preview URLs are redirected into the root runtime
 
 ## Current Backend Shape
 - entrypoint: [main.go](../main.go)
@@ -24,10 +24,10 @@ Flux Board currently runs as a single Go application that:
 - session cleanup: periodic in-process goroutine with cancellation-aware lifecycle
 
 ## Current Frontend Shape
-- single embedded file: [static/index.html](../static/index.html)
-- optional Go-served preview route for built `web/dist`: `/next/`
-- state is DOM- and script-coupled
-- drag-and-drop is currently the main card movement path
+- canonical Go-served `React + TypeScript + Vite` runtime from built `web/dist` on `/`
+- legacy embedded rollback file: [static/index.html](../static/index.html) on `/legacy/`
+- `/next/*` remains as a compatibility redirect into the canonical root routes
+- non-drag create/move/archive/restore plus lane-local move up/down now exist in the React board
 
 ## Current Coupling Risks
 - backend logic is concentrated in one file
@@ -45,7 +45,7 @@ Flux Board currently runs as a single Go application that:
 
 ### Frontend
 - `web/` app using `React + TypeScript + Vite`
-- Go-served preview route on `/next/` before full runtime takeover
+- Go-served root runtime on `/` with `/legacy/` rollback and transitional `/next/*` redirects
 - componentized board UI
 - touch, keyboard, and mouse friendly movement
 - mobile/tablet/desktop responsive layouts

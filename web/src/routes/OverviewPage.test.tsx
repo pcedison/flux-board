@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { axe } from "vitest-axe";
 
 import { OverviewPage } from "./OverviewPage";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
@@ -16,14 +17,14 @@ describe("OverviewPage", () => {
     mockedUseBoardSnapshot.mockReset();
   });
 
-  it("renders loading state while the snapshot is pending", () => {
+  it("renders loading state while the snapshot is pending", async () => {
     mockedUseBoardSnapshot.mockReturnValue({
       data: undefined,
       error: null,
       isPending: true,
     } as ReturnType<typeof useBoardSnapshot>);
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <OverviewPage />
       </MemoryRouter>,
@@ -31,9 +32,11 @@ describe("OverviewPage", () => {
 
     expect(screen.getByText("Loading")).toBeInTheDocument();
     expect(screen.getByText("Reading the current auth and board snapshot from the Go API.")).toBeInTheDocument();
+    const results = await axe(container);
+    expect(results.violations).toHaveLength(0);
   });
 
-  it("renders authenticated totals from the snapshot", () => {
+  it("renders authenticated totals from the snapshot", async () => {
     mockedUseBoardSnapshot.mockReturnValue({
       data: {
         session: {
@@ -53,7 +56,7 @@ describe("OverviewPage", () => {
       isPending: false,
     } as ReturnType<typeof useBoardSnapshot>);
 
-    render(
+    const { container } = render(
       <MemoryRouter>
         <OverviewPage />
       </MemoryRouter>,
@@ -64,7 +67,9 @@ describe("OverviewPage", () => {
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.getByText("Archived")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open guarded board" })).toHaveAttribute("href", "/board");
+    expect(screen.getByRole("link", { name: "Open board route" })).toHaveAttribute("href", "/board");
     expect(screen.getAllByText("1")).toHaveLength(4);
+    const results = await axe(container);
+    expect(results.violations).toHaveLength(0);
   });
 });

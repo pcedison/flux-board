@@ -3,20 +3,21 @@ package main
 import (
 	"context"
 	"testing"
+
+	"flux-board/internal/domain"
+	taskservice "flux-board/internal/service/task"
 )
 
 func TestDefaultTaskServiceCreateTaskValidatesPayloadBeforeRepository(t *testing.T) {
 	called := false
-	service := defaultTaskService{
-		repo: stubTaskRepository{
-			createTaskFn: func(context.Context, Task) (Task, error) {
-				called = true
-				return Task{}, nil
-			},
+	service := taskservice.New(stubTaskRepository{
+		createTaskFn: func(context.Context, domain.Task) (domain.Task, error) {
+			called = true
+			return domain.Task{}, nil
 		},
-	}
+	})
 
-	_, err := service.CreateTask(context.Background(), Task{
+	_, err := service.CreateTask(context.Background(), domain.Task{
 		ID:       "task-1",
 		Title:    "",
 		Due:      "2026-04-20",
@@ -31,11 +32,9 @@ func TestDefaultTaskServiceCreateTaskValidatesPayloadBeforeRepository(t *testing
 }
 
 func TestDefaultTaskServiceReorderTaskRejectsSelfAnchor(t *testing.T) {
-	service := defaultTaskService{
-		repo: stubTaskRepository{},
-	}
+	service := taskservice.New(stubTaskRepository{})
 
-	_, err := service.ReorderTask(context.Background(), "task-1", taskReorderInput{
+	_, err := service.ReorderTask(context.Background(), "task-1", domain.TaskReorderInput{
 		Status:       "queued",
 		AnchorTaskID: "task-1",
 		PlaceAfter:   false,
@@ -46,11 +45,9 @@ func TestDefaultTaskServiceReorderTaskRejectsSelfAnchor(t *testing.T) {
 }
 
 func TestDefaultTaskServiceUpdateTaskRejectsMissingID(t *testing.T) {
-	service := defaultTaskService{
-		repo: stubTaskRepository{},
-	}
+	service := taskservice.New(stubTaskRepository{})
 
-	_, err := service.UpdateTask(context.Background(), "   ", Task{
+	_, err := service.UpdateTask(context.Background(), "   ", domain.Task{
 		Title:    "Ship tests",
 		Due:      "2026-04-20",
 		Priority: "medium",
@@ -61,9 +58,7 @@ func TestDefaultTaskServiceUpdateTaskRejectsMissingID(t *testing.T) {
 }
 
 func TestDefaultTaskServiceArchiveTaskRejectsMissingID(t *testing.T) {
-	service := defaultTaskService{
-		repo: stubTaskRepository{},
-	}
+	service := taskservice.New(stubTaskRepository{})
 
 	_, err := service.ArchiveTask(context.Background(), " ")
 	if err == nil || err.Error() != "missing task id" {

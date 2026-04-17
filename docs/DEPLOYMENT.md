@@ -10,7 +10,9 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 - `PORT`: bind port for the Go server
 
 ## Runtime Shape
-- one Go binary serves both API routes and embedded static assets
+- one Go binary serves API routes, the canonical React runtime on `/`, and the legacy rollback shell on `/legacy/`
+- preferred local/manual entrypoint is `go run ./cmd/flux-board`
+- if `web/dist` has been built, the same Go binary serves the React runtime from `/` and redirects old `/next/*` preview URLs into the canonical root routes
 - PostgreSQL is required at startup
 - schema bootstrap still happens in-process
 - auth currently centers on one bootstrap-created admin account with DB-backed sessions
@@ -65,6 +67,6 @@ Current rollback is intentionally simple and binary-first:
 If rollback fails any readiness or smoke step, keep the app out of rotation and inspect the release diagnostics saved under `test-results/`.
 
 ## Current Non-Goals
-- no migration framework yet
+- no final multi-board/domain migration strategy yet beyond the current baseline
 - no multi-user auth model yet
-- no React/Vite frontend yet
+- no final W8/W9 polish beyond the current runtime takeover baseline

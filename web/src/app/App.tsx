@@ -31,7 +31,7 @@ function RequireAuthRoute() {
       error={session.error}
       errorTitle="Unable to verify your session"
       isPending={session.isPending}
-      loadingMessage="Checking whether the new frontend can safely open the protected board snapshot."
+      loadingMessage="Checking whether the current runtime can safely open the protected board route."
     >
       {session.data ? (
         <Outlet />

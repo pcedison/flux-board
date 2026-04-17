@@ -3,49 +3,28 @@ package main
 import (
 	"context"
 	"io/fs"
-	"sync"
 	"time"
+
+	"flux-board/internal/domain"
+	authservice "flux-board/internal/service/auth"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type loginAttemptState struct {
-	WindowStart  time.Time
-	Failures     int
-	BlockedUntil time.Time
-}
-
-type contextKey string
-
-const sessionContextKey contextKey = "session"
-
-type sessionState struct {
-	Token     string
-	Username  string
-	ExpiresAt time.Time
-}
-
-type authAuditEvent struct {
-	Username  string
-	EventType string
-	Outcome   string
-	ClientIP  string
-	Details   string
-	RequestID string
-	CreatedAt int64
-}
+type sessionState = domain.Session
+type authAuditEvent = domain.AuthAuditEvent
 
 // App holds shared application dependencies.
 type App struct {
 	db                *pgxpool.Pool
-	taskRepo          TaskRepository
+	taskRepo          domain.TaskRepository
 	taskSvc           TaskService
 	authSvc           AuthService
+	authRepo          domain.AuthRepository
+	authTracker       *authservice.LoginTracker
 	bootstrapPassword string
 	cookieSecure      bool
-	webPreviewFS      fs.FS
-	loginMu           sync.Mutex
-	loginAttempts     map[string]loginAttemptState
+	webRuntimeFS      fs.FS
 	passwordVerifier  func(context.Context, string) (bool, error)
 	readinessChecker  func(context.Context) error
 	sessionGetter     func(context.Context, string) (sessionState, error)

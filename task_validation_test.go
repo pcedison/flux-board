@@ -1,9 +1,13 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"flux-board/internal/domain"
+)
 
 func TestValidateTaskPayloadTrimsAndDefaultsTask(t *testing.T) {
-	task := Task{
+	task := domain.Task{
 		ID:       " task-1 ",
 		Title:    " Ship tests ",
 		Note:     " note ",
@@ -11,7 +15,7 @@ func TestValidateTaskPayloadTrimsAndDefaultsTask(t *testing.T) {
 		Priority: "",
 	}
 
-	if err := validateTaskPayload(&task, true, false); err != nil {
+	if err := domain.ValidateTaskPayload(&task, true, false); err != nil {
 		t.Fatalf("expected valid payload, got %v", err)
 	}
 	if task.ID != "task-1" {
@@ -32,35 +36,35 @@ func TestValidateTaskPayloadTrimsAndDefaultsTask(t *testing.T) {
 }
 
 func TestValidateTaskPayloadRejectsInvalidDueDateFormat(t *testing.T) {
-	task := Task{
+	task := domain.Task{
 		ID:       "task-1",
 		Title:    "Ship tests",
 		Due:      "2026/04/20",
 		Priority: "medium",
 	}
 
-	err := validateTaskPayload(&task, true, false)
+	err := domain.ValidateTaskPayload(&task, true, false)
 	if err == nil || err.Error() != "due must be in YYYY-MM-DD format" {
 		t.Fatalf("expected due date validation error, got %v", err)
 	}
 }
 
 func TestValidateTaskPayloadRejectsInvalidPriority(t *testing.T) {
-	task := Task{
+	task := domain.Task{
 		ID:       "task-1",
 		Title:    "Ship tests",
 		Due:      "2026-04-20",
 		Priority: "low",
 	}
 
-	err := validateTaskPayload(&task, true, false)
+	err := domain.ValidateTaskPayload(&task, true, false)
 	if err == nil || err.Error() != "invalid priority" {
 		t.Fatalf("expected invalid priority error, got %v", err)
 	}
 }
 
 func TestNormalizeTaskIDRejectsBlankID(t *testing.T) {
-	_, err := normalizeTaskID(" \t")
+	_, err := domain.NormalizeTaskID(" \t")
 	if err == nil || err.Error() != "missing task id" {
 		t.Fatalf("expected missing task id error, got %v", err)
 	}

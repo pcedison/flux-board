@@ -29,37 +29,11 @@ const (
 	shutdownTimeout            = 10 * time.Second
 	authBodyLimit        int64 = 8 << 10
 	taskBodyLimit        int64 = 64 << 10
-	maxTitleLength             = 120
-	maxNoteLength              = 4000
 	loginWindow                = 15 * time.Minute
 	maxLoginFailures           = 10
 	loginBlockDuration         = 15 * time.Minute
 	bootstrapAdmin             = "admin"
 )
-
-// Task represents an active task in the kanban board.
-type Task struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Note        string `json:"note"`
-	Due         string `json:"due"`
-	Priority    string `json:"priority"`
-	Status      string `json:"status"`
-	SortOrder   int    `json:"sort_order"`
-	LastUpdated int64  `json:"lastUpdated"`
-}
-
-// ArchivedTask represents a soft-deleted task.
-type ArchivedTask struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	Note       string `json:"note"`
-	Due        string `json:"due"`
-	Priority   string `json:"priority"`
-	Status     string `json:"status"`
-	SortOrder  int    `json:"sort_order"`
-	ArchivedAt int64  `json:"archivedAt"`
-}
 
 func main() {
 	cfg, err := config.Load()

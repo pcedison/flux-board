@@ -126,10 +126,16 @@ jobs:
             test-results/
           if-no-files-found: ignore
 
-  preview_smoke:
+  dnd_smoke:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser:
+          - chromium
+          - firefox
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       APP_ENV: development
@@ -137,8 +143,9 @@ jobs:
       FLUX_PASSWORD: ci-test-password
       DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
       BASE_URL: http://127.0.0.1:8080
-      PLAYWRIGHT_BROWSER: chromium
-      TEST_RESULTS_DIR: test-results/github-ci/next-preview
+      SMOKE_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+      TEST_RESULTS_DIR: test-results/github-ci/dnd-smoke/${{ matrix.browser }}
     services:
       postgres:
         image: postgres:16-alpine
@@ -172,16 +179,147 @@ jobs:
         run: npm ci --no-fund --no-audit
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps ${{ matrix.browser }}
 
-      - name: Verify Next preview route
+      - name: Verify drag-and-drop smoke
+        run: bash ./scripts/verify-dnd-smoke.sh
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-dnd-smoke-${{ matrix.browser }}
+          path: |
+            test-results/
+          if-no-files-found: ignore
+
+  keyboard_smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser:
+          - chromium
+          - firefox
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+      TEST_RESULTS_DIR: test-results/github-ci/keyboard-smoke/${{ matrix.browser }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Verify board keyboard smoke
+        run: bash ./scripts/verify-board-keyboard-smoke.sh
+
+      - name: Upload keyboard diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-keyboard-smoke-${{ matrix.browser }}
+          path: |
+            test-results/
+          if-no-files-found: ignore
+
+  preview_smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      PLAYWRIGHT_BROWSER: ${{ matrix.browser }}
+      TEST_RESULTS_DIR: test-results/github-ci/next-preview-${{ matrix.browser }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Verify next alias redirect and legacy rollback route
         run: bash ./scripts/verify-next-preview.sh
 
       - name: Upload preview diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ci-diagnostics-next-preview
+          name: ci-diagnostics-next-preview-${{ matrix.browser }}
           path: |
             test-results/
           if-no-files-found: ignore
@@ -191,6 +329,8 @@ jobs:
     needs:
       - verify
       - smoke
+      - dnd_smoke
+      - keyboard_smoke
       - preview_smoke
     runs-on: ubuntu-latest
     timeout-minutes: 30

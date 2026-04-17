@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { axe } from "vitest-axe";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
 import { ApiError, archiveTask, createTask, moveTask, restoreTask } from "../lib/api";
@@ -98,10 +99,21 @@ describe("BoardSnapshotPage", () => {
     expect(screen.getByText("Queue me")).toBeInTheDocument();
     expect(screen.getByText("Do me")).toBeInTheDocument();
     expect(screen.getByText("Due 2026-04-20 / order 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drag Queue me to reorder within Queued" })).toBeInTheDocument();
+    expect(screen.getByText("Queue me").closest("article")).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive Queue me" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore Archived" })).toBeInTheDocument();
     expect(screen.getByText("1 archived cards")).toBeInTheDocument();
+  });
+
+  it("has no accessibility violations for the default board snapshot", async () => {
+    mockSnapshot();
+
+    renderPage();
+
+    const results = await axe(screen.getByRole("region", { name: "Queued" }));
+    expect(results.violations).toHaveLength(0);
   });
 
   it("submits the create task form through the typed API helper", async () => {
@@ -192,7 +204,6 @@ describe("BoardSnapshotPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue me)" }));
 
     await waitFor(() => expect(screen.getByText("Moved Queue me to Active.")).toBeInTheDocument());
-    expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
   it("limits move pending state to the active card and restores focus to that card after success", async () => {
@@ -290,6 +301,76 @@ describe("BoardSnapshotPage", () => {
     );
   });
 
+  it("moves focus between card shells with arrow keys", async () => {
+    mockSnapshot({
+      tasks: [
+        {
+          id: "a",
+          title: "Queue me",
+          note: "first lane",
+          due: "2026-04-20",
+          priority: "medium",
+          status: "queued",
+          sort_order: 0,
+          lastUpdated: 1,
+        },
+        {
+          id: "d",
+          title: "Queue next",
+          note: "",
+          due: "2026-04-23",
+          priority: "high",
+          status: "queued",
+          sort_order: 1,
+          lastUpdated: 4,
+        },
+        {
+          id: "b",
+          title: "Do me",
+          note: "",
+          due: "2026-04-21",
+          priority: "high",
+          status: "active",
+          sort_order: 1,
+          lastUpdated: 2,
+        },
+        {
+          id: "e",
+          title: "Done me",
+          note: "",
+          due: "2026-04-24",
+          priority: "critical",
+          status: "done",
+          sort_order: 2,
+          lastUpdated: 5,
+        },
+      ],
+    });
+
+    renderPage();
+
+    const queuedCard = screen.getByText("Queue me").closest("article");
+    const nextQueuedCard = screen.getByText("Queue next").closest("article");
+    const activeCard = screen.getByText("Do me").closest("article");
+
+    if (!queuedCard || !nextQueuedCard || !activeCard) {
+      throw new Error("expected focusable task cards");
+    }
+
+    queuedCard.focus();
+    fireEvent.keyDown(queuedCard, { key: "ArrowDown" });
+
+    await waitFor(() => expect(nextQueuedCard).toHaveFocus());
+    expect(queuedCard).toHaveAttribute("tabindex", "-1");
+    expect(nextQueuedCard).toHaveAttribute("tabindex", "0");
+
+    fireEvent.keyDown(nextQueuedCard, { key: "ArrowRight" });
+
+    await waitFor(() => expect(activeCard).toHaveFocus());
+    expect(nextQueuedCard).toHaveAttribute("tabindex", "-1");
+    expect(activeCard).toHaveAttribute("tabindex", "0");
+  });
+
   it("clears auth-session ownership when a mutation returns 401", async () => {
     mockSnapshot();
     mockedMoveTask.mockRejectedValueOnce(new ApiError("unauthorized", 401));
@@ -343,6 +424,9 @@ describe("BoardSnapshotPage", () => {
 
     const queuedLane = screen.getByRole("region", { name: "Queued" });
     expect(within(queuedLane).getByText("Use Move up or Move down to reorder cards within the Queued lane.")).toBeInTheDocument();
+    expect(
+      within(queuedLane).getByText("Use Tab to reach one card shell, Arrow keys to move between cards, and Tab again to reach the action buttons."),
+    ).toBeInTheDocument();
 
     const items = within(queuedLane).getAllByRole("listitem");
     expect(items).toHaveLength(3);

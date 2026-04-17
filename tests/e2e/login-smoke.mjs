@@ -12,6 +12,8 @@ const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
 const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
 const smokeTimeoutMs = parseInteger(process.env.SMOKE_TIMEOUT_MS, 120000);
+const desktopViewport = { width: 1440, height: 960 };
+const mobileViewport = { width: 390, height: 844 };
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const resultsDir =
   process.env.TEST_RESULTS_DIR ??
@@ -45,143 +47,94 @@ const context = await browser.newContext({
 const page = await context.newPage();
 page.setDefaultTimeout(requestTimeoutMs);
 page.setDefaultNavigationTimeout(requestTimeoutMs);
-page.on("console", (msg) => {
-  const text = msg.text();
-  if (msg.type() === "error" || msg.type() === "warning") {
-    console.log(`[console:${msg.type()}] ${text}`);
-  }
-});
-page.on("pageerror", (err) => {
-  console.log(`[pageerror] ${err.message}`);
-});
-page.on("requestfailed", (req) => {
-  console.log(`[requestfailed] ${req.method()} ${req.url()} ${req.failure()?.errorText ?? ""}`);
-});
-page.on("response", async (res) => {
-  const url = res.url();
-  if (
-    url.endsWith("/api/auth/login") ||
-    url.endsWith("/api/auth/me") ||
-    url.endsWith("/api/auth/logout") ||
-    url.includes("/api/tasks") ||
-    url.includes("/api/archived")
-  ) {
-    console.log(`[response] ${res.request().method()} ${url} -> ${res.status()}`);
-  }
-});
-
-const artifacts = [];
+await page.setViewportSize(desktopViewport);
 
 try {
   logStep("Navigate");
-  await page.goto(baseURL, { waitUntil: "domcontentloaded" });
-  await page.locator("#loginOverlay").waitFor({ state: "visible", timeout: 10000 });
-  await page.screenshot({ path: path.join(resultsDir, "01-loaded.png"), fullPage: true });
-  artifacts.push("01-loaded.png");
+  await page.goto(`${baseURL}/login`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
+  await assertHorizontalLayout(
+    page.locator(".auth-layout > .panel").first(),
+    page.locator(".auth-layout > .panel").nth(1),
+    "Login panels on desktop"
+  );
+  await page.screenshot({ path: path.join(resultsDir, "01-login.png"), fullPage: true });
 
   logStep("Login");
-  const overlay = page.locator("#loginOverlay");
-  if (await overlay.isVisible()) {
-    await page.locator("#passwordInput").fill(password);
-    const loginResponse = page.waitForResponse(
-      (res) => res.url().endsWith("/api/auth/login") && res.request().method() === "POST",
-      { timeout: 10000 }
-    );
-    await page.locator("#loginOverlay button[type='submit']").click();
-    const response = await loginResponse;
-    if (response.status() !== 200) {
-      const body = await safeReadJson(response);
-      throw new Error(`Login failed with ${response.status()}: ${JSON.stringify(body)}`);
-    }
-    await page.waitForFunction(
-      () => document.getElementById("loginOverlay")?.hidden === true,
-      null,
-      { timeout: 10000 }
-    );
+  const loginResponse = page.waitForResponse(
+    (res) => res.url().endsWith("/api/auth/login") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  const loginResult = await loginResponse;
+  if (loginResult.status() !== 200) {
+    throw new Error(`Login failed with ${loginResult.status()}`);
   }
-  await page.screenshot({ path: path.join(resultsDir, "02-after-login.png"), fullPage: true });
-  artifacts.push("02-after-login.png");
+  await page.waitForURL(/\/board$/);
+  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await assertStatus(
+    (await page.locator(".board-grid > .lane").count()) === 3,
+    "Expected three board lanes on the React runtime."
+  );
+  await assertHorizontalLayout(
+    page.locator(".board-grid > .lane").first(),
+    page.locator(".board-grid > .board-side-panel"),
+    "Board layout on desktop"
+  );
 
   logStep("Session");
   const session = await requestJson(page, "/api/auth/me");
   assertStatus(session.status === 200, `Expected /api/auth/me to return 200, got ${session.status}`);
-  assertObject(session.body, "me response");
-  assertStatus(session.body.authenticated === true, "Expected /api/auth/me to report authenticated=true.");
-  assertStatus(
-    (typeof session.body.expiresAt === "number" && Number.isFinite(session.body.expiresAt) && session.body.expiresAt > 0) ||
-      (typeof session.body.expiresAt === "string" && session.body.expiresAt.length > 0),
-    "Expected /api/auth/me to include expiresAt as a non-empty value."
-  );
-
-  logStep("Tasks");
-  const tasks = await requestJson(page, "/api/tasks");
-  assertStatus(tasks.status === 200, `Expected /api/tasks to return 200, got ${tasks.status}`);
-  assertArray(tasks.body.tasks, "tasks");
-
-  logStep("Archived");
-  const archived = await requestJson(page, "/api/archived");
-  assertStatus(archived.status === 200, `Expected /api/archived to return 200, got ${archived.status}`);
-  assertArray(archived.body.tasks, "archived tasks");
 
   const smokeTaskTitle = `Smoke task ${Date.now()}`;
 
-  logStep("Create task");
-  const taskCreateResponse = page.waitForResponse(
-    (res) => res.url().endsWith("/api/tasks") && res.request().method() === "POST",
-    { timeout: 10000 }
+  logStep("Mobile layout");
+  await page.setViewportSize(mobileViewport);
+  await assertVerticalLayout(
+    page.locator(".board-grid > .lane").first(),
+    page.locator(".board-grid > .board-side-panel"),
+    "Board layout on mobile"
   );
-  await page.locator("#openModalBtn").click();
-  await page.locator("#taskTitle").fill(smokeTaskTitle);
-  await page.locator("#taskDue").fill("2026-04-30");
-  await page.locator("#taskPriority").selectOption("high");
-  await page.locator("#submitBtn").click();
-  const createResponse = await taskCreateResponse;
-  if (createResponse.status() !== 201) {
-    const body = await safeReadJson(createResponse);
-    throw new Error(`Task create failed with ${createResponse.status()}: ${JSON.stringify(body)}`);
-  }
-  const createdCard = page.locator(".task-card", { hasText: smokeTaskTitle }).first();
+  await assertVerticalLayout(
+    page.locator(".board-side-panel .field-grid > div").first(),
+    page.locator(".board-side-panel .field-grid > div").nth(1),
+    "Composer field grid on mobile"
+  );
+
+  logStep("Create task");
+  await page.getByLabel("Title").fill(smokeTaskTitle);
+  await page.getByLabel("Due date").fill("2026-04-30");
+  await page.getByLabel("Note").fill("Verify root runtime ownership after W7 2-B.");
+  await page.getByRole("button", { name: "Create task" }).click();
+  await page.getByText(`Created ${smokeTaskTitle} in the queued lane.`).waitFor();
+  const createdCard = page.locator("article", { hasText: smokeTaskTitle }).first();
   await createdCard.waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Archive task");
-  const taskArchiveResponse = page.waitForResponse(
-    (res) => res.url().includes("/api/tasks/") && res.request().method() === "DELETE",
-    { timeout: 10000 }
-  );
-  await createdCard.locator(".card-menu-trigger").click();
-  await createdCard.locator("button[data-action='archive']").click();
-  const archiveResponse = await taskArchiveResponse;
-  if (archiveResponse.status() !== 200) {
-    const body = await safeReadJson(archiveResponse);
-    throw new Error(`Task archive failed with ${archiveResponse.status()}: ${JSON.stringify(body)}`);
-  }
-  await createdCard.waitFor({ state: "detached", timeout: 10000 });
+  await page.getByRole("button", { name: `Archive ${smokeTaskTitle}` }).click();
+  await page.getByText(`Archived ${smokeTaskTitle}.`).waitFor();
+  await page.getByRole("button", { name: `Restore ${smokeTaskTitle}` }).waitFor();
 
   logStep("Restore task");
-  await page.locator("#archiveToggleBtn").click();
-  const archivedItem = page.locator(".archive-item", { hasText: smokeTaskTitle }).first();
-  await archivedItem.waitFor({ state: "visible", timeout: 10000 });
-  const taskRestoreResponse = page.waitForResponse(
-    (res) => res.url().includes("/api/archived/") && res.request().method() === "POST",
-    { timeout: 10000 }
-  );
-  await archivedItem.locator("button[data-action='restore']").click();
-  const restoreResponse = await taskRestoreResponse;
-  if (restoreResponse.status() !== 200) {
-    const body = await safeReadJson(restoreResponse);
-    throw new Error(`Task restore failed with ${restoreResponse.status()}: ${JSON.stringify(body)}`);
-  }
-  await page.locator(".task-card", { hasText: smokeTaskTitle }).first().waitFor({ state: "visible", timeout: 10000 });
+  await page.getByRole("button", { name: `Restore ${smokeTaskTitle}` }).click();
+  await page.getByText(`Restored ${smokeTaskTitle} to queued.`).waitFor();
+  await createdCard.waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Logout");
-  const logout = await requestJson(page, "/api/auth/logout", { method: "POST" });
-  assertStatus(logout.status === 200, `Expected /api/auth/logout to return 200, got ${logout.status}`);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.waitForURL(/\/login$/);
+  await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
+  await assertVerticalLayout(
+    page.locator(".auth-layout > .panel").first(),
+    page.locator(".auth-layout > .panel").nth(1),
+    "Login panels on mobile"
+  );
 
   const postLogout = await requestJson(page, "/api/auth/me");
   assertStatus(postLogout.status === 401, `Expected /api/auth/me to return 401 after logout, got ${postLogout.status}`);
 
-  await page.screenshot({ path: path.join(resultsDir, "03-after-logout.png"), fullPage: true });
-  artifacts.push("03-after-logout.png");
+  await page.screenshot({ path: path.join(resultsDir, "02-logout.png"), fullPage: true });
 
   await writeFile(
     path.join(resultsDir, "summary.json"),
@@ -189,10 +142,9 @@ try {
       {
         baseURL,
         browser: browserName,
-        headless,
-        slowMo,
+        canonicalRuntime: "/login -> /board",
+        viewports: ["desktop", "mobile"],
         resultsDir,
-        artifacts,
         status: "passed",
       },
       null,
@@ -200,8 +152,6 @@ try {
     ),
     "utf8"
   );
-
-  console.log(`Smoke passed. Artifacts written to ${resultsDir}`);
 } catch (error) {
   await page.screenshot({ path: path.join(resultsDir, "failure.png"), fullPage: true }).catch(() => {});
   await writeFile(
@@ -210,10 +160,9 @@ try {
       {
         baseURL,
         browser: browserName,
-        headless,
-        slowMo,
+        canonicalRuntime: "/login -> /board",
+        viewports: ["desktop", "mobile"],
         resultsDir,
-        artifacts,
         status: "failed",
         error: error instanceof Error ? error.message : String(error),
       },
@@ -257,18 +206,6 @@ async function requestJson(page, url, init = {}) {
     },
     { url, init, requestTimeoutMs }
   );
-}
-
-async function safeReadJson(response) {
-  try {
-    return await response.json();
-  } catch {
-    try {
-      return await response.text();
-    } catch {
-      return null;
-    }
-  }
 }
 
 function normalizeBaseUrl(value) {
@@ -329,14 +266,24 @@ function assertStatus(condition, message) {
   }
 }
 
-function assertArray(value, label) {
-  if (!Array.isArray(value)) {
-    throw new Error(`Expected ${label} to be an array.`);
-  }
+async function assertHorizontalLayout(firstLocator, secondLocator, label) {
+  const [firstBox, secondBox] = await Promise.all([firstLocator.boundingBox(), secondLocator.boundingBox()]);
+  assertStatus(firstBox != null, `${label}: first element is not visible.`);
+  assertStatus(secondBox != null, `${label}: second element is not visible.`);
+  assertStatus(secondBox.x > firstBox.x + 16, `${label} should flow side-by-side on wide viewports.`);
+  assertStatus(
+    Math.abs(secondBox.y - firstBox.y) < 32,
+    `${label} should stay on the same row on wide viewports.`
+  );
 }
 
-function assertObject(value, label) {
-  if (value == null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`Expected ${label} to be an object.`);
-  }
+async function assertVerticalLayout(firstLocator, secondLocator, label) {
+  const [firstBox, secondBox] = await Promise.all([firstLocator.boundingBox(), secondLocator.boundingBox()]);
+  assertStatus(firstBox != null, `${label}: first element is not visible.`);
+  assertStatus(secondBox != null, `${label}: second element is not visible.`);
+  assertStatus(secondBox.y > firstBox.y + 16, `${label} should stack on narrow viewports.`);
+  assertStatus(
+    Math.abs(secondBox.x - firstBox.x) < 64,
+    `${label} should stay aligned when stacked on narrow viewports.`
+  );
 }

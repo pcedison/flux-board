@@ -9,23 +9,12 @@ import (
 
 const readinessTimeout = 2 * time.Second
 
-func (a *App) handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	setProbeHeaders(w)
-	jsonResp(w, map[string]string{"status": "ok"})
+func (a *App) handleHealthz(w http.ResponseWriter, r *http.Request) {
+	a.transportHandler().HandleHealthz(w, r)
 }
 
 func (a *App) handleReadyz(w http.ResponseWriter, r *http.Request) {
-	setProbeHeaders(w)
-	if err := a.checkReadiness(r.Context()); err != nil {
-		writeError(w, http.StatusServiceUnavailable, "not ready")
-		return
-	}
-	jsonResp(w, map[string]string{"status": "ready"})
-}
-
-func setProbeHeaders(w http.ResponseWriter) {
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Pragma", "no-cache")
+	a.transportHandler().HandleReadyz(w, r)
 }
 
 func (a *App) checkReadiness(ctx context.Context) error {

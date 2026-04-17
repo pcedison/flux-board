@@ -67,15 +67,15 @@ func TestNewHTTPServerLogsObservedRequestsOnly(t *testing.T) {
 
 	logBuffer.Reset()
 
-	staticReq := httptest.NewRequest(http.MethodGet, "/", nil)
+	staticReq := httptest.NewRequest(http.MethodGet, "/legacy/", nil)
 	staticRec := httptest.NewRecorder()
 	server.Handler.ServeHTTP(staticRec, staticReq)
 
 	if logBuffer.Len() != 0 {
-		t.Fatalf("expected no access log for static route, got %q", logBuffer.String())
+		t.Fatalf("expected no access log for legacy static route, got %q", logBuffer.String())
 	}
 	if staticRec.Header().Get(requestIDHeader) != "" {
-		t.Fatalf("expected no request id header for static route, got %q", staticRec.Header().Get(requestIDHeader))
+		t.Fatalf("expected no request id header for legacy static route, got %q", staticRec.Header().Get(requestIDHeader))
 	}
 }
 

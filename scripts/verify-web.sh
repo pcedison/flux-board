@@ -1,16 +1,34 @@
 #!/usr/bin/env sh
 set -eu
 
-echo "[1/4] npm --prefix web ci --no-fund --no-audit"
-npm --prefix web ci --no-fund --no-audit
+run_npm() {
+  label=$1
+  retries=$2
+  shift 2
 
-echo "[2/4] npm --prefix web run typecheck"
-npm --prefix web run typecheck
+  attempt=1
+  while [ "$attempt" -le "$retries" ]; do
+    echo "$label"
+    if npm "$@"; then
+      return 0
+    fi
+    if [ "$attempt" -lt "$retries" ]; then
+      echo "npm $* failed, retrying ($attempt/$retries)..." >&2
+      sleep 2
+    fi
+    attempt=$((attempt + 1))
+  done
 
-echo "[3/4] npm --prefix web run test:run"
-npm --prefix web run test:run
+  echo "npm $* failed after $retries attempts" >&2
+  return 1
+}
 
-echo "[4/4] npm --prefix web run build"
-npm --prefix web run build
+run_npm "[1/4] npm --prefix web ci --no-fund --no-audit" 3 --prefix web ci --no-fund --no-audit
+
+run_npm "[2/4] npm --prefix web run typecheck" 1 --prefix web run typecheck
+
+run_npm "[3/4] npm --prefix web run test:run" 1 --prefix web run test:run
+
+run_npm "[4/4] npm --prefix web run build" 1 --prefix web run build
 
 echo "Web verification completed successfully."

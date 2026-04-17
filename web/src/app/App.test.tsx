@@ -90,7 +90,7 @@ describe("App auth-aware routing", () => {
 
     expect(screen.getByRole("heading", { name: "Sign in to view the board" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Sign In" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Board Snapshot" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Board" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByText(/Redirects you back to/i)).toHaveTextContent("/board");
   });
@@ -117,7 +117,7 @@ describe("App auth-aware routing", () => {
     renderApp("/board");
 
     expect(screen.getByText("Queue me")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Board Snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Board" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to view the board" })).not.toBeInTheDocument();
   });
