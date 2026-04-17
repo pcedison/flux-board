@@ -105,7 +105,12 @@ try {
   await targetCard.scrollIntoViewIfNeeded();
 
   logStep("Drag");
-  await dragPointerToTarget(page, sourceHandle, targetCard);
+  await dragPointerToTarget(page, {
+    sourceCard,
+    sourceHandle,
+    sourceTitle,
+    targetCard,
+  });
 
   const expectedStatus = `Moved ${sourceTitle} within Queued.`;
   await page.getByText(expectedStatus, { exact: true }).waitFor({ timeout: 10000 });
@@ -195,44 +200,55 @@ async function getQueuedTaskTitles(queuedLane) {
   return (await queuedLane.locator("article strong").allTextContents()).map((title) => title.trim()).filter(Boolean);
 }
 
-async function dragPointerToTarget(page, sourceLocator, targetLocator) {
-  const [sourceBox, targetBox] = await Promise.all([sourceLocator.boundingBox(), targetLocator.boundingBox()]);
+async function dragPointerToTarget(page, { sourceCard, sourceHandle, sourceTitle, targetCard }) {
+  const sourceBox = await sourceHandle.boundingBox();
   assertStatus(sourceBox != null, "Drag source should be visible.");
-  assertStatus(targetBox != null, "Drag target should be visible.");
 
   const requiresExtendedPointerPath = browserName === "firefox" || browserName === "webkit";
   const source = centerPoint(sourceBox);
-  const target =
-    requiresExtendedPointerPath
-      ? {
-          x: targetBox.x + targetBox.width / 2,
-          y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
-        }
-      : centerPoint(targetBox);
-  const midPoint = {
-    x: source.x + Math.max(16, Math.min(48, Math.abs(target.x - source.x) / 3)),
-    y: source.y + Math.max(16, Math.min(48, Math.abs(target.y - source.y) / 3)),
-  };
 
-  await sourceLocator.hover();
+  await sourceHandle.hover();
   if (browserName === "firefox") {
     await installTemporaryFirefoxSelectionGuard(page);
   }
-  await page.mouse.move(source.x, source.y);
-  await page.mouse.down();
-  if (requiresExtendedPointerPath) {
+
+  try {
+    await page.mouse.move(source.x, source.y);
+    await page.mouse.down();
     await page.mouse.move(source.x, source.y + 20, { steps: 4 });
-    await page.waitForTimeout(75);
-    await page.mouse.move(midPoint.x, midPoint.y, { steps: 8 });
-    await page.mouse.move(target.x, target.y, { steps: 12 });
-    await page.waitForTimeout(75);
-  } else {
-    await page.mouse.move(midPoint.x, midPoint.y);
-    await page.mouse.move(target.x, target.y, { steps: 12 });
-  }
-  await page.mouse.up();
-  if (browserName === "firefox") {
-    await removeTemporaryFirefoxSelectionGuard(page);
+
+    if (requiresExtendedPointerPath) {
+      await waitForDraggingCard(page, sourceCard, sourceTitle);
+    }
+
+    const targetBox = await targetCard.boundingBox();
+    assertStatus(targetBox != null, "Drag target should be visible.");
+
+    const target =
+      requiresExtendedPointerPath
+        ? {
+            x: targetBox.x + targetBox.width / 2,
+            y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
+          }
+        : centerPoint(targetBox);
+    const midPoint = {
+      x: source.x + Math.max(16, Math.min(48, Math.abs(target.x - source.x) / 3)),
+      y: source.y + Math.max(16, Math.min(48, Math.abs(target.y - source.y) / 3)),
+    };
+
+    if (requiresExtendedPointerPath) {
+      await page.mouse.move(midPoint.x, midPoint.y, { steps: 8 });
+      await page.mouse.move(target.x, target.y, { steps: 12 });
+      await page.waitForTimeout(75);
+    } else {
+      await page.mouse.move(midPoint.x, midPoint.y);
+      await page.mouse.move(target.x, target.y, { steps: 12 });
+    }
+    await page.mouse.up();
+  } finally {
+    if (browserName === "firefox") {
+      await removeTemporaryFirefoxSelectionGuard(page);
+    }
   }
 }
 
@@ -261,6 +277,20 @@ async function removeTemporaryFirefoxSelectionGuard(page) {
   await page.evaluate(() => {
     document.getElementById("smoke-firefox-selection-guard")?.remove();
   });
+}
+
+async function waitForDraggingCard(page, sourceCard, sourceTitle) {
+  await page.waitForFunction(
+    ({ expectedTitle }) => {
+      return Array.from(document.querySelectorAll("article.card-dragging strong")).some((node) => {
+        return (node.textContent?.trim() || "") === expectedTitle;
+      });
+    },
+    { expectedTitle: sourceTitle },
+    { timeout: 3000 }
+  );
+
+  await sourceCard.waitFor({ state: "visible" });
 }
 
 function centerPoint(box) {
