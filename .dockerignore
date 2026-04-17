@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+node_modules
+web/node_modules
+test-results
+playwright-report
+server-*.log
+server-*.out.log
+server-*.err.log
+step1-loaded.png
+step5-after-login.png
+flux-board
+flux-board.exe
+.env
+.env.*
+!.env.example
