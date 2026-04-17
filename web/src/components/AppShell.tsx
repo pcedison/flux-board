@@ -27,7 +27,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
   const navItems = [
     { href: "/", label: "Overview" },
-    ...(session.data ? [{ href: "/board", label: "Board Snapshot" }] : []),
+    ...(session.data ? [{ href: "/board", label: "Board" }] : []),
   ];
 
   return (
@@ -41,9 +41,9 @@ export function AppShell({ children }: PropsWithChildren) {
             <p className="eyebrow">W7 Frontend Foundation</p>
             <h1>Flux Board Next UI</h1>
             <p className="lede">
-              A read-only React + TypeScript + Vite shell that talks to the real Go API while the
-              current embedded frontend stays in service. This keeps the migration path incremental
-              and testable.
+              A React + TypeScript + Vite board runtime that now owns `/`, `/login`, and `/board`
+              while the embedded frontend remains available on `/legacy/` as a rollback path. This
+              keeps the takeover explicit, testable, and reversible.
             </p>
           </div>
           <nav className="hero-nav" aria-label="Next UI routes">

@@ -1,39 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import type { TaskPriority, TaskStatus } from "../lib/api";
+import { DndContext, PointerSensor, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
+
+import type { TaskPriority } from "../lib/api";
 import { QueryState } from "../components/QueryState";
 import { useBoardMutations } from "../lib/useBoardMutations";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
+import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner } from "../components/board";
+import type { FocusTarget, MoveTaskRequest, BoardLaneDescriptor } from "../components/board";
+import { getSameLaneDragMove } from "../components/board/dragAndDrop";
 
-const lanes: Array<{ label: string; status: TaskStatus }> = [
+const lanes: BoardLaneDescriptor[] = [
   { label: "Queued", status: "queued" },
   { label: "Active", status: "active" },
   { label: "Done", status: "done" },
 ];
 
-const priorityOptions: TaskPriority[] = ["medium", "high", "critical"];
-
-const moveTargets: Record<TaskStatus, Array<{ label: string; status: TaskStatus }>> = {
-  queued: [{ label: "Move to Active", status: "active" }],
-  active: [
-    { label: "Back to Queued", status: "queued" },
-    { label: "Move to Done", status: "done" },
-  ],
-  done: [{ label: "Back to Active", status: "active" }],
-};
-
-type MoveTaskRequest = {
-  anchorTaskId?: string;
-  id: string;
-  placeAfter?: boolean;
-  status: TaskStatus;
-};
-
-type FocusTarget =
-  | { kind: "archived"; id: string }
-  | { kind: "task"; id: string }
-  | { kind: "title" };
+type BoardSnapshotData = NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>;
 
 export function BoardSnapshotPage() {
   const snapshot = useBoardSnapshot();
@@ -55,9 +39,10 @@ function BoardSnapshotContent({
   data,
   mutations,
 }: {
-  data: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>;
+  data: BoardSnapshotData;
   mutations: ReturnType<typeof useBoardMutations>;
 }) {
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dueInputRef = useRef<HTMLInputElement>(null);
   const cardRefs = useRef(new Map<string, HTMLElement>());
@@ -70,6 +55,7 @@ function BoardSnapshotContent({
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
+  const [activeCardId, setActiveCardId] = useState<string | null>(() => getFirstVisibleTaskId(data.tasks));
 
   const isBusy =
     mutations.createTask.isPending ||
@@ -79,6 +65,16 @@ function BoardSnapshotContent({
   const pendingMoveTaskID = mutations.moveTask.isPending ? mutations.moveTask.variables?.id : null;
   const pendingArchiveTaskID = mutations.archiveTask.isPending ? mutations.archiveTask.variables : null;
   const pendingRestoreTaskID = mutations.restoreTask.isPending ? mutations.restoreTask.variables : null;
+  const tasksByLane = new Map(lanes.map((lane) => [lane.status, data.tasks.filter((task) => task.status === lane.status)]));
+
+  useEffect(() => {
+    setActiveCardId((current) => {
+      if (current && data.tasks.some((task) => task.id === current)) {
+        return current;
+      }
+      return getFirstVisibleTaskId(data.tasks);
+    });
+  }, [data.tasks]);
 
   useEffect(() => {
     if (!focusTarget) {
@@ -199,7 +195,7 @@ function BoardSnapshotContent({
     }
   }
 
-  async function handleRestoreTask(id: string, taskTitle: string, status: TaskStatus) {
+  async function handleRestoreTask(id: string, taskTitle: string, status: BoardSnapshotData["archived"][number]["status"]) {
     setActionError(null);
     setActionStatus(null);
     try {
@@ -212,291 +208,143 @@ function BoardSnapshotContent({
     }
   }
 
+  function handleCardNavigation(
+    taskId: string,
+    laneStatus: BoardSnapshotData["tasks"][number]["status"],
+    index: number,
+    key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight",
+  ) {
+    const currentLaneIndex = lanes.findIndex((lane) => lane.status === laneStatus);
+    if (currentLaneIndex === -1) {
+      return;
+    }
+
+    const currentLaneTasks = tasksByLane.get(laneStatus) ?? [];
+    let targetTaskId: string | undefined;
+
+    if (key === "ArrowUp") {
+      if (index > 0) {
+        targetTaskId = currentLaneTasks[index - 1]?.id;
+      }
+    } else if (key === "ArrowDown") {
+      if (index < currentLaneTasks.length - 1) {
+        targetTaskId = currentLaneTasks[index + 1]?.id;
+      }
+    } else {
+      const laneStep = key === "ArrowLeft" ? -1 : 1;
+
+      for (let nextLaneIndex = currentLaneIndex + laneStep; nextLaneIndex >= 0 && nextLaneIndex < lanes.length; nextLaneIndex += laneStep) {
+        const nextLane = lanes[nextLaneIndex];
+        const nextLaneTasks = tasksByLane.get(nextLane.status) ?? [];
+        if (nextLaneTasks.length === 0) {
+          continue;
+        }
+
+        const targetIndex = Math.min(index, nextLaneTasks.length - 1);
+        targetTaskId = nextLaneTasks[targetIndex]?.id;
+        break;
+      }
+    }
+
+    if (!targetTaskId || targetTaskId === taskId) {
+      return;
+    }
+
+    setFocusTarget({ kind: "task", id: targetTaskId });
+  }
+
+  function handleCardFocus(taskId: string) {
+    setActiveCardId(taskId);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+
+    if (!overId || activeId === overId) {
+      return;
+    }
+
+    for (const lane of lanes) {
+      const laneTasks = data.tasks.filter((task) => task.status === lane.status);
+      if (!laneTasks.some((task) => task.id === activeId) || !laneTasks.some((task) => task.id === overId)) {
+        continue;
+      }
+
+      const move = getSameLaneDragMove(laneTasks, activeId, overId);
+      if (!move) {
+        return;
+      }
+
+      const movedTask = laneTasks.find((task) => task.id === activeId);
+      if (!movedTask) {
+        return;
+      }
+
+      void handleMoveTask(move, `Moved ${movedTask.title} within ${lane.label}.`);
+      return;
+    }
+  }
+
   return (
-    <div className="board-grid" aria-busy={isBusy}>
-      {actionError ? (
-        <section className="panel panel-error board-feedback" role="alert">
-          <strong>Board action failed.</strong>
-          <p>{actionError}</p>
-        </section>
-      ) : null}
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <div className="board-grid" aria-busy={isBusy}>
+        <BoardStatusBanner error={actionError} status={actionStatus} />
 
-      {!actionError && actionStatus ? (
-        <section className="panel panel-status board-feedback" role="status">
-          <strong>Board updated.</strong>
-          <p>{actionStatus}</p>
-        </section>
-      ) : null}
+        {lanes.map((lane) => {
+          const tasks = data.tasks.filter((task) => task.status === lane.status);
 
-      {lanes.map((lane) => {
-        const tasks = data.tasks.filter((task) => task.status === lane.status);
+          return (
+            <BoardLane
+              key={lane.status}
+              isTaskBusy={isTaskBusy}
+              lane={lane}
+              activeCardId={activeCardId}
+              onCardFocus={handleCardFocus}
+              onCardNavigate={handleCardNavigation}
+              onArchiveTask={handleArchiveTask}
+              onMoveTask={handleMoveTask}
+              setCardRef={setCardRef}
+              tasks={tasks}
+            />
+          );
+        })}
 
-        return (
-          <section key={lane.status} className="lane" aria-labelledby={`lane-${lane.status}`}>
-            <div className="lane-head">
-              <h2 id={`lane-${lane.status}`}>{lane.label}</h2>
-              <span>{tasks.length}</span>
-            </div>
-
-            {tasks.length === 0 ? (
-              <p className="empty">No tasks in this lane yet.</p>
-            ) : (
-              <>
-                <p id={`lane-${lane.status}-hint`} className="visually-hidden">
-                  Use Move up or Move down to reorder cards within the {lane.label} lane.
-                </p>
-                <ol className="lane-list" aria-describedby={`lane-${lane.status}-hint`}>
-                {tasks.map((task, index) => (
-                  <li
-                    key={task.id}
-                    className="lane-list-item"
-                    aria-posinset={index + 1}
-                    aria-setsize={tasks.length}
-                  >
-                    <article
-                      className={`card${isTaskBusy(task.id) ? " card-pending" : ""}`}
-                      ref={(element) => setCardRef(task.id, element)}
-                      tabIndex={-1}
-                    >
-                      <div className="card-row">
-                        <strong>{task.title}</strong>
-                        <span className={`priority priority-${task.priority}`}>{task.priority}</span>
-                      </div>
-                      <p className="meta">Due {task.due} / order {task.sort_order}</p>
-                      {task.note ? <p className="card-note">{task.note}</p> : null}
-                      <div className="card-actions">
-                        {index > 0 ? (
-                          <button
-                            className="action-button"
-                            type="button"
-                            disabled={isTaskBusy(task.id)}
-                            aria-label={`Move ${task.title} up within ${lane.label}`}
-                            onClick={() => {
-                              const previousTask = tasks[index - 1];
-                              void handleMoveTask(
-                                {
-                                  id: task.id,
-                                  status: task.status,
-                                  anchorTaskId: previousTask.id,
-                                  placeAfter: false,
-                                },
-                                `Moved ${task.title} up within ${lane.label}.`,
-                              );
-                            }}
-                          >
-                            Move up
-                          </button>
-                        ) : null}
-                        {index < tasks.length - 1 ? (
-                          <button
-                            className="action-button"
-                            type="button"
-                            disabled={isTaskBusy(task.id)}
-                            aria-label={`Move ${task.title} down within ${lane.label}`}
-                            onClick={() => {
-                              const nextTask = tasks[index + 1];
-                              void handleMoveTask(
-                                {
-                                  id: task.id,
-                                  status: task.status,
-                                  anchorTaskId: nextTask.id,
-                                  placeAfter: true,
-                                },
-                                `Moved ${task.title} down within ${lane.label}.`,
-                              );
-                            }}
-                          >
-                            Move down
-                          </button>
-                        ) : null}
-                        {moveTargets[task.status].map((target) => (
-                          <button
-                            key={target.status}
-                            className="action-button"
-                            type="button"
-                            disabled={isTaskBusy(task.id)}
-                            aria-label={`${target.label} (${task.title})`}
-                            onClick={() => {
-                              const targetLabel = target.label
-                                .replace("Move to ", "")
-                                .replace("Back to ", "");
-                              void handleMoveTask(
-                                {
-                                  id: task.id,
-                                  status: target.status,
-                                },
-                                `Moved ${task.title} to ${targetLabel}.`,
-                              );
-                            }}
-                          >
-                            {target.label}
-                          </button>
-                        ))}
-                        <button
-                          className="action-button action-button-secondary"
-                          type="button"
-                          disabled={isTaskBusy(task.id)}
-                          aria-label={`Archive ${task.title}`}
-                          onClick={() => {
-                            void handleArchiveTask(task.id, task.title);
-                          }}
-                        >
-                          Archive
-                        </button>
-                      </div>
-                    </article>
-                  </li>
-                ))}
-                </ol>
-              </>
-            )}
-          </section>
-        );
-      })}
-
-      <section className="panel panel-secondary board-side-panel">
-        <div>
-          <h2>Create task</h2>
-          <p className="meta">
-            This W7/W8 slice adds the first non-drag mutation path to the new frontend while keeping
-            the board layout intentionally simple.
-          </p>
-          <form
-            className={`board-form${mutations.createTask.isPending ? " board-form-pending" : ""}`}
+        <section className="panel panel-secondary board-side-panel">
+          <BoardComposerPanel
+            due={due}
+            dueInputRef={dueInputRef}
+            fieldErrors={fieldErrors}
+            isPending={mutations.createTask.isPending}
+            note={note}
+            onDueChange={(value) => {
+              setDue(value);
+              if (fieldErrors.due) {
+                setFieldErrors((current) => ({ ...current, due: undefined }));
+              }
+            }}
+            onNoteChange={setNote}
+            onPriorityChange={setPriority}
             onSubmit={handleCreateTask}
-            noValidate
-          >
-            <label className="form-field" htmlFor="board-task-title">
-              Title
-            </label>
-            <input
-              id="board-task-title"
-              className="text-input"
-              ref={titleInputRef}
-              value={title}
-              onChange={(event) => {
-                setTitle(event.target.value);
-                if (fieldErrors.title) {
-                  setFieldErrors((current) => ({ ...current, title: undefined }));
-                }
-              }}
-              placeholder="Ship the next board slice"
-              required
-              aria-invalid={Boolean(fieldErrors.title)}
-              aria-describedby={fieldErrors.title ? "board-task-title-error" : undefined}
-            />
-            {fieldErrors.title ? (
-              <p id="board-task-title-error" className="form-error" role="alert">
-                {fieldErrors.title}
-              </p>
-            ) : null}
-
-            <div className="field-grid">
-              <div>
-                <label className="form-field" htmlFor="board-task-due">
-                  Due date
-                </label>
-                <input
-                  id="board-task-due"
-                  className="text-input"
-                  type="date"
-                  ref={dueInputRef}
-                  value={due}
-                  onChange={(event) => {
-                    setDue(event.target.value);
-                    if (fieldErrors.due) {
-                      setFieldErrors((current) => ({ ...current, due: undefined }));
-                    }
-                  }}
-                  required
-                  aria-invalid={Boolean(fieldErrors.due)}
-                  aria-describedby={fieldErrors.due ? "board-task-due-error" : undefined}
-                />
-                {fieldErrors.due ? (
-                  <p id="board-task-due-error" className="form-error" role="alert">
-                    {fieldErrors.due}
-                  </p>
-                ) : null}
-              </div>
-              <div>
-                <label className="form-field" htmlFor="board-task-priority">
-                  Priority
-                </label>
-                <select
-                  id="board-task-priority"
-                  className="text-input"
-                  value={priority}
-                  onChange={(event) => setPriority(event.target.value as TaskPriority)}
-                >
-                  {priorityOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <label className="form-field" htmlFor="board-task-note">
-              Note
-            </label>
-            <textarea
-              id="board-task-note"
-              className="text-input text-area"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Optional implementation note"
-              rows={4}
-            />
-            <button
-              className="nav-pill nav-pill-active auth-submit"
-              type="submit"
-              disabled={mutations.createTask.isPending}
-            >
-              {mutations.createTask.isPending ? "Creating..." : "Create task"}
-            </button>
-          </form>
-        </div>
-
-        <div>
-          <h2>Archive Snapshot</h2>
-          <p className="meta">
-            Restore remains explicit and non-drag so the next frontend keeps a keyboard and touch
-            fallback path while W8 is still maturing.
-          </p>
-          <p className="archive-total">{data.archived.length} archived cards</p>
-          {data.archived.length === 0 ? (
-            <p className="empty">Nothing is archived right now.</p>
-          ) : (
-            <div className="archive-list">
-              {data.archived.map((task) => (
-                <div
-                  key={task.id}
-                  className={`archive-item${pendingRestoreTaskID === task.id ? " archive-item-pending" : ""}`}
-                >
-                  <div>
-                    <strong>{task.title}</strong>
-                    <p className="meta">Return to {task.status}</p>
-                  </div>
-                  <button
-                    className="action-button"
-                    type="button"
-                    disabled={pendingRestoreTaskID === task.id}
-                    ref={(element) => setArchiveButtonRef(task.id, element)}
-                    aria-label={`Restore ${task.title}`}
-                    onClick={() => {
-                      void handleRestoreTask(task.id, task.title, task.status);
-                    }}
-                  >
-                    Restore
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-    </div>
+            onTitleChange={(value) => {
+              setTitle(value);
+              if (fieldErrors.title) {
+                setFieldErrors((current) => ({ ...current, title: undefined }));
+              }
+            }}
+            priority={priority}
+            title={title}
+            titleInputRef={titleInputRef}
+          />
+          <BoardArchivePanel
+            archived={data.archived}
+            onRestoreTask={handleRestoreTask}
+            pendingRestoreTaskID={pendingRestoreTaskID}
+            setArchiveButtonRef={setArchiveButtonRef}
+          />
+        </section>
+      </div>
+    </DndContext>
   );
 }
 
@@ -505,4 +353,15 @@ function readErrorMessage(error: unknown) {
     return error.message;
   }
   return "The board action failed.";
+}
+
+function getFirstVisibleTaskId(tasks: BoardSnapshotData["tasks"]) {
+  for (const lane of lanes) {
+    const task = tasks.find((entry) => entry.status === lane.status);
+    if (task) {
+      return task.id;
+    }
+  }
+
+  return null;
 }

@@ -17,7 +17,7 @@
 
 If your change affects frontend assets, also verify the browser behavior with the tracked smoke tooling and record any manual browser verification you performed if the smoke path is unavailable.
 
-Current local smoke command for the embedded frontend:
+Current local smoke command for the canonical React runtime:
 ```powershell
 npm ci
 $env:FLUX_PASSWORD="your-password"

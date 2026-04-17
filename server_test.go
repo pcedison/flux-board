@@ -12,7 +12,6 @@ import (
 
 func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, nil
 		},
@@ -91,9 +90,9 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 	}
 }
 
-func TestNewMuxServesEmbeddedFrontendRoot(t *testing.T) {
+func TestNewMuxServesReactRuntimeRoot(t *testing.T) {
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
+		webRuntimeFS: newWebRuntimeFSTestHelper(t),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return true, nil
 		},
@@ -120,8 +119,8 @@ func TestNewMuxServesEmbeddedFrontendRoot(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200 for root document, got %d", rec.Code)
 	}
-	if !strings.Contains(strings.ToLower(rec.Body.String()), "<!doctype html>") {
-		t.Fatalf("expected embedded frontend html, got %q", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "Flux Board Web Runtime") {
+		t.Fatalf("expected react runtime html, got %q", rec.Body.String())
 	}
 }
 

@@ -8,77 +8,79 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"flux-board/internal/domain"
 )
 
 type stubTaskRepository struct {
-	archiveTaskFn   func(context.Context, string) (ArchivedTask, error)
-	createTaskFn    func(context.Context, Task) (Task, error)
+	archiveTaskFn   func(context.Context, string) (domain.ArchivedTask, error)
+	createTaskFn    func(context.Context, domain.Task) (domain.Task, error)
 	deleteArchiveFn func(context.Context, string) error
-	listArchivedFn  func(context.Context) ([]ArchivedTask, error)
-	listTasksFn     func(context.Context) ([]Task, error)
-	reorderTaskFn   func(context.Context, string, taskReorderInput) (Task, error)
-	restoreTaskFn   func(context.Context, string) (Task, error)
-	updateTaskFn    func(context.Context, string, Task) (Task, error)
+	listArchivedFn  func(context.Context) ([]domain.ArchivedTask, error)
+	listTasksFn     func(context.Context) ([]domain.Task, error)
+	reorderTaskFn   func(context.Context, string, domain.TaskReorderInput) (domain.Task, error)
+	restoreTaskFn   func(context.Context, string) (domain.Task, error)
+	updateTaskFn    func(context.Context, string, domain.Task) (domain.Task, error)
 }
 
 type stubTaskService struct {
-	archiveTaskFn   func(context.Context, string) (ArchivedTask, error)
-	createTaskFn    func(context.Context, Task) (Task, error)
+	archiveTaskFn   func(context.Context, string) (domain.ArchivedTask, error)
+	createTaskFn    func(context.Context, domain.Task) (domain.Task, error)
 	deleteArchiveFn func(context.Context, string) error
-	listArchivedFn  func(context.Context) ([]ArchivedTask, error)
-	listTasksFn     func(context.Context) ([]Task, error)
-	reorderTaskFn   func(context.Context, string, taskReorderInput) (Task, error)
-	restoreTaskFn   func(context.Context, string) (Task, error)
-	updateTaskFn    func(context.Context, string, Task) (Task, error)
+	listArchivedFn  func(context.Context) ([]domain.ArchivedTask, error)
+	listTasksFn     func(context.Context) ([]domain.Task, error)
+	reorderTaskFn   func(context.Context, string, domain.TaskReorderInput) (domain.Task, error)
+	restoreTaskFn   func(context.Context, string) (domain.Task, error)
+	updateTaskFn    func(context.Context, string, domain.Task) (domain.Task, error)
 }
 
-func (s stubTaskRepository) ListTasks(ctx context.Context) ([]Task, error) {
+func (s stubTaskRepository) ListTasks(ctx context.Context) ([]domain.Task, error) {
 	if s.listTasksFn != nil {
 		return s.listTasksFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s stubTaskRepository) CreateTask(ctx context.Context, task Task) (Task, error) {
+func (s stubTaskRepository) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
 	if s.createTaskFn != nil {
 		return s.createTaskFn(ctx, task)
 	}
 	return task, nil
 }
 
-func (s stubTaskRepository) UpdateTask(ctx context.Context, id string, task Task) (Task, error) {
+func (s stubTaskRepository) UpdateTask(ctx context.Context, id string, task domain.Task) (domain.Task, error) {
 	if s.updateTaskFn != nil {
 		return s.updateTaskFn(ctx, id, task)
 	}
 	return task, nil
 }
 
-func (s stubTaskRepository) ReorderTask(ctx context.Context, id string, reorder taskReorderInput) (Task, error) {
+func (s stubTaskRepository) ReorderTask(ctx context.Context, id string, reorder domain.TaskReorderInput) (domain.Task, error) {
 	if s.reorderTaskFn != nil {
 		return s.reorderTaskFn(ctx, id, reorder)
 	}
-	return Task{}, nil
+	return domain.Task{}, nil
 }
 
-func (s stubTaskRepository) ArchiveTask(ctx context.Context, id string) (ArchivedTask, error) {
+func (s stubTaskRepository) ArchiveTask(ctx context.Context, id string) (domain.ArchivedTask, error) {
 	if s.archiveTaskFn != nil {
 		return s.archiveTaskFn(ctx, id)
 	}
-	return ArchivedTask{}, nil
+	return domain.ArchivedTask{}, nil
 }
 
-func (s stubTaskRepository) ListArchived(ctx context.Context) ([]ArchivedTask, error) {
+func (s stubTaskRepository) ListArchived(ctx context.Context) ([]domain.ArchivedTask, error) {
 	if s.listArchivedFn != nil {
 		return s.listArchivedFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s stubTaskRepository) RestoreTask(ctx context.Context, id string) (Task, error) {
+func (s stubTaskRepository) RestoreTask(ctx context.Context, id string) (domain.Task, error) {
 	if s.restoreTaskFn != nil {
 		return s.restoreTaskFn(ctx, id)
 	}
-	return Task{}, nil
+	return domain.Task{}, nil
 }
 
 func (s stubTaskRepository) DeleteArchived(ctx context.Context, id string) error {
@@ -88,53 +90,53 @@ func (s stubTaskRepository) DeleteArchived(ctx context.Context, id string) error
 	return nil
 }
 
-func (s stubTaskService) ListTasks(ctx context.Context) ([]Task, error) {
+func (s stubTaskService) ListTasks(ctx context.Context) ([]domain.Task, error) {
 	if s.listTasksFn != nil {
 		return s.listTasksFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s stubTaskService) CreateTask(ctx context.Context, task Task) (Task, error) {
+func (s stubTaskService) CreateTask(ctx context.Context, task domain.Task) (domain.Task, error) {
 	if s.createTaskFn != nil {
 		return s.createTaskFn(ctx, task)
 	}
 	return task, nil
 }
 
-func (s stubTaskService) UpdateTask(ctx context.Context, id string, task Task) (Task, error) {
+func (s stubTaskService) UpdateTask(ctx context.Context, id string, task domain.Task) (domain.Task, error) {
 	if s.updateTaskFn != nil {
 		return s.updateTaskFn(ctx, id, task)
 	}
 	return task, nil
 }
 
-func (s stubTaskService) ReorderTask(ctx context.Context, id string, reorder taskReorderInput) (Task, error) {
+func (s stubTaskService) ReorderTask(ctx context.Context, id string, reorder domain.TaskReorderInput) (domain.Task, error) {
 	if s.reorderTaskFn != nil {
 		return s.reorderTaskFn(ctx, id, reorder)
 	}
-	return Task{}, nil
+	return domain.Task{}, nil
 }
 
-func (s stubTaskService) ArchiveTask(ctx context.Context, id string) (ArchivedTask, error) {
+func (s stubTaskService) ArchiveTask(ctx context.Context, id string) (domain.ArchivedTask, error) {
 	if s.archiveTaskFn != nil {
 		return s.archiveTaskFn(ctx, id)
 	}
-	return ArchivedTask{}, nil
+	return domain.ArchivedTask{}, nil
 }
 
-func (s stubTaskService) ListArchived(ctx context.Context) ([]ArchivedTask, error) {
+func (s stubTaskService) ListArchived(ctx context.Context) ([]domain.ArchivedTask, error) {
 	if s.listArchivedFn != nil {
 		return s.listArchivedFn(ctx)
 	}
 	return nil, nil
 }
 
-func (s stubTaskService) RestoreTask(ctx context.Context, id string) (Task, error) {
+func (s stubTaskService) RestoreTask(ctx context.Context, id string) (domain.Task, error) {
 	if s.restoreTaskFn != nil {
 		return s.restoreTaskFn(ctx, id)
 	}
-	return Task{}, nil
+	return domain.Task{}, nil
 }
 
 func (s stubTaskService) DeleteArchived(ctx context.Context, id string) error {
@@ -147,8 +149,8 @@ func (s stubTaskService) DeleteArchived(ctx context.Context, id string) error {
 func TestHandleGetTasksUsesRepositoryResult(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
-			listTasksFn: func(context.Context) ([]Task, error) {
-				return []Task{{ID: "task-1", Title: "Ship tests", Due: "2026-04-20", Priority: "medium", Status: "queued", SortOrder: 0}}, nil
+			listTasksFn: func(context.Context) ([]domain.Task, error) {
+				return []domain.Task{{ID: "task-1", Title: "Ship tests", Due: "2026-04-20", Priority: "medium", Status: "queued", SortOrder: 0}}, nil
 			},
 		},
 	}
@@ -162,7 +164,7 @@ func TestHandleGetTasksUsesRepositoryResult(t *testing.T) {
 	}
 
 	var body struct {
-		Tasks []Task `json:"tasks"`
+		Tasks []domain.Task `json:"tasks"`
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
@@ -175,8 +177,8 @@ func TestHandleGetTasksUsesRepositoryResult(t *testing.T) {
 func TestHandleCreateTaskMapsConflictError(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
-			createTaskFn: func(context.Context, Task) (Task, error) {
-				return Task{}, errTaskConflict
+			createTaskFn: func(context.Context, domain.Task) (domain.Task, error) {
+				return domain.Task{}, domain.ErrTaskConflict
 			},
 		},
 	}
@@ -220,8 +222,8 @@ func TestHandleCreateTaskMapsValidationError(t *testing.T) {
 func TestHandleCreateTaskUsesInjectedTaskService(t *testing.T) {
 	app := &App{
 		taskSvc: stubTaskService{
-			createTaskFn: func(context.Context, Task) (Task, error) {
-				return Task{}, taskValidationError{message: "service validation"}
+			createTaskFn: func(context.Context, domain.Task) (domain.Task, error) {
+				return domain.Task{}, domain.NewTaskValidationError("service validation")
 			},
 		},
 	}
@@ -247,8 +249,8 @@ func TestHandleCreateTaskUsesInjectedTaskService(t *testing.T) {
 func TestHandleRestoreTaskMapsStoredTaskInvalid(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
-			restoreTaskFn: func(context.Context, string) (Task, error) {
-				return Task{}, errStoredTaskInvalid
+			restoreTaskFn: func(context.Context, string) (domain.Task, error) {
+				return domain.Task{}, domain.ErrStoredTaskInvalid
 			},
 		},
 	}
@@ -282,7 +284,7 @@ func TestHandleDeleteArchivedMapsNotFound(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
 			deleteArchiveFn: func(context.Context, string) error {
-				return errTaskNotFound
+				return domain.ErrTaskNotFound
 			},
 		},
 	}
@@ -300,7 +302,7 @@ func TestHandleDeleteArchivedMapsNotFound(t *testing.T) {
 func TestHandleGetArchivedMapsRepositoryFailure(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
-			listArchivedFn: func(context.Context) ([]ArchivedTask, error) {
+			listArchivedFn: func(context.Context) ([]domain.ArchivedTask, error) {
 				return nil, errors.New("db down")
 			},
 		},
@@ -318,8 +320,8 @@ func TestHandleGetArchivedMapsRepositoryFailure(t *testing.T) {
 func TestHandleReorderTaskMapsInvalidAnchor(t *testing.T) {
 	app := &App{
 		taskRepo: stubTaskRepository{
-			reorderTaskFn: func(context.Context, string, taskReorderInput) (Task, error) {
-				return Task{}, errTaskInvalidAnchor
+			reorderTaskFn: func(context.Context, string, domain.TaskReorderInput) (domain.Task, error) {
+				return domain.Task{}, domain.ErrTaskInvalidAnchor
 			},
 		},
 	}

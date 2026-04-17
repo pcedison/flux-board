@@ -9,18 +9,21 @@ import (
 	"testing"
 	"time"
 
+	"flux-board/internal/domain"
+	authservice "flux-board/internal/service/auth"
+
 	"github.com/jackc/pgx/v5"
 )
 
 func TestValidateTaskPayloadDefaultsQueuedTask(t *testing.T) {
-	task := Task{
+	task := domain.Task{
 		ID:    "task-1",
 		Title: "  Ship MVP safely  ",
 		Note:  "  Keep this trimmed  ",
 		Due:   "2026-04-20",
 	}
 
-	if err := validateTaskPayload(&task, true, false); err != nil {
+	if err := domain.ValidateTaskPayload(&task, true, false); err != nil {
 		t.Fatalf("validateTaskPayload returned error: %v", err)
 	}
 
@@ -39,7 +42,7 @@ func TestValidateTaskPayloadDefaultsQueuedTask(t *testing.T) {
 }
 
 func TestValidateTaskPayloadRejectsInvalidDueDate(t *testing.T) {
-	task := Task{
+	task := domain.Task{
 		ID:       "task-2",
 		Title:    "Broken due date",
 		Note:     "",
@@ -48,7 +51,7 @@ func TestValidateTaskPayloadRejectsInvalidDueDate(t *testing.T) {
 		Status:   "queued",
 	}
 
-	if err := validateTaskPayload(&task, true, true); err == nil {
+	if err := domain.ValidateTaskPayload(&task, true, true); err == nil {
 		t.Fatal("expected invalid due date to fail validation")
 	}
 }
@@ -103,9 +106,7 @@ func TestDecodeJSONRejectsOversizedBody(t *testing.T) {
 }
 
 func TestLoginRateLimiterBlocksAfterThreshold(t *testing.T) {
-	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
-	}
+	app := &App{}
 	clientID := "127.0.0.1"
 
 	if !app.allowLoginAttempt(clientID) {
@@ -205,10 +206,15 @@ func TestAuthReturnsInternalServerErrorOnSessionLookupFailure(t *testing.T) {
 
 func TestHandleLoginReturnsTooManyRequestsWhenBlocked(t *testing.T) {
 	var events []authAuditEvent
+	tracker := authservice.NewLoginTracker()
+	clientID := "127.0.0.1"
+	now := time.Now()
+	for i := 0; i < authservice.MaxLoginFailures; i++ {
+		tracker.RecordFailure(clientID, now)
+	}
+
 	app := &App{
-		loginAttempts: map[string]loginAttemptState{
-			"127.0.0.1": {BlockedUntil: time.Now().Add(5 * time.Minute)},
-		},
+		authTracker: tracker,
 		auditRecorder: func(_ context.Context, event authAuditEvent) error {
 			events = append(events, event)
 			return nil
@@ -232,7 +238,6 @@ func TestHandleLoginReturnsTooManyRequestsWhenBlocked(t *testing.T) {
 func TestHandleLoginReturnsInternalServerErrorWhenVerifierFails(t *testing.T) {
 	var events []authAuditEvent
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, context.DeadlineExceeded
 		},
@@ -259,7 +264,6 @@ func TestHandleLoginReturnsInternalServerErrorWhenVerifierFails(t *testing.T) {
 func TestHandleLoginReturnsUnauthorizedOnBadPassword(t *testing.T) {
 	var events []authAuditEvent
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, nil
 		},
@@ -278,9 +282,11 @@ func TestHandleLoginReturnsUnauthorizedOnBadPassword(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", rec.Code)
 	}
-	state := app.loginAttempts["127.0.0.1"]
-	if state.Failures != 1 {
-		t.Fatalf("expected failed login counter to increment, got %+v", state)
+	for i := 1; i < maxLoginFailures; i++ {
+		app.recordFailedLogin("127.0.0.1")
+	}
+	if app.allowLoginAttempt("127.0.0.1") {
+		t.Fatal("expected failed login tracking to accumulate toward blocking")
 	}
 	if len(events) != 1 || events[0].Outcome != "failed" {
 		t.Fatalf("expected failed audit event, got %+v", events)
@@ -290,7 +296,6 @@ func TestHandleLoginReturnsUnauthorizedOnBadPassword(t *testing.T) {
 func TestObservedLoginAuditEventCarriesRequestID(t *testing.T) {
 	var events []authAuditEvent
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, nil
 		},
@@ -325,8 +330,7 @@ func TestAuthFlowLoginSessionLogout(t *testing.T) {
 	var events []authAuditEvent
 
 	app := &App{
-		cookieSecure:  false,
-		loginAttempts: make(map[string]loginAttemptState),
+		cookieSecure: false,
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return true, nil
 		},

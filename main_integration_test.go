@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"flux-board/internal/domain"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -237,9 +239,9 @@ func TestIntegrationTaskReorderAndArchiveRestore(t *testing.T) {
 	app, cleanup := newIntegrationTestApp(t, databaseURL)
 	defer cleanup()
 
-	createTaskForIntegration(t, app, Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
-	createTaskForIntegration(t, app, Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "high"})
-	createTaskForIntegration(t, app, Task{ID: "task-c", Title: "Task C", Due: "2026-04-22", Priority: "critical"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "high"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-c", Title: "Task C", Due: "2026-04-22", Priority: "critical"})
 
 	reorderReq := httptest.NewRequest(http.MethodPost, "/api/tasks/task-c/reorder", strings.NewReader(`{"status":"queued","anchorTaskId":"task-b","placeAfter":false}`))
 	reorderReq.SetPathValue("id", "task-c")
@@ -289,8 +291,8 @@ func TestIntegrationUpdateTaskDoesNotClobberOrdering(t *testing.T) {
 	app, cleanup := newIntegrationTestApp(t, databaseURL)
 	defer cleanup()
 
-	createTaskForIntegration(t, app, Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
-	createTaskForIntegration(t, app, Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "medium"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-a", Title: "Task A", Due: "2026-04-20", Priority: "medium"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-b", Title: "Task B", Due: "2026-04-21", Priority: "medium"})
 
 	reorderReq := httptest.NewRequest(http.MethodPost, "/api/tasks/task-b/reorder", strings.NewReader(`{"status":"active"}`))
 	reorderReq.SetPathValue("id", "task-b")
@@ -315,7 +317,7 @@ func TestIntegrationUpdateTaskDoesNotClobberOrdering(t *testing.T) {
 		t.Fatalf("expected update status 200, got %d body=%s", updateRec.Code, updateRec.Body.String())
 	}
 
-	var task Task
+	var task domain.Task
 	if err := json.NewDecoder(updateRec.Body).Decode(&task); err != nil {
 		t.Fatalf("decode update response: %v", err)
 	}
@@ -330,7 +332,7 @@ func TestIntegrationUpdateTaskDoesNotClobberOrdering(t *testing.T) {
 	assertLaneOrder(t, app, "active", []string{"task-b"})
 }
 
-func createTaskForIntegration(t *testing.T, app *App, task Task) {
+func createTaskForIntegration(t *testing.T, app *App, task domain.Task) {
 	t.Helper()
 
 	body := fmt.Sprintf(`{"id":"%s","title":"%s","note":"","due":"%s","priority":"%s"}`, task.ID, task.Title, task.Due, task.Priority)
@@ -420,7 +422,6 @@ func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 		db:                testPool,
 		bootstrapPassword: "integration-secret",
 		cookieSecure:      false,
-		loginAttempts:     make(map[string]loginAttemptState),
 	}
 	if err := app.initSchema(); err != nil {
 		testPool.Close()

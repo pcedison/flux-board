@@ -1,51 +1,26 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"log"
 	"time"
+
+	authservice "flux-board/internal/service/auth"
 )
 
 func (a *App) allowLoginAttempt(clientID string) bool {
-	now := time.Now()
-	a.loginMu.Lock()
-	defer a.loginMu.Unlock()
-
-	state := a.loginAttempts[clientID]
-	return !now.Before(state.BlockedUntil)
+	return a.authTrackerOrInit().Allow(clientID, time.Now())
 }
 
 func (a *App) recordFailedLogin(clientID string) {
-	now := time.Now()
-	a.loginMu.Lock()
-	defer a.loginMu.Unlock()
-
-	state := a.loginAttempts[clientID]
-	if state.WindowStart.IsZero() || now.Sub(state.WindowStart) > loginWindow {
-		state = loginAttemptState{WindowStart: now}
-	}
-
-	state.Failures++
-	if state.Failures >= maxLoginFailures {
-		state.BlockedUntil = now.Add(loginBlockDuration)
-		state.Failures = 0
-		state.WindowStart = now
-	}
-
-	a.loginAttempts[clientID] = state
+	a.authTrackerOrInit().RecordFailure(clientID, time.Now())
 }
 
 func (a *App) clearLoginAttempts(clientID string) {
-	a.loginMu.Lock()
-	defer a.loginMu.Unlock()
-	delete(a.loginAttempts, clientID)
+	a.authTrackerOrInit().Clear(clientID)
 }
 
-func newToken() string {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		log.Fatalf("generate token: %v", err)
+func (a *App) authTrackerOrInit() *authservice.LoginTracker {
+	if a.authTracker == nil {
+		a.authTracker = authservice.NewLoginTracker()
 	}
-	return hex.EncodeToString(bytes)
+	return a.authTracker
 }

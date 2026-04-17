@@ -4,7 +4,7 @@ import process from "node:process";
 import { chromium, firefox, webkit } from "playwright";
 
 const baseURL = normalizeBaseUrl(process.env.BASE_URL ?? "http://127.0.0.1:8080");
-const previewURL = `${baseURL}/next`;
+const nextAliasURL = `${baseURL}/next`;
 const password = process.env.FLUX_PASSWORD ?? process.env.APP_PASSWORD ?? "";
 const browserName = normalizeBrowserName(
   process.env.PLAYWRIGHT_BROWSER ?? process.env.SMOKE_BROWSER ?? "chromium"
@@ -13,6 +13,8 @@ const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
 const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
 const smokeTimeoutMs = parseInteger(process.env.SMOKE_TIMEOUT_MS, 120000);
+const desktopViewport = { width: 1440, height: 960 };
+const mobileViewport = { width: 390, height: 844 };
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const resultsDir =
   process.env.TEST_RESULTS_DIR ??
@@ -26,7 +28,7 @@ if (!password) {
 await mkdir(resultsDir, { recursive: true });
 
 const overallTimeout = setTimeout(() => {
-  console.error(`Preview smoke timed out after ${smokeTimeoutMs}ms.`);
+  console.error(`Next alias smoke timed out after ${smokeTimeoutMs}ms.`);
   process.exit(1);
 }, smokeTimeoutMs);
 if (typeof overallTimeout.unref === "function") {
@@ -46,14 +48,21 @@ const context = await browser.newContext({
 const page = await context.newPage();
 page.setDefaultTimeout(requestTimeoutMs);
 page.setDefaultNavigationTimeout(requestTimeoutMs);
+await page.setViewportSize(desktopViewport);
 
 try {
-  logStep("Navigate");
-  await page.goto(`${previewURL}/login`, { waitUntil: "domcontentloaded" });
+  logStep("Next alias redirect");
+  await page.goto(`${nextAliasURL}/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/login$/);
   await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
-  await page.screenshot({ path: path.join(resultsDir, "01-preview-login.png"), fullPage: true });
+  await assertHorizontalLayout(
+    page.locator(".auth-layout > .panel").first(),
+    page.locator(".auth-layout > .panel").nth(1),
+    "Login panels on desktop via /next"
+  );
+  await page.screenshot({ path: path.join(resultsDir, "01-next-alias-login.png"), fullPage: true });
 
-  logStep("Login");
+  logStep("Canonical login after redirect");
   const loginResponse = page.waitForResponse(
     (res) => res.url().endsWith("/api/auth/login") && res.request().method() === "POST",
     { timeout: 10000 }
@@ -62,25 +71,19 @@ try {
   await page.getByRole("button", { name: "Sign in" }).click();
   const loginResult = await loginResponse;
   if (loginResult.status() !== 200) {
-    throw new Error(`Preview login failed with ${loginResult.status()}`);
+    throw new Error(`Alias login failed with ${loginResult.status()}`);
   }
-  await page.waitForURL(/\/next\/board$/);
+  await page.waitForURL(/\/board$/);
   await page.getByRole("heading", { name: "Create task" }).waitFor();
 
-  logStep("Session");
-  const session = await requestJson(page, "/api/auth/me");
-  assertStatus(session.status === 200, `Expected /api/auth/me to return 200, got ${session.status}`);
-
-  const smokeTaskTitle = `Preview smoke task ${Date.now()}`;
+  const smokeTaskTitle = `Next alias smoke task ${Date.now()}`;
 
   logStep("Create task");
   await page.getByLabel("Title").fill(smokeTaskTitle);
   await page.getByLabel("Due date").fill("2026-04-30");
-  await page.getByLabel("Note").fill("Verify /next runtime ownership without replacing the legacy UI.");
+  await page.getByLabel("Note").fill("Verify /next compatibility redirect after root runtime takeover.");
   await page.getByRole("button", { name: "Create task" }).click();
   await page.getByText(`Created ${smokeTaskTitle} in the queued lane.`).waitFor();
-  const createdCard = page.locator("article", { hasText: smokeTaskTitle }).first();
-  await createdCard.waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Archive task");
   await page.getByRole("button", { name: `Archive ${smokeTaskTitle}` }).click();
@@ -90,16 +93,27 @@ try {
   logStep("Restore task");
   await page.getByRole("button", { name: `Restore ${smokeTaskTitle}` }).click();
   await page.getByText(`Restored ${smokeTaskTitle} to queued.`).waitFor();
-  await createdCard.waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Logout");
   await page.getByRole("button", { name: "Sign out" }).click();
+  await page.waitForURL(/\/login$/);
   await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
 
-  const postLogout = await requestJson(page, "/api/auth/me");
-  assertStatus(postLogout.status === 401, `Expected /api/auth/me to return 401 after logout, got ${postLogout.status}`);
+  logStep("Mobile alias redirect");
+  await page.setViewportSize(mobileViewport);
+  await page.goto(`${nextAliasURL}/login`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/login$/);
+  await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
+  await assertVerticalLayout(
+    page.locator(".auth-layout > .panel").first(),
+    page.locator(".auth-layout > .panel").nth(1),
+    "Login panels on mobile via /next"
+  );
 
-  await page.screenshot({ path: path.join(resultsDir, "02-preview-logout.png"), fullPage: true });
+  logStep("Legacy rollback route");
+  await page.goto(`${baseURL}/legacy/`, { waitUntil: "domcontentloaded" });
+  await page.locator("#loginOverlay").waitFor({ state: "visible", timeout: 10000 });
+  await page.screenshot({ path: path.join(resultsDir, "02-legacy-rollback.png"), fullPage: true });
 
   await writeFile(
     path.join(resultsDir, "summary.json"),
@@ -107,7 +121,9 @@ try {
       {
         baseURL,
         browser: browserName,
-        previewURL,
+        nextAliasURL,
+        legacyURL: `${baseURL}/legacy/`,
+        viewports: ["desktop", "mobile"],
         resultsDir,
         status: "passed",
       },
@@ -124,7 +140,9 @@ try {
       {
         baseURL,
         browser: browserName,
-        previewURL,
+        nextAliasURL,
+        legacyURL: `${baseURL}/legacy/`,
+        viewports: ["desktop", "mobile"],
         resultsDir,
         status: "failed",
         error: error instanceof Error ? error.message : String(error),
@@ -139,36 +157,6 @@ try {
 } finally {
   await browser.close();
   clearTimeout(overallTimeout);
-}
-
-async function requestJson(page, url, init = {}) {
-  return page.evaluate(
-    async ({ url, init, requestTimeoutMs }) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(`request timed out after ${requestTimeoutMs}ms`), requestTimeoutMs);
-      try {
-        const response = await fetch(url, {
-          credentials: "include",
-          signal: controller.signal,
-          ...init,
-        });
-        let body = null;
-        const contentType = response.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          body = await response.json().catch(() => null);
-        } else {
-          body = await response.text().catch(() => null);
-        }
-        return { status: response.status, ok: response.ok, body };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { status: 0, ok: false, body: { error: message } };
-      } finally {
-        clearTimeout(timeout);
-      }
-    },
-    { url, init, requestTimeoutMs }
-  );
 }
 
 function normalizeBaseUrl(value) {
@@ -227,4 +215,26 @@ function assertStatus(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function assertHorizontalLayout(firstLocator, secondLocator, label) {
+  const [firstBox, secondBox] = await Promise.all([firstLocator.boundingBox(), secondLocator.boundingBox()]);
+  assertStatus(firstBox != null, `${label}: first element is not visible.`);
+  assertStatus(secondBox != null, `${label}: second element is not visible.`);
+  assertStatus(secondBox.x > firstBox.x + 16, `${label} should flow side-by-side on wide viewports.`);
+  assertStatus(
+    Math.abs(secondBox.y - firstBox.y) < 32,
+    `${label} should stay on the same row on wide viewports.`
+  );
+}
+
+async function assertVerticalLayout(firstLocator, secondLocator, label) {
+  const [firstBox, secondBox] = await Promise.all([firstLocator.boundingBox(), secondLocator.boundingBox()]);
+  assertStatus(firstBox != null, `${label}: first element is not visible.`);
+  assertStatus(secondBox != null, `${label}: second element is not visible.`);
+  assertStatus(secondBox.y > firstBox.y + 16, `${label} should stack on narrow viewports.`);
+  assertStatus(
+    Math.abs(secondBox.x - firstBox.x) < 64,
+    `${label} should stay aligned when stacked on narrow viewports.`
+  );
 }

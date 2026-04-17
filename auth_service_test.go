@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	authservice "flux-board/internal/service/auth"
+
 	"github.com/jackc/pgx/v5"
 )
 
@@ -15,7 +17,6 @@ func TestAuthServiceAuthenticateSuccess(t *testing.T) {
 	var auditEvents []authAuditEvent
 
 	app := &App{
-		loginAttempts: make(map[string]loginAttemptState),
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return true, nil
 		},
@@ -52,17 +53,22 @@ func TestAuthServiceAuthenticateSuccess(t *testing.T) {
 }
 
 func TestAuthServiceAuthenticateBlocksBeforePasswordCheck(t *testing.T) {
+	tracker := authservice.NewLoginTracker()
+	clientID := "127.0.0.1"
+	now := time.Now()
+	for i := 0; i < authservice.MaxLoginFailures; i++ {
+		tracker.RecordFailure(clientID, now)
+	}
+
 	app := &App{
-		loginAttempts: map[string]loginAttemptState{
-			"127.0.0.1": {BlockedUntil: time.Now().Add(5 * time.Minute)},
-		},
+		authTracker: tracker,
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			t.Fatal("password verifier should not be called while blocked")
 			return false, nil
 		},
 	}
 
-	_, err := app.authService().Authenticate(context.Background(), "secret", "127.0.0.1")
+	_, err := app.authService().Authenticate(context.Background(), "secret", clientID)
 	if !errors.Is(err, errAuthBlocked) {
 		t.Fatalf("expected errAuthBlocked, got %v", err)
 	}

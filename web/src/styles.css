@@ -103,6 +103,7 @@ a {
 
 .hero-copy {
   flex: 1 1 360px;
+  min-width: 0;
 }
 
 .eyebrow {
@@ -194,6 +195,7 @@ a {
   border: 1px solid var(--stroke-soft);
   background: var(--surface-1);
   box-shadow: var(--shadow-md);
+  min-width: 0;
 }
 
 .panel-error {
@@ -263,8 +265,23 @@ a {
 .card-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-row-main {
+  display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+}
+
+.lane-head h2,
+.card-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .lane-head span {
@@ -301,6 +318,10 @@ a {
   outline-offset: 3px;
 }
 
+.card-dragging {
+  box-shadow: 0 18px 34px rgba(10, 25, 47, 0.12);
+}
+
 .card-pending,
 .archive-item-pending,
 .board-form-pending {
@@ -333,8 +354,10 @@ a {
 }
 
 .board-side-panel {
+  display: grid;
   gap: 22px;
   align-content: start;
+  min-width: 0;
 }
 
 .field-grid {
@@ -448,6 +471,35 @@ a {
   opacity: 0.65;
 }
 
+.drag-handle {
+  border: 1px solid rgba(19, 111, 99, 0.22);
+  border-radius: 999px;
+  background: #fff;
+  color: #0f4f47;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  min-height: 36px;
+  padding: 0 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.drag-handle:hover,
+.drag-handle:focus-visible {
+  background: var(--accent-soft);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
 .archive-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -484,6 +536,21 @@ a {
   .board-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .board-side-panel {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 960px) {
+  .field-grid,
+  .archive-item {
+    grid-template-columns: 1fr;
+  }
+
+  .archive-item {
+    align-items: start;
+  }
 }
 
 @media (max-width: 820px) {
@@ -495,9 +562,7 @@ a {
   .page-grid,
   .board-grid,
   .auth-layout,
-  .stats-grid,
-  .field-grid,
-  .archive-item {
+  .stats-grid {
     grid-template-columns: 1fr;
   }
 }

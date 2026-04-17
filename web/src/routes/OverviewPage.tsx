@@ -31,7 +31,7 @@ function OverviewContent({ data }: { data: NonNullable<ReturnType<typeof useBoar
         <p className="meta">
           {data.session
             ? `Expires at ${new Date(data.session.expiresAt).toLocaleString()}`
-            : "Use the new /login route to establish the shared session cookie before opening the guarded board snapshot."}
+            : "Use the canonical sign-in route to establish the shared session cookie before opening the guarded board."}
         </p>
       </section>
 
@@ -48,13 +48,13 @@ function OverviewContent({ data }: { data: NonNullable<ReturnType<typeof useBoar
       <section className="panel">
         <h2>Why this slice exists</h2>
         <ul className="checklist">
-          <li>Keep the future frontend isolated from the embedded MVP runtime.</li>
-          <li>Establish build and typecheck gates before interactive board work starts.</li>
-          <li>Read real API data now so later mutation work has a stable transport seam.</li>
+          <li>Make the React runtime the default user-facing shell on `/`.</li>
+          <li>Exercise the real board route with the same auth/session boundary as production.</li>
+          <li>Keep `/legacy/` available as an explicit rollback path during the takeover.</li>
         </ul>
         <div className="action-row">
           <Link className="nav-pill nav-pill-active" to={data.session ? "/board" : "/login"}>
-            {data.session ? "Open guarded board" : "Open sign-in route"}
+            {data.session ? "Open board route" : "Open sign-in route"}
           </Link>
         </div>
       </section>

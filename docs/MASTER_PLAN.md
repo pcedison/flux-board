@@ -4,6 +4,7 @@
 - This document is the single source of truth for upgrading Flux Board from MVP to enterprise-grade quality with public-fork readiness.
 - Scope includes: security, data integrity, Go modularization, React + TypeScript + Vite frontend rebuild, Trello-level interaction quality, RWD, accessibility, CI, release governance, and resumable execution records.
 - Rule: every task must leave a progress record so work can resume cleanly after interruption.
+- Fast handoff summary: [docs/STATUS_HANDOFF.md](STATUS_HANDOFF.md)
 
 ## Execution Rules
 - Work model: `Wave -> Epic -> Task -> Gate -> Log`.
@@ -12,35 +13,45 @@
 - High-risk areas always require strict review: auth, sessions, schema, reorder logic, CI, release process.
 - Any change that breaks touch, keyboard, or mobile core flows is at least `P1`.
 
+## Simplified Closure Rule
+- `artifact-complete`: deliverable exists and the review/documentation gate is satisfied.
+- `locally-verified`: current head passed the required repo-owned local verification, but no exact-head remote CI closure is recorded yet.
+- `remote-closed`: the exact current head has a fresh GitHub Actions run with the required matrix green, and that evidence is recorded here.
+- Reading rule:
+  - `W0-W1` use `artifact-complete` as their final closure.
+  - `W2-W9` use `remote-closed` as their final closure.
+  - historical `done` wording in old package lines is delivery history only; use the wave table below as the current source of truth.
+
 ## Progress Recording Protocol
 - Every task update must append one record to the `Execution Log` section at the end of this file.
 - Record format:
   - `Date`
   - `Wave / Epic / Task`
-  - `Status`: `planned | in_progress | blocked | done`
+  - `Status`: `planned | in_progress | blocked | artifact-complete | locally-verified | remote-closed`
   - `Action`
   - `Result`
   - `Next`
   - `Risk / Blocker`
 - Logging is append-only; do not overwrite earlier records except to fix obvious factual errors.
 - When interrupted, resume by reading:
-  1. `Wave Status Board`
-  2. latest `Execution Log` entry
-  3. unfinished task's `Next` field
+  1. `docs/STATUS_HANDOFF.md`
+  2. `Wave Status Board`
+  3. latest `Execution Log` entry
+  4. unfinished task's `Next` field
 
 ## Wave Status Board
-| Wave | Name | Owner | Status | Gate |
+| Wave | Name | Current status | Evidence | Final closure |
 |---|---|---|---|---|
-| W0 | Baseline Audit | Main agent | done | Risk map approved |
-| W1 | Public Fork Baseline | Main agent | done | New contributor can boot project |
-| W2 | CI and Reproducibility | Main agent | done | CI stable on clean env |
-| W3 | Server Security Hardening | Main agent | done | No obvious public-deploy security gaps |
-| W4 | Auth and Session Redesign | Main agent | done | Shared-password model retired for the current single-admin baseline |
-| W5 | Schema and Data Integrity | Main agent | done | Migrations and reorder correctness verified |
-| W6 | Go Modularization | Main agent | in_progress | Core logic testable and layered |
-| W7 | Frontend Foundation | Main agent | in_progress | New React frontend builds and talks to API |
-| W8 | Trello-grade UX, RWD, A11y | Main agent | in_progress | Mouse/touch/keyboard all pass core flows |
-| W9 | Quality Gates, Release, Enterprise Hooks | Main agent | in_progress | Public-fork release ready |
+| W0 | Baseline Audit | `artifact-complete` | risk map, blocker baseline, and architecture snapshot are documented | already at its final review-based closure |
+| W1 | Public Fork Baseline | `artifact-complete` | public-fork docs, onboarding, and repo hygiene are documented | already at its final review-based closure |
+| W2 | CI and Reproducibility | `locally-verified` | repo-owned verification scripts and historical CI baseline exist | record fresh remote CI for the exact current head |
+| W3 | Server Security Hardening | `locally-verified` | hardening baseline exists and local verification is available | record fresh remote CI for the exact current head |
+| W4 | Auth and Session Redesign | `locally-verified` | single-admin auth/session baseline exists with local proof | record fresh remote CI for the exact current head |
+| W5 | Schema and Data Integrity | `locally-verified` | migrations, reorder correctness, and archive/restore behavior have local proof | record fresh remote CI for the exact current head |
+| W6 | Go Modularization | `locally-verified` | internal domain/store/service/transport packages and `cmd/flux-board` were locally re-verified | record fresh remote CI for the exact current head |
+| W7 | Frontend Foundation | `locally-verified` | React runtime owns `/`, `/legacy/` is the rollback shell, and `/next/*` redirects remain for compatibility | record fresh remote CI for the root-runtime takeover head |
+| W8 | Trello-grade UX, RWD, A11y | `locally-verified` | drag/mobile/keyboard/a11y slices are locally green and have browser proof | record fresh remote CI for the exact head with `dnd_smoke` and `keyboard_smoke` |
+| W9 | Quality Gates, Release, Enterprise Hooks | `in_progress` | strong partial CI/local baseline exists | finish observability/release/browser-matrix scope, then close with fresh remote CI |
 
 ## W0 Baseline Audit
 - Goal: freeze the real MVP state and identify blockers before implementation.
@@ -48,7 +59,7 @@
 - Tasks: inspect current files, list P0/P1/P2 issues, capture current API/frontend behavior, define non-negotiable blockers.
 - Gate: known blockers, hidden dependencies, and current architecture are documented.
 - Parallel lanes: architecture review, security review, frontend review.
-- Current status: done.
+- Current status: artifact-complete.
 - Current gaps: none for W0 itself; its output remains the baseline for W1-W4.
 - Corrected gate checklist:
   - repo inventory exists
@@ -62,7 +73,7 @@
 - Tasks: add `README`, `LICENSE`, `SECURITY`, `CONTRIBUTING`, `ARCHITECTURE`, `.env.example`; clean root noise; document local startup and deployment basics.
 - Gate: a new contributor can clone, configure, and run the project without tribal knowledge.
 - Parallel lanes: docs writing, root cleanup, deploy instructions.
-- Current status: done for the current wave scope.
+- Current status: artifact-complete for the current review-based scope.
 - Current gaps:
   - no remaining W1 blockers for the current wave scope
 - Corrected gate checklist:
@@ -78,7 +89,7 @@
 - Tasks: add Go build/test/vet, frontend build/typecheck/lint, basic smoke checks, deterministic setup steps.
 - Gate: CI is green on a clean environment and failures are diagnosable.
 - Parallel lanes: CI workflow, local dev scripts, smoke test setup.
-- Current status: done for the current embedded-frontend scope.
+- Current status: locally-verified for the current embedded-frontend scope.
 - Current gaps:
   - broader frontend build/typecheck/lint remains deferred until the React/Vite waves
 - Corrected gate checklist:
@@ -95,7 +106,7 @@
 - Tasks: add timeouts, graceful shutdown, request size limits, strict JSON decoding, security headers, rate limiting, unified error envelopes.
 - Gate: no bare `ListenAndServe`, no unlimited request bodies, no missing baseline security headers.
 - Parallel lanes: HTTP middleware, validation layer, security verification.
-- Current status: done for the current wave scope.
+- Current status: locally-verified for the current wave scope.
 - Current gaps:
   - stronger distributed abuse control is deferred beyond this wave
 - Corrected gate checklist:
@@ -111,7 +122,7 @@
 - Tasks: design `users` and `sessions`, implement secure login/logout/me, add throttling/lockout, add session revocation and audit trail.
 - Gate: shared-password-only production auth is removed as the default path.
 - Parallel lanes: auth domain, session store, audit design.
-- Current status: done for the current single-admin baseline scope.
+- Current status: locally-verified for the current single-admin baseline scope.
 - Current gaps:
   - multi-user auth, username-based login, richer session revocation, and OIDC remain deferred to later waves
 - Corrected gate checklist:
@@ -129,7 +140,7 @@
 - Tasks: add versioned migrations, enforce FK/CHECK/indexes, move reorder to transactional batch updates, verify archive/restore correctness.
 - Gate: schema changes are reproducible and board ordering remains correct after reload and concurrent writes.
 - Parallel lanes: migration setup, DB constraints, reorder API.
-- Current status: done for the current single-board scope.
+- Current status: locally-verified for the current single-board scope.
 - Current gaps:
   - broader multi-board/domain normalization remains deferred to later waves
 - Corrected gate checklist:
@@ -145,10 +156,10 @@
 - Tasks: shrink `main.go` to assembly, separate HTTP/service/repo layers, extract pure logic, add dependency boundaries and test seams.
 - Gate: core logic is no longer trapped in `main.go` and can be unit-tested.
 - Parallel lanes: handler split, service split, repo abstraction.
-- Current status: in_progress.
+- Current status: locally-verified for the planned W6 scope.
 - Current gaps:
-  - config loading, mux/server assembly, auth/session handlers, auth cookies/context/runtime helpers, auth orchestration service, task/archive handlers, task reorder persistence, task mutation validation/service flow, and pure task validation rules are now extracted into dedicated files, and background cleanup loops now respect cancellation, but deeper services and most domain rules still live in the `main` package
-  - `cmd/flux-board` and deeper layer splits remain for later W6 slices
+  - root `main` remains as a compatibility shim because repo-owned scripts still build `.` during the transition
+  - later waves may still refine layering ergonomics, but W6's planned package boundaries are now in place
 - Corrected gate checklist:
   - config loading is no longer embedded directly in startup logic
   - mux/server assembly is separated from the rest of the business logic
@@ -157,7 +168,8 @@
   - task/archive CRUD persistence now has an explicit repository seam
   - task mutation validation and reorder preconditions now have a dedicated service seam
   - pure task validation and ID normalization are now separated from transport code
-  - later W6 work must still extract deeper services, repositories, and pure domain rules
+  - `cmd/flux-board` now exists and `go build ./...` covers both the root shim and canonical command entrypoint
+  - root `main` no longer owns SQL, task validation rules, or HTTP/service implementation details
 
 ## W7 Frontend Foundation
 - Goal: replace the monolithic HTML with a modern, maintainable frontend base.
@@ -165,16 +177,16 @@
 - Tasks: create React + TypeScript + Vite app, add React Router, TanStack Query, app shell, tokenized style system, auth guard and base pages.
 - Gate: new frontend can build, typecheck, and communicate with the Go API.
 - Parallel lanes: design system, API layer, shell and routing.
-- Current status: in_progress.
+- Current status: locally-verified for the planned W7 feature/runtime scope.
 - Current gaps:
-  - the new `web/` app now builds, typechecks, runs a small Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, has auth-aware `/login` plus guarded `/board` routes, exercises create/move/archive/restore mutations in the isolated shell, and can now be served by Go on `/next/` after `web/dist` is built
-  - the isolated board now keeps mutation ownership scoped to the active card/form/archive row and restores focus after create/move success, but `/next/` remains a preview route rather than the production runtime owner
-  - full production runtime ownership and replacement of the embedded frontend remain deferred to later W7/W8 slices
+  - the new `web/` app now builds, typechecks, runs a broader Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, has auth-aware `/login` plus guarded `/board` routes, exercises create/move/archive/restore mutations in the isolated shell, and now serves as the canonical runtime on `/` after `web/dist` is built
+  - the isolated board is now split into lane/card/composer/archive/status components under `web/src/components/board`, keeps mutation ownership scoped to the active card/form/archive row, restores focus after create/move success, and uses a path-aware router basename plus relative asset base so the same build can support `/`, `/legacy/`, and `/next/*` compatibility behavior without a separate bundle
+  - the remaining W7 closure item is fresh remote CI proof for the new root-runtime ownership slice; feature/runtime work for the planned wave scope is otherwise locally complete and re-audited
 - Corrected gate checklist:
   - `web/` has a tracked React + TypeScript + Vite scaffold
   - routing, typed API reads, typed task mutations, and a query layer exist for the current isolated-shell scope
   - the scaffold has a responsive shell and can build/typecheck/test in CI and locally
-  - later W7/W8 work must still add runtime integration with the existing app, drag-and-drop enhancement, and broader UX polish
+  - W8 runtime, drag, mobile, and keyboard/a11y slices are locally verified; the remaining strict-acceptance gap is fresh remote CI proof for the exact current head
 
 ## W8 Trello-grade UX, RWD, and Accessibility
 - Goal: deliver rich board interactions that work on desktop, tablet, and mobile.
@@ -182,15 +194,17 @@
 - Tasks: implement CRUD UI, drag-and-drop as progressive enhancement, touch fallback, keyboard move controls, dialog/menu focus management, 44px targets, browser matrix checks.
 - Gate: core board movement works via mouse, touch, and keyboard; mobile and tablet are first-class; drag-and-drop is not the only path.
 - Parallel lanes: board UI, drag/drop, RWD, a11y verification.
-- Current status: in_progress.
+- Current status: locally-verified for the current documented scope.
 - Current gaps:
-  - the isolated React board now has non-drag create/move/archive/restore plus lane-local move up/down fallback, action-scoped pending ownership, focus continuity for repeated board work, field-level validation, live status feedback, and list-order semantics for assistive tech, while the Go-served `/next/` preview route gives W8 its first real runtime foothold
-  - drag-and-drop, keyboard-first reordering polish, full mobile-first layout work, and promotion of `/next/` from preview to production runtime owner still remain
+  - no feature-scope gap remains inside W8 itself
+  - the remaining strict-acceptance gap is fresh remote CI proof for the exact current head and the new `dnd_smoke` / `keyboard_smoke` lanes
 - Corrected gate checklist:
   - a non-drag movement path now exists in the isolated React board
+  - drag-and-drop now exists as a same-lane, pointer-first progressive enhancement while button fallback remains intact
   - current mutation controls are button-based and work without hover-only affordances
   - lane-local fallback now exposes order semantics to assistive technology
-  - later W8 work must still add drag-and-drop as progressive enhancement, deeper accessibility polish, and runtime ownership
+  - viewport-aware smoke now covers the mobile-first layout contract
+  - keyboard/focus polish and explicit a11y automation are now verified for the current W8 scope
 
 ## W9 Quality Gates, Release, and Enterprise Hooks
 - Goal: make the project release-ready and extensible toward enterprise features.
@@ -200,11 +214,12 @@
 - Parallel lanes: QA, release engineering, observability, enterprise design.
 - Current status: in_progress.
 - Current gaps:
-  - CI quality gates now cover richer browser smoke for login/create/archive/restore, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, repo-owned smoke orchestration, a Go-served `/next/` preview smoke path, minimal unauthenticated health/readiness probes, a minimal request-id/access-log plus auth-audit correlation baseline, and a first release dry-run / rollback baseline, but browser matrix and richer observability still remain open
-  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, shares a repo-owned smoke orchestration path with local verification, exposes a manual release dry-run path, and adds a dedicated `/next/` preview smoke lane while the broader browser matrix plus observability work still remain
+  - CI quality gates now cover richer browser smoke for login/create/archive/restore, dedicated same-lane drag smoke, dedicated board keyboard smoke, repo-owned Go verification, local Windows race proof, `web/` build/typecheck/test, repo-owned smoke orchestration, a `/next/*` compatibility plus `/legacy/` rollback smoke path, minimal unauthenticated health/readiness probes, a minimal request-id/access-log plus auth-audit correlation baseline, and a first release dry-run / rollback baseline, but broader browser matrix and richer observability still remain open
+  - the workflow now opts into GitHub's Node 24 JavaScript action runtime pilot, shares repo-owned smoke orchestration paths with local verification, exposes a manual release dry-run path, and now includes dedicated `dnd_smoke` and `keyboard_smoke` lanes in CI while the broader browser matrix plus observability work still remain
 - Corrected gate checklist:
   - CI runs repo-owned Go verification, race detection, `web/` scaffold build/typecheck/test, and browser smoke
   - local Windows race verification exists in a repo-owned script
+  - CI now has separate root-runtime, drag-and-drop, keyboard, and compatibility/rollback smoke lanes
   - a manual release dry-run path now builds a checksumed artifact and reuses it for smoke verification
   - later W9 work must still add broader browser and observability gates beyond the current request-id/access-log baseline
 
@@ -214,6 +229,15 @@
 - Engineering gate: layered code, tests for critical paths, reproducible CI, documented startup and deployment.
 - UX gate: desktop/tablet/mobile pass; touch and keyboard pass; no hover-only critical action.
 - Fork gate: public docs are sufficient, no hidden author-only knowledge, no hard-coded private assumptions.
+- Acceptance gate:
+  - `artifact-complete` is review/documentation closure only
+  - `locally-verified` requires the repo-owned local verification set for the current head
+  - `remote-closed` requires fresh GitHub Actions proof for the exact current head
+
+## Reading Note
+- The `Work Package Index` below is primarily a delivery-tracking index.
+- Historical package entries that say `done` should not be read as final closure.
+- For current acceptance, use the `Wave Status Board` plus the latest `Execution Log` entries.
 
 ## Work Package Index
 ### W0
@@ -247,23 +271,23 @@
 - `W5-P3` Reorder correctness: status `done` for the current scope. Transactional reorder endpoint, lane advisory locks, and `MAX()+1` race removal are now in place. Parallel: later W8 UI work can build on this API.
 - `W5-P4` Archive correctness: status `done` for the current scope. Archive/restore now preserves lane position semantics and is covered by integration plus browser smoke. Parallel: future retention/reporting work remains separate.
 ### W6
-- `W6-P1` Assembly-only main: status `in_progress`. Config loading and mux/server assembly are extracted, and reorder logic has begun moving into dedicated files, but `cmd/` entrypoint and deeper startup isolation still remain. Parallel: pure structural move first.
-- `W6-P2` Layer split: status `in_progress`. Auth/session plus task/archive/reorder HTTP boundaries, task repository seams, a first task service seam for validation and reorder preconditions, and a dedicated auth orchestration/persistence/audit service file are now extracted into dedicated files, but broader service/repo separation still remains. Parallel: coordinate with W5 query changes.
-- `W6-P3` Pure rules and domain errors: status `in_progress`. Task payload validation, ID normalization, and reorder preconditions now sit behind dedicated non-HTTP helpers, but broader domain rules are still embedded in the main package. Parallel: good subagent slice.
-- `W6-P4` Test seams: status `in_progress`. Route wiring, probe coverage, task handler/repository seam coverage, task service tests, auth service tests, and cancellable background-loop coverage now exist, but more explicit seams and layer-level tests remain for later W6 work. Parallel: tie into W2 CI.
+- `W6-P1` Assembly-only main: status `done`. The root command is now an assembly-only compatibility shim, and `cmd/flux-board` is available as the canonical entrypoint. Parallel: future cleanup can decide when scripts should flip fully to `cmd/`.
+- `W6-P2` Layer split: status `done`. PostgreSQL repositories, task/auth services, and HTTP transport code now live under `internal/store/postgres`, `internal/service`, and `internal/transport/http`. Parallel: future waves can build on these seams without reopening W6.
+- `W6-P3` Pure rules and domain errors: status `done` for the planned W6 scope. Task domain types, validation, ID normalization, and repository contracts now sit behind `internal/domain` instead of the root package. Parallel: later waves may still add more domain types.
+- `W6-P4` Test seams: status `done` for the planned W6 scope. Route wiring, probe coverage, task/auth service seams, repository seams, and the new command entrypoint all compile and test against the extracted boundaries. Parallel: later waves can deepen coverage without blocking W6 closure.
 ### W7
 - `W7-P1` Frontend scaffold: status `done` for the current scope. A tracked React + TypeScript + Vite scaffold now exists under `web/`. Parallel: can overlap late W6.
-- `W7-P2` Data layer: status `in_progress`. Typed API reads, an auth-session hook, scoped login/task mutations, a React Query snapshot hook, `401`-aware auth reset behavior, a frontend unit-test baseline, and a Go-served `/next/` preview runtime path now exist in the isolated shell. Parallel: with W7-P3.
-- `W7-P3` Design system: status `in_progress`. Tokenized CSS variables and a responsive shell exist, but the full board design system remains later work. Parallel: with W7-P2.
-- `W7-P4` Page skeletons: status `in_progress`. Overview, login, auth-aware shell navigation, explicit sign-out handling, guarded board snapshot routes, and a Go-served `/next/` preview route exist for the current isolated-shell scope, including explicit create/move/archive/restore actions and unit-test coverage, but full feature/runtime integration remains incomplete. Parallel: after W7-P1.
+- `W7-P2` Data layer: status `done` for the planned local scope. Typed API reads, an auth-session hook, scoped login/task mutations, a React Query snapshot hook, `401`-aware auth reset behavior, and canonical root-runtime ownership now exist in the isolated shell. Parallel: with W7-P3.
+- `W7-P3` Design system: status `done` for the planned W7 scope. Tokenized CSS variables, a responsive shell, and the current board composition now support the canonical root runtime, with deeper W8 polish intentionally deferred. Parallel: with W7-P2.
+- `W7-P4` Page skeletons: status `done` for the planned local scope. Overview, login, auth-aware shell navigation, explicit sign-out handling, guarded board snapshot routes, a componentized three-lane board page, `/legacy/` rollback, and `/next/*` compatibility redirects now exist for the current shell scope, including explicit create/move/archive/restore actions, component-level/frontend route tests, and real-browser smoke proof. Parallel: after W7-P1.
 ### W8
-- `W8-P1` Core board UI: status `in_progress`. The isolated React board now renders create/move/archive/restore controls around board/list/card layout, but richer interaction polish still remains. Parallel: with W8-P2.
-- `W8-P2` Drag and reorder: status `planned`. `dnd-kit` work depends on later W5 reorder API. Parallel: depends on W5 reorder API.
-- `W8-P3` Non-drag movement: status `in_progress`. Explicit create/move/archive/restore controls plus lane-local move-up/move-down fallback now exist in the isolated React board so drag-and-drop is no longer the only future path. Parallel: with W8-P2.
-- `W8-P4` RWD and a11y: status `in_progress`. The isolated board now has 44px targets, field-level validation, focus recovery, live status feedback, lane-order semantics for assistive tech, a more explicit signed-in/signed-out shell boundary, and a Go-served preview path for real-browser validation, but deeper mobile-first layout and keyboard interaction work still remain. Parallel: with W8-P1.
+- `W8-P1` Core board UI: status `locally-verified` for the current scope. The isolated React board now renders create/move/archive/restore controls around board/list/card layout, and the richer interaction slices planned for W8 are now landed on top of that base. Parallel: with W8-P2.
+- `W8-P2` Drag and reorder: status `locally-verified` for the current slice. Same-lane pointer-first drag reorder now exists through `dnd-kit`, while cross-lane and keyboard drag behavior remain intentionally deferred to later polish. Parallel: stable base for W8-P4.
+- `W8-P3` Non-drag movement: status `locally-verified` for the current scope. Explicit create/move/archive/restore controls plus lane-local move-up/move-down fallback remain the stable non-drag path beside the new progressive enhancement. Parallel: with W8-P2.
+- `W8-P4` RWD and a11y: status `locally-verified` for the current scope. The isolated board now has 44px targets, field-level validation, focus recovery, live status feedback, lane-order semantics for assistive tech, mobile-first layout refinement, keyboard interaction, axe coverage, and canonical root-runtime browser proof. Parallel: with W8-P1.
 ### W9
-- `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, richer browser smoke for login/create/archive/restore through the shared verify-smoke scripts, and a dedicated `/next/` preview smoke path; this slice begins the browser matrix with `chromium` plus `firefox`, while broader frontend/E2E and deeper matrix work still remain. Parallel: with W9-P2.
-- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot, a split verify/smoke job layout, repo-owned Go/web/smoke verification scripts as the CI source of truth, and a dedicated `/next/` preview verification wrapper, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
+- `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, richer browser smoke for login/create/archive/restore, dedicated drag-and-drop smoke through the shared verify-smoke scripts, and a dedicated `/next/*` compatibility plus `/legacy/` rollback smoke path; this slice begins the browser matrix with `chromium` plus `firefox`, while broader frontend/E2E and deeper matrix work still remain. Parallel: with W9-P2.
+- `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot, a split verify/smoke job layout, repo-owned Go/web/smoke verification scripts as the CI source of truth, dedicated drag smoke coverage, and a dedicated compatibility/rollback verification wrapper, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `in_progress`. Minimal unauthenticated health/readiness probes now exist, but metrics and richer logging/observability beyond the current baseline remain open. Parallel: with W9-P2.
 - `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
 
@@ -318,3 +342,16 @@
 - 2026-04-16 | W6-W9 / Bootstrap split, scoped pending ownership, and auth-audit request correlation | done | Split root runtime state/bootstrap/background helpers out of `main.go`, added request-id propagation into auth audit events, tightened the isolated React board so create/move/archive/restore only disable their local work scope and restore focus for repeated interaction, then re-ran local Go, Windows race, web, and Docker-backed `chromium` plus `firefox` smoke verification | W6 is materially closer to assembly-only startup, W8 has a more usable keyboard/touch-friendly non-drag flow, and W9 now correlates access logs with auth audit events without reopening the logging architecture | Next: continue W6 deeper service/domain extraction and keep W9 focused on broader browser matrix, release flow, and richer observability | Risk: background cleanup loops still use unmanaged goroutines, runtime ownership is still split between the embedded frontend and the isolated React shell, and observability is still limited to stdlib logs without metrics or tracing
 - 2026-04-16 | W6-W9 / Auth transport split, single-announcement cleanup, and release dry-run baseline | done | Split auth cookie/context/runtime helpers out of `auth_http.go`, removed duplicate board status announcements from the isolated React shell, added repo-owned release dry-run scripts that build a checksumed artifact and reuse it for smoke verification, wired a manual `workflow_dispatch` release-dry-run job in CI, and documented the current rollback baseline | W6 now has a cleaner auth transport boundary that mirrors the task-side seams more closely, W8 is less noisy for assistive tech, and W9 now has a concrete first release-governance path instead of only verification and smoke gates | Next: continue W6 toward deeper service/domain extraction and keep W9 focused on broader browser matrix and richer observability | Risk: release governance is still single-platform and manual, and the project still lacks metrics/tracing plus a final versioning/changelog policy
 - 2026-04-16 | W6-W9 / Auth orchestration split, cancellable cleanup loops, and `/next/` preview runtime slice | done | Added a dedicated auth orchestration service, made background cleanup loops respect cancellation, introduced a Go-served `/next/` React preview route with SPA fallback for built `web/dist`, added repo-owned preview verification scripts plus preview smoke coverage, and re-ran local Go, race, web, legacy smoke, and `/next/` preview smoke verification against Docker-backed PostgreSQL | W6 now has a cleaner auth/service boundary with better runtime lifecycle control, W7/W8 now have their first real Go-owned preview route without replacing the embedded UI, and W9 now proves both legacy and preview shells through repo-owned smoke paths | Next: keep shrinking deeper domain rules out of the `main` package, then decide whether the next runtime-ownership slice should promote `/next/` further or focus on drag/mobile polish first | Risk: `/next/` is still preview-only, `cmd/flux-board` does not exist yet, and broader browser/observability/release governance work remains open
+- 2026-04-16 | W0-W9 / Status handoff and resume guide | done | Added `docs/STATUS_HANDOFF.md` to summarize actual wave status, hard points, pause/defer reasons, current push method, and next-step roadmap; linked it from `MASTER_PLAN` as the first resume document | Future work can resume from a shorter, less error-prone handoff before diving into the full execution log | Next: keep `STATUS_HANDOFF.md` updated whenever wave status materially changes | Risk: this file must stay aligned with `MASTER_PLAN`, `README`, and deployment/architecture docs
+- 2026-04-16 | W6-W9 / Agent work plan created | done | Created `docs/AGENT_WORK_PLAN.md` with a complete phased work plan (17 slices across 5 phases), wave completion criteria, per-slice gates, mandatory verification steps, and an absolute prohibition list; linked from `STATUS_HANDOFF.md` as the first document for agent handoff | Any future agent can pick up work without re-deriving context; the plan is ordered by dependency and risk, with W6 internal/ package migration as the mandatory first phase | Next: agent picks up slice 1-A (internal/domain/task.go) as the first concrete step | Risk: plan must be kept in sync with MASTER_PLAN execution log as slices are completed
+- 2026-04-16 | W6 / Internal domain extraction slice 1-A | done | Added `internal/domain/task.go`, moved task domain types plus task validation and sentinel errors out of the root package, rewired repository/service/HTTP/test references to import `flux-board/internal/domain`, and reran `go build ./...`, `go vet ./...`, `go test ./...`, `./scripts/verify-go.ps1`, and Docker-backed `./scripts/verify-smoke.ps1` | W6 now has its first real `internal/domain` seam, and `main` no longer owns task structs or pure task validation helpers while preserving the existing API/runtime behavior | Next: begin slice 1-B by moving PostgreSQL task persistence toward `internal/store/postgres` without changing the domain-facing contracts | Risk: task repository/service/transport layers still live in the root `main` package, and `cmd/flux-board` is still not present
+- 2026-04-17 | W6 / Internal store-service-transport completion and cmd entrypoint | done | Finished slices `1-B` through `1-E` by wiring auth/task PostgreSQL repositories under `internal/store/postgres`, moving task/auth orchestration into `internal/service`, moving HTTP handlers/mux/server/preview/observability helpers into `internal/transport/http`, adding `cmd/flux-board/main.go`, and shrinking the root package to compatibility-focused wiring plus thin wrappers | W6 is now complete for its planned scope: the backend has real internal package boundaries, `go run ./cmd/flux-board` works, and the root package no longer owns SQL or task validation/business logic | Next: move to W7 runtime-ownership work, starting with the board component/runtime promotion path now that backend seams are stable | Risk: repo-owned scripts still build the root shim during the transition, and W7/W8/W9 remain open
+- 2026-04-17 | W7 / Slice 2-A board componentization and preview-path hardening | done | Split `BoardSnapshotPage` into reusable `web/src/components/board/*` lane/card/composer/archive/status pieces, added component-level Vitest coverage for lane/card behavior, updated the preview shell copy, and hardened the preview runtime with a path-aware router basename plus relative Vite asset base so the same bundle can safely live under `/next/` today and later move toward `/` | W7 slice `2-A` is now complete for the current plan: the isolated board has a maintainable three-lane component boundary with real unit-test proof, and `/next/` remains a verified preview runtime instead of a brittle one-off build target | Next: execute slice `2-B` by promoting the Go-served React runtime from `/next/` to `/` while keeping `/legacy/` as the rollback path | Risk: runtime ownership is still split because `/` remains the embedded frontend until `2-B` lands
+- 2026-04-17 | W7 / Slice 2-B root runtime takeover with rollback and alias coverage | done | Promoted the Go-served React runtime from `/next/` to `/`, moved the embedded frontend to `/legacy/`, redirected `/next/*` into the canonical root routes, rewrote root smoke around `/login -> /board`, repurposed preview smoke to verify alias redirect plus rollback access, updated route/server tests and runtime copy, and reran `./scripts/verify-go.ps1`, `./scripts/verify-web.ps1`, Docker-backed `./scripts/verify-smoke.ps1`, and Docker-backed `./scripts/verify-next-preview.ps1` in both `chromium` and `firefox` | W7 is now locally complete for its planned feature/runtime scope: the React shell is the production runtime owner, rollback is explicit on `/legacy/`, and `/next/*` is no longer a separate runtime surface | Next: push this slice, observe fresh GitHub Actions proof for the new root-runtime contract, then move to W8 drag/mobile/keyboard work | Risk: remote CI has not yet been observed for this exact slice, so final closure still depends on a post-push green run
+- 2026-04-17 | W8 / Slice 3-A same-lane pointer-first drag reorder | done | Added `dnd-kit` dependencies, a pure same-lane drag helper, board wiring, unit tests, and a dedicated drag smoke that runs in both `chromium` and `firefox` | W8 3-A is complete: same-lane pointer-first drag reorder is now covered by unit tests plus browser smoke | Next: finish W8/3-C keyboard and focus polish | Risk: drag remains intentionally lane-local and pointer-first in this slice
+- 2026-04-17 | W8 / Slice 3-B mobile-first layout and viewport-aware smoke | done | Tightened board CSS for mobile-first stacking, added viewport-aware smoke assertions, and verified the layout behavior locally through the browser smoke harness | W8 3-B is complete: the responsive layout now has viewport-aware smoke coverage | Next: finish W8/3-C keyboard and focus polish | Risk: viewport assertions depend on the current board structure and breakpoints
+- 2026-04-17 | W6-W8 / Re-audit and local verification pass | done | Re-audited W6/W7 and confirmed the local verification story again while syncing the docs to the current W8/3-A and W8/3-B completion state | The tracking docs now match the re-audited local state, and the recurring Windows verification note is recorded for future runs | Next: continue with W8/3-C keyboard/focus polish | Risk: on Windows, `go test ./...` should not be run in parallel with `npm ci` because `web/node_modules` scans can flake
+- 2026-04-17 | W8-W9 / Drag smoke verification lane and docs sync | done | Added a dedicated same-lane drag smoke wrapper, verified it locally in `chromium` and `firefox`, wired a matching `dnd_smoke` browser matrix into CI, and corrected the handoff/plan docs so W8 now clearly points to `3-C` as the remaining gate | Drag reorder now has both local browser proof and future CI coverage, and the written handoff no longer claims obsolete W8 gaps | Next: continue with W8/3-C keyboard/focus polish and wait for fresh remote CI proof after the new workflow is pushed | Risk: remote CI has not yet been observed for the new `dnd_smoke` lane, and W8 still needs keyboard/focus closure
+- 2026-04-17 | W8 / Slice 3-C keyboard/focus polish, a11y verification, and keyboard smoke | done | Closed the final W8 slice with roving tabindex navigation, keyboard-focused card movement, focus restoration, axe coverage, and a dedicated board keyboard smoke lane; fixed a stale PostgreSQL bootstrap password in a reused smoke DB and updated the drag/keyboard smoke wrappers to force and restore `SMOKE_SCRIPT` so sequential runs stay isolated | W8 is now locally complete for the current documented scope, and CI now has matching keyboard smoke coverage alongside the existing drag lane | Next: move to W9 observability, release governance, and broader browser matrix work | Risk: fresh remote CI proof for the runtime takeover slice is still a separate confirmation step if desired
+- 2026-04-17 | W0-W9 / Strict acceptance taxonomy rewrite | artifact-complete | Rewrote `STATUS_HANDOFF`, `MASTER_PLAN`, and `AGENT_WORK_PLAN` so wave closure is now expressed through `artifact-complete`, `locally-verified`, and `remote-closed` instead of overloading `done` | The project now has an explicit acceptance model: `W0-W1` are `artifact-complete`, `W2-W8` are `locally-verified`, and only a fresh GitHub Actions run on the exact current head can promote a wave to `remote-closed` | Next: push the current head, observe fresh remote CI, and record the evidence needed to start promoting `W2-W8` beyond local verification | Risk: historical execution-log entries still use pre-normalization `done` wording and must be interpreted through the new wave tables rather than read literally
+- 2026-04-17 | W0-W9 / Acceptance docs simplification | artifact-complete | Simplified the top-level handoff language so `STATUS_HANDOFF`, `MASTER_PLAN`, and `AGENT_WORK_PLAN` now present one direct rule: `W0-W1` finish at `artifact-complete`, `W2-W9` finish at `remote-closed`, and `locally-verified` is transitional local proof only | The handoff docs now describe current state and final closure without the earlier dual-dimension wording, which makes wave status easier to read during resume and review | Next: keep using the simplified rule when updating wave status, then record fresh remote CI evidence before promoting any implementation wave to final closure | Risk: historical package and execution-log entries still contain older wording and must continue to be interpreted through the simplified wave tables

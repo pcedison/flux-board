@@ -3,10 +3,11 @@
 Flux Board is a Go + PostgreSQL task board that is currently being upgraded from an MVP into an enterprise-grade, public-fork-ready project.
 
 ## Current Status
-- Current runtime: Go backend with embedded static frontend.
+- Current runtime: Go backend with the React runtime on `/`, legacy rollback UI on `/legacy/`, and `/next/*` compatibility redirects.
 - Current maturity: MVP that works, but is not yet production-hardened for public deployment.
 - Active upgrade plan: [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md).
-- New frontend baseline: isolated `web/` React + TypeScript + Vite scaffold with React Router, TanStack Query, auth-aware routing, explicit sign-out handling, and the first non-drag board mutation path.
+- Read-first status handoff: [docs/STATUS_HANDOFF.md](docs/STATUS_HANDOFF.md).
+- New frontend baseline: `web/` React + TypeScript + Vite scaffold now serving the canonical runtime on `/`, with React Router, TanStack Query, auth-aware routing, explicit sign-out handling, and the first non-drag board mutation path.
 
 ## Current Features
 - Bootstrap-password-protected task board with DB-backed sessions
@@ -15,8 +16,8 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 - PostgreSQL persistence
 - Unauthenticated `GET /healthz` and DB-backed `GET /readyz` probes
 - API and probe request-id/access-log baseline for easier diagnosis
-- Embedded frontend served by the Go app
-- Isolated React/Vite shell with `/login`, guarded `/board`, auth-aware shell navigation, explicit sign-out handling, explicit create/move/archive/restore actions, and lane-local move up/down fallback for the next frontend
+- React/Vite shell served by the Go app on `/`, with `/login`, guarded `/board`, auth-aware shell navigation, explicit sign-out handling, explicit create/move/archive/restore actions, and lane-local move up/down fallback
+- Legacy embedded frontend preserved on `/legacy/` as the current rollback path
 
 ## Planned Direction
 - Go API + PostgreSQL remains the backend foundation
@@ -39,11 +40,11 @@ Create a local `.env` from `.env.example` and set:
 
 ### Run
 ```powershell
-go run .
+go run ./cmd/flux-board
 ```
 
 Open `http://localhost:8080`.
-If `web/dist` has been built, the Go server also exposes the React preview shell on `http://localhost:8080/next/` while keeping the embedded frontend on `/`.
+If `web/dist` has been built, the Go server serves the React runtime from `http://localhost:8080/`, keeps the embedded rollback shell at `http://localhost:8080/legacy/`, and redirects old `/next/*` preview URLs to the canonical root routes.
 
 Health probes for local or hosted verification:
 - `GET /healthz` returns `200` once the HTTP process is running
@@ -93,7 +94,7 @@ On macOS/Linux:
 
 These scripts now run install, typecheck, frontend unit tests, and production build for `web/`.
 
-Browser smoke for the current embedded frontend:
+Browser smoke for the canonical React runtime:
 ```powershell
 npm ci
 $env:FLUX_PASSWORD="your-password"
@@ -112,7 +113,7 @@ export PLAYWRIGHT_BROWSER=chromium
 These smoke scripts now build the Go app, start it locally, wait for `/readyz`, run the repo-owned Playwright smoke flow, keep logs under `test-results/`, and clean up the app process automatically.
 `PLAYWRIGHT_BROWSER` defaults to `chromium`; CI now also runs the same smoke path against `firefox` as the first non-Chromium browser gate.
 
-Preview-route smoke for the Go-served React shell:
+Compatibility-alias and rollback smoke for `/next/*` plus `/legacy/`:
 ```powershell
 ./scripts/verify-next-preview.ps1
 ```
@@ -122,7 +123,7 @@ On macOS/Linux:
 ./scripts/verify-next-preview.sh
 ```
 
-These scripts verify the `web/` scaffold, build `web/dist`, then run a dedicated Playwright smoke flow against `/next/login` and `/next/board` without replacing the legacy `/` runtime.
+These scripts verify the `web/` scaffold, build `web/dist`, then run a dedicated Playwright flow that starts from `/next/login`, confirms the compatibility redirect into the canonical runtime, and verifies that `/legacy/` still exposes the embedded rollback shell.
 
 For probe-based startup checks, use `http://127.0.0.1:8080/readyz` instead of relying on auth endpoints.
 Observed API and probe responses now include `X-Request-Id`, and the Go server logs matching request IDs with client, method, path, status, bytes, and duration for `/api/*`, `/healthz`, and `/readyz`.
@@ -142,23 +143,16 @@ On macOS/Linux:
 These scripts build a versionable binary artifact, emit a SHA-256 checksum, and then reuse that binary for the same smoke flow instead of rebuilding again. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the current release dry-run and rollback baseline.
 
 ## Repository Layout
-- [main.go](main.go): current backend entrypoint and API server
-- [app_bootstrap.go](app_bootstrap.go): app construction and bootstrap-only admin seeding
-- [app_runtime.go](app_runtime.go): background loops and shared runtime middleware helpers
-- [app_state.go](app_state.go): shared app state and cross-cutting runtime types
-- [health_http.go](health_http.go): unauthenticated liveness/readiness handlers
-- [auth_http.go](auth_http.go): auth/session HTTP handlers and middleware
-- [auth_cookie.go](auth_cookie.go): cookie helpers for login/logout transport logic
-- [auth_context.go](auth_context.go): shared auth context and client-IP helpers
-- [auth_runtime.go](auth_runtime.go): login throttling and token-generation runtime helpers
-- [auth_service.go](auth_service.go): auth/session persistence and audit helpers behind the transport layer
-- [web_preview.go](web_preview.go): Go-served `/next/` React preview route with SPA fallback for built `web/dist`
-- [http_helpers.go](http_helpers.go): shared JSON request/response helpers
-- [server_observability.go](server_observability.go): request-id and access-log middleware at the server boundary
-- [tasks_http.go](tasks_http.go): task and archive HTTP handlers
-- [task_service.go](task_service.go): task validation and service-layer orchestration for CRUD/reorder flows
-- [task_validation.go](task_validation.go): pure task validation and ID-normalization rules shared by the service seam
-- [static/index.html](static/index.html): current embedded frontend
+- [cmd/flux-board/main.go](cmd/flux-board/main.go): canonical backend entrypoint for local runs and future packaging
+- [main.go](main.go): transitional root shim that still assembles the same app for repo-local scripts
+- [internal/domain/](internal/domain): task and auth domain types, task validation rules, and repository contracts
+- [internal/store/postgres/](internal/store/postgres): PostgreSQL repositories, migrations, and maintenance helpers
+- [internal/service/task/service.go](internal/service/task/service.go) and [internal/service/auth/service.go](internal/service/auth/service.go): task/auth service orchestration and validation seams
+- [internal/transport/http/](internal/transport/http): HTTP handlers, mux/server assembly, cookies/context helpers, request decoding, root-runtime/rollback serving, and observability middleware
+- [app_bootstrap.go](app_bootstrap.go): root-level DB/app wiring helpers
+- [app_runtime.go](app_runtime.go): root-level background loop wiring and security-header middleware wrapper
+- [app_state.go](app_state.go): shared app state and dependency container used by the root shim/tests
+- [static/index.html](static/index.html): legacy embedded frontend kept as the rollback shell on `/legacy/`
 - [web/](web): isolated React + TypeScript + Vite scaffold for the future frontend rebuild
 - [web/src/lib/useBoardMutations.ts](web/src/lib/useBoardMutations.ts): React Query mutation layer for the isolated board shell
 - [scripts/verify-smoke.ps1](scripts/verify-smoke.ps1) and [scripts/verify-smoke.sh](scripts/verify-smoke.sh): repo-owned app startup, readiness, Playwright smoke, and cleanup orchestration
@@ -169,9 +163,9 @@ These scripts build a versionable binary artifact, emit a SHA-256 checksum, and 
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the current embedded frontend is repo-owned and CI-backed, and the isolated `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, basic focus continuity, and a Go-served `/next/` preview route, but the future React/Vite frontend is still not the production runtime owner
+- Browser smoke coverage for the canonical React runtime is repo-owned and CI-backed, and the `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, basic focus continuity, a rollback path on `/legacy/`, and `/next/*` compatibility redirects, but later W8/W9 interaction, browser-matrix, and release/observability work still remains
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
-- The current default user-facing runtime still depends on the embedded HTML shell on `/`; the React app now has a Go-served preview route on `/next/`, but it is not yet the production runtime owner
+- The current default user-facing runtime is now the React app on `/`; the old embedded HTML shell remains available on `/legacy/` for rollback while `/next/*` redirects into the canonical routes
 - Health/readiness probes and auth audit paths now expose a minimal request-id/access-log correlation baseline, but richer observability such as metrics, tracing, and structured logs remains for later W9 slices
 - Release governance now has a first dry-run and rollback baseline, but there is still no versioning/changelog policy or multi-platform release matrix
 
