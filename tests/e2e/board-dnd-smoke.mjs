@@ -208,11 +208,13 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
   }
 
   try {
+    if (browserName === "firefox") {
+      await dragWithDispatchedMouseEvents(page, sourceHandle, targetCard, source, requiresExtendedPointerPath);
+      return;
+    }
+
     await page.mouse.move(source.x, source.y);
     await page.mouse.down();
-    if (browserName === "firefox") {
-      await page.mouse.move(source.x, source.y + 16, { steps: 4 });
-    }
 
     const targetBox = await targetCard.boundingBox();
     assertStatus(targetBox != null, "Drag target should be visible.");
@@ -243,6 +245,69 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
       await removeTemporaryFirefoxSelectionGuard(page);
     }
   }
+}
+
+async function dragWithDispatchedMouseEvents(page, sourceHandle, targetCard, source, requiresExtendedPointerPath) {
+  const targetBox = await targetCard.boundingBox();
+  assertStatus(targetBox != null, "Drag target should be visible.");
+
+  const target =
+    requiresExtendedPointerPath
+      ? {
+          x: targetBox.x + targetBox.width / 2,
+          y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
+        }
+      : centerPoint(targetBox);
+  const midPoint = {
+    x: source.x + Math.max(16, Math.min(48, Math.abs(target.x - source.x) / 3)),
+    y: source.y + Math.max(16, Math.min(48, Math.abs(target.y - source.y) / 3)),
+  };
+  const points = [{ x: source.x, y: source.y + 16 }, midPoint, target];
+
+  await sourceHandle.evaluate((handle, point) => {
+    handle.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        buttons: 1,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        view: window,
+      })
+    );
+  }, source);
+
+  for (const point of points) {
+    await page.evaluate((step) => {
+      document.dispatchEvent(
+        new MouseEvent("mousemove", {
+          bubbles: true,
+          button: 0,
+          buttons: 1,
+          cancelable: true,
+          clientX: step.x,
+          clientY: step.y,
+          view: window,
+        })
+      );
+    }, point);
+    await page.waitForTimeout(16);
+  }
+
+  await page.evaluate((point) => {
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        button: 0,
+        buttons: 0,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        view: window,
+      })
+    );
+  }, target);
 }
 
 async function installTemporaryFirefoxSelectionGuard(page) {
