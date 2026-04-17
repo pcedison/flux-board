@@ -15,4 +15,4 @@ cleanup() {
 
 trap cleanup EXIT
 
-"$script_dir/verify-smoke.sh"
+sh "$script_dir/verify-smoke.sh"
