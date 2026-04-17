@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 timestamp=$(date +"%Y%m%d-%H%M%S")
 results_dir=${TEST_RESULTS_DIR:-"test-results/smoke/verify-smoke-$timestamp"}
 base_url=${BASE_URL:-"http://127.0.0.1:8080"}
@@ -21,6 +23,20 @@ stdout_log="$results_dir/server.stdout.log"
 stderr_log="$results_dir/server.stderr.log"
 server_pid=""
 
+ensure_web_dist() {
+  if [ "${VERIFY_SMOKE_WEB_BUILD:-1}" = "0" ]; then
+    echo "[prep] Skipping web build because VERIFY_SMOKE_WEB_BUILD=0"
+    return
+  fi
+
+  if [ -f "$repo_root/web/dist/index.html" ]; then
+    return
+  fi
+
+  echo "[prep] web/dist is missing; building the React runtime first"
+  sh "$script_dir/verify-web.sh"
+}
+
 show_server_logs() {
   for path in "$stdout_log" "$stderr_log"; do
     if [ -f "$path" ]; then
@@ -38,6 +54,8 @@ cleanup() {
 }
 
 trap cleanup EXIT INT TERM
+
+ensure_web_dist
 
 if [ "${VERIFY_SMOKE_BUILD:-1}" != "0" ]; then
   echo "[1/4] go build -o $app_binary ."

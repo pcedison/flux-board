@@ -40,6 +40,7 @@ $stdoutLog = Join-Path $resultsDir "server.stdout.log"
 $stderrLog = Join-Path $resultsDir "server.stderr.log"
 $readyAttempts = if ($env:SMOKE_READY_ATTEMPTS) { [int]$env:SMOKE_READY_ATTEMPTS } else { 60 }
 $readyDelaySeconds = if ($env:SMOKE_READY_DELAY_SECONDS) { [int]$env:SMOKE_READY_DELAY_SECONDS } else { 2 }
+$webDistIndex = Join-Path $root "web/dist/index.html"
 
 function Show-ServerLogs {
   foreach ($path in @($stdoutLog, $stderrLog)) {
@@ -62,6 +63,23 @@ function Invoke-GoBuildBinary {
   & go build -o $OutputPath .
   if ($LASTEXITCODE -ne 0) {
     throw "go build failed with exit code $LASTEXITCODE"
+  }
+}
+
+function Ensure-WebDist {
+  if ($env:VERIFY_SMOKE_WEB_BUILD -eq "0") {
+    Write-Host "[prep] Skipping web build because VERIFY_SMOKE_WEB_BUILD=0"
+    return
+  }
+
+  if (Test-Path $webDistIndex) {
+    return
+  }
+
+  Write-Host "[prep] web/dist is missing; building the React runtime first"
+  & (Join-Path $PSScriptRoot "verify-web.ps1")
+  if ($LASTEXITCODE -ne 0) {
+    throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
   }
 }
 
@@ -114,6 +132,7 @@ function Invoke-Smoke {
 $process = $null
 
 try {
+  Ensure-WebDist
   Invoke-GoBuildBinary -OutputPath $binaryPath
 
   Write-Host "[2/4] Start app $binaryPath"
