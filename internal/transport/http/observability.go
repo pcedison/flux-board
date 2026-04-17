@@ -110,7 +110,10 @@ func (o *Observability) Middleware(next stdhttp.Handler) stdhttp.Handler {
 		rec.Header().Set(RequestIDHeader, requestID)
 		next.ServeHTTP(rec, observedRequest)
 
-		route := normalizeObservedRoute(observedRequest)
+		route := rec.RoutePattern()
+		if route == "" {
+			route = normalizeObservedRoute(observedRequest)
+		}
 		status := strconv.Itoa(rec.StatusCode())
 		duration := time.Since(start)
 
@@ -155,16 +158,16 @@ func ShouldObserveRequest(path string) bool {
 }
 
 func normalizeObservedRoute(r *stdhttp.Request) string {
-	pattern := strings.TrimSpace(r.Pattern)
-	if pattern != "" {
-		if idx := strings.Index(pattern, " "); idx >= 0 {
-			pattern = strings.TrimSpace(pattern[idx+1:])
-		}
-		if pattern != "" {
-			return pattern
-		}
-	}
 	return r.URL.Path
+}
+
+func WithObservedRoute(pattern string, next stdhttp.Handler) stdhttp.Handler {
+	return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+		if recorder, ok := w.(interface{ SetRoutePattern(string) }); ok {
+			recorder.SetRoutePattern(pattern)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func newRequestID() string {
@@ -213,8 +216,9 @@ func registerHistogramVec(registry *prometheus.Registry, collector *prometheus.H
 
 type statusRecorder struct {
 	stdhttp.ResponseWriter
-	status int
-	bytes  int
+	status       int
+	bytes        int
+	routePattern string
 }
 
 func (r *statusRecorder) WriteHeader(statusCode int) {
@@ -240,4 +244,19 @@ func (r *statusRecorder) StatusCode() int {
 
 func (r *statusRecorder) BytesWritten() int {
 	return r.bytes
+}
+
+func (r *statusRecorder) SetRoutePattern(pattern string) {
+	r.routePattern = strings.TrimSpace(pattern)
+}
+
+func (r *statusRecorder) RoutePattern() string {
+	pattern := strings.TrimSpace(r.routePattern)
+	if pattern == "" {
+		return ""
+	}
+	if idx := strings.Index(pattern, " "); idx >= 0 {
+		pattern = strings.TrimSpace(pattern[idx+1:])
+	}
+	return pattern
 }
