@@ -23,26 +23,26 @@
 
 ### 目前狀態快照
 - `W0-W1`：`artifact-complete`
-- `W2-W8`：`locally-verified`
+- `W2-W8`：`remote-closed`
 - `W9`：`in_progress`
 
 ### W6–W9 現況
 
 **W6 — Go 模組化**
 - 已完成：`internal/domain`、`internal/store/postgres`、`internal/service`、`internal/transport/http`、`cmd/flux-board`，以及 root `main` 的薄 shim 化
-- 目前狀態：`locally-verified`
-- 最終關門還差：記錄 exact current head 的 fresh GitHub Actions 綠燈
+- 目前狀態：`remote-closed`
+- 關門證據：exact head `6a4b323`，GitHub Actions run `24549627392`
 
 **W7 — 前端基礎**
 - 已完成：React + TypeScript + Vite scaffold（`web/`）、React Router、TanStack Query、auth-aware 路由、typed mutation（建立/移動/封存/還原）、三欄看板元件化、`/` React runtime takeover、`/legacy/` 回滾路徑、`/next/*` 相容轉址
-- 目前狀態：`locally-verified`
-- 最終關門還差：push 後觀察新的 GitHub Actions 綠燈，並把 exact-head 證據記錄到 `MASTER_PLAN`
+- 目前狀態：`remote-closed`
+- 關門證據：exact head `6a4b323`，GitHub Actions run `24549627392`
 
 **W8 — Trello 級 UX**
 - 已完成：非拖曳建立/移動/封存/還原、Lane 內上移/下移、焦點連續性、44px 觸控目標、a11y 語意
 - 已完成補充：`3-A` same-lane pointer-first `dnd-kit` 漸進增強、`3-B` mobile-first layout、`3-C` keyboard/focus/a11y、viewport-aware smoke、drag smoke、keyboard smoke
-- 目前狀態：`locally-verified`
-- 最終關門還差：記錄 exact current head 與新 smoke lanes 的 fresh remote CI
+- 目前狀態：`remote-closed`
+- 關門證據：exact head `6a4b323`，GitHub Actions run `24549627392`
 
 **W9 — 品質閘門**
 - 已完成：Go/web/race 驗證、Chromium + Firefox 煙霧測試、release dry-run 基線、request-id/access-log、健康探針
@@ -436,9 +436,9 @@ W9 版本策略/Release 治理 — 封閉所有 Wave 的最終前提
 
 | Wave | 目前狀態 | 最終完成標準 |
 |---|---|---|
-| W6 | `locally-verified` | exact current head 的 GitHub Actions 證據已記錄在 `MASTER_PLAN` |
-| W7 | `locally-verified` | exact current head 的 root runtime takeover CI run 已觀察並記錄 |
-| W8 | `locally-verified` | exact current head 的 `dnd_smoke`、`keyboard_smoke`、root smoke、preview smoke CI 均為綠色且證據已記錄 |
+| W6 | `remote-closed` | 已由 exact head `6a4b323` 的 GitHub Actions run `24549627392` 關門 |
+| W7 | `remote-closed` | 已由 exact head `6a4b323` 的 GitHub Actions run `24549627392` 關門 |
+| W8 | `remote-closed` | 已由 exact head `6a4b323` 的 GitHub Actions run `24549627392` 關門 |
 | W9 | `in_progress` | 完成 observability / release / browser-matrix scope，並記錄 exact current head 的完整 workflow 綠燈 |
 
 ---
@@ -589,6 +589,6 @@ docs/
 
 ## Current Verification Note
 - `W0-W1` 已達各自的最終完成標準：`artifact-complete`。
-- `W2-W8` 已有本地驗證證據，但最終仍要以 `remote-closed` 為準。
-- `W6-W8` 近期已重新審核並再次完成本地驗證。
+- `W2-W8` 已在 exact head `6a4b323` 上取得 `remote-closed`，對應 GitHub Actions run `24549627392`。
+- 這次 remote closure 的最終矩陣包含 `verify`、`smoke`、`preview_smoke`、`dnd_smoke`、`keyboard_smoke` 的雙瀏覽器綠燈。
 - Windows 上不要把 `go test ./...` 和 `npm ci` 並行執行；掃描 `web/node_modules` 可能短暫失敗。

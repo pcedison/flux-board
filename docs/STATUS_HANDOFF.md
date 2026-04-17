@@ -20,12 +20,10 @@ Then read in this order:
 
 ## Current Acceptance Snapshot
 - `W0-W1`：`artifact-complete`
-- `W2-W8`：`locally-verified`
+- `W2-W8`：`remote-closed`
 - `W9`：`in_progress`
-- 最新、最強的本地證據集中在 `W7-W8`：React runtime 已接管 `/`，`/legacy/` 保留回滾，drag/mobile/keyboard slices 都已本地驗證通過。
-- 目前最大的剩餘缺口只有兩件事：
-  - `W2-W8` 還缺 exact current head 的 fresh GitHub Actions 綠燈紀錄
-  - `W9` 的 observability、release、browser-matrix scope 仍未完成
+- `W2-W8` 已在 exact head `6a4b323` 上取得 fresh GitHub Actions 關門證據。
+- 目前唯一剩下的主缺口是 `W9` 的 observability、release、browser-matrix scope。
 
 ## Evidence Snapshot
 - 已通過的本地驗證：
@@ -40,28 +38,35 @@ Then read in this order:
   - canonical React runtime on `/login -> /board` in `chromium` and `firefox`
   - `/next/login` compatibility redirect plus `/legacy/` rollback path in `chromium` and `firefox`
   - W8 drag / mobile / keyboard smoke matrix
-- 目前仍不能把 `W2-W8` 寫成最終完成，因為文件裡還沒有 exact current head 的 fresh remote CI 關門證據。
-- Windows 注意事項：不要把 `go test ./...` 和 `npm ci` 並行執行；掃描 `web/node_modules` 可能在 Windows 上短暫失敗。
-- 最新觀察到的 remote CI：
-  - GitHub Actions run `24516178553`
+- exact-head remote CI 關門證據：
+  - commit `6a4b323`
+  - GitHub Actions run `24549627392`
   - `verify`: success
   - `smoke (chromium)`: success
   - `smoke (firefox)`: success
-  - `preview_smoke`: success
-  - 但這個 run 早於 root-runtime takeover，不能拿來當 `W7-W8` 的最終關門證據
+  - `preview_smoke (chromium)`: success
+  - `preview_smoke (firefox)`: success
+  - `dnd_smoke (chromium)`: success
+  - `dnd_smoke (firefox)`: success
+  - `keyboard_smoke (chromium)`: success
+  - `keyboard_smoke (firefox)`: success
+- Windows 注意事項：不要把 `go test ./...` 和 `npm ci` 並行執行；掃描 `web/node_modules` 可能在 Windows 上短暫失敗。
+- remote closure note:
+  - run `24549405375` first exposed two CI integration gaps: shell wrappers calling `verify-smoke.sh` without `sh`, and smoke lanes assuming `web/dist` already existed
+  - follow-up commit `6a4b323` fixed those gaps, and run `24549627392` closed `W2-W8`
 
 ## Wave Status
 | Wave | Current status | Evidence | Final closure |
 |---|---|---|---|
 | `W0` | `artifact-complete` | baseline audit, blocker map, and architecture snapshot are documented | already at its final review-based closure |
 | `W1` | `artifact-complete` | public-fork docs, onboarding, and repo hygiene are documented | already at its final review-based closure |
-| `W2` | `locally-verified` | repo-owned verification scripts and historical CI baseline exist | record fresh remote CI for the exact current head |
-| `W3` | `locally-verified` | server hardening baseline exists and local verification is available | record fresh remote CI for the exact current head |
-| `W4` | `locally-verified` | single-admin auth/session baseline exists with local proof | record fresh remote CI for the exact current head |
-| `W5` | `locally-verified` | migrations, reorder correctness, and archive/restore behavior have local proof | record fresh remote CI for the exact current head |
-| `W6` | `locally-verified` | internal package boundaries and `cmd/flux-board` exist and were locally re-verified | record fresh remote CI for the exact current head |
-| `W7` | `locally-verified` | React runtime owns `/`, `/legacy/` is the rollback shell, and `/next/*` redirects remain for compatibility | record fresh remote CI for the root-runtime takeover head |
-| `W8` | `locally-verified` | same-lane drag, mobile-first layout, keyboard/focus polish, axe checks, and browser smoke are locally green | record fresh remote CI for the exact head with `dnd_smoke` and `keyboard_smoke` |
+| `W2` | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| `W3` | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| `W4` | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| `W5` | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| `W6` | `remote-closed` | internal package boundaries and `cmd/flux-board` are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
+| `W7` | `remote-closed` | React runtime ownership on `/`, `/legacy/` rollback, and `/next/*` compatibility are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
+| `W8` | `remote-closed` | drag/mobile/keyboard/a11y plus `dnd_smoke` and `keyboard_smoke` are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
 | `W9` | `in_progress` | strong local and partial CI baseline already exist | finish observability/release/browser-matrix scope, then close with fresh remote CI |
 
 ## Main Development Hard Points
@@ -72,11 +77,11 @@ Then read in this order:
 - `Deep modularization for the planned W6 scope is complete`
   - root `main` is now compatibility-focused wiring plus thin wrappers
   - future work can extend the extracted seams instead of reopening the root package
-- `Frontend runtime takeover is now landed locally but still needs remote proof`
+- `Frontend runtime takeover is now remote-closed for the current head`
   - React is now Go-served on `/`
   - `/legacy/` remains the emergency rollback path
   - the next real risk is not ownership itself, but avoiding regressions while W8 `3-C` keyboard/focus work finishes
-- `W8 is now locally complete`
+- `W8 is now remote-closed`
   - same-lane pointer-first drag reorder is now in place and locally verified
   - mobile-first layout is now in place and locally verified
   - keyboard/focus polish plus explicit a11y checks are now in place and locally verified
@@ -104,10 +109,6 @@ Then read in this order:
 
 ## Current Blockers and Non-Blockers
 ### Current blockers for `remote-closed` status
-- `W2-W8`
-  - a fresh GitHub Actions run for the exact current head has not yet been recorded in the docs
-- `W7-W8`
-  - this matters most here because the runtime takeover plus new drag/keyboard smoke lanes are the newest local-only changes
 - `W9`
   - the wave is still functionally incomplete, so remote closure is not yet the main problem
 
@@ -134,17 +135,17 @@ This is intentionally slower than MVP-style iteration, but it is much safer for 
    - add observability slices
    - add release-governance slices
    - widen browser matrix only when the runtime path is stable enough
-2. promote `W2-W8` from `locally-verified` toward `remote-closed`
-   - push the current head
-   - observe fresh GitHub Actions proof
-   - record the run evidence in `MASTER_PLAN`
+2. keep the `W2-W8` closure evidence aligned in docs
+   - use exact head `6a4b323`
+   - use GitHub Actions run `24549627392`
+   - avoid regressing the recorded remote-closed state while `W9` moves forward
 
 ### Likely next concrete work items
-- `W9`: observe fresh remote CI after the new `dnd_smoke` and `keyboard_smoke` lanes are pushed
+- `W9`: keep future CI changes aligned with the recorded `W2-W8` closure evidence on head `6a4b323`
 - `W9`: add a first metrics or richer structured logging slice
 
 ## What Not To Do Next
-- do not remove `/legacy/` or `/next/*` compatibility coverage before the new root-runtime CI path is observed green
+- do not remove `/legacy/` or `/next/*` compatibility coverage without replacing the currently recorded root-runtime rollback proof
 - do not reopen `W0-W5` unless a real regression appears
 - do not introduce drag-and-drop as the only move path
 - do not claim public-production-ready release governance yet

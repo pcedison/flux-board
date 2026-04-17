@@ -44,13 +44,13 @@
 |---|---|---|---|---|
 | W0 | Baseline Audit | `artifact-complete` | risk map, blocker baseline, and architecture snapshot are documented | already at its final review-based closure |
 | W1 | Public Fork Baseline | `artifact-complete` | public-fork docs, onboarding, and repo hygiene are documented | already at its final review-based closure |
-| W2 | CI and Reproducibility | `locally-verified` | repo-owned verification scripts and historical CI baseline exist | record fresh remote CI for the exact current head |
-| W3 | Server Security Hardening | `locally-verified` | hardening baseline exists and local verification is available | record fresh remote CI for the exact current head |
-| W4 | Auth and Session Redesign | `locally-verified` | single-admin auth/session baseline exists with local proof | record fresh remote CI for the exact current head |
-| W5 | Schema and Data Integrity | `locally-verified` | migrations, reorder correctness, and archive/restore behavior have local proof | record fresh remote CI for the exact current head |
-| W6 | Go Modularization | `locally-verified` | internal domain/store/service/transport packages and `cmd/flux-board` were locally re-verified | record fresh remote CI for the exact current head |
-| W7 | Frontend Foundation | `locally-verified` | React runtime owns `/`, `/legacy/` is the rollback shell, and `/next/*` redirects remain for compatibility | record fresh remote CI for the root-runtime takeover head |
-| W8 | Trello-grade UX, RWD, A11y | `locally-verified` | drag/mobile/keyboard/a11y slices are locally green and have browser proof | record fresh remote CI for the exact head with `dnd_smoke` and `keyboard_smoke` |
+| W2 | CI and Reproducibility | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| W3 | Server Security Hardening | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| W4 | Auth and Session Redesign | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| W5 | Schema and Data Integrity | `remote-closed` | exact head `6a4b323` is closed by run `24549627392` | already closed on the current exact-head CI proof |
+| W6 | Go Modularization | `remote-closed` | internal domain/store/service/transport packages and `cmd/flux-board` are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
+| W7 | Frontend Foundation | `remote-closed` | root runtime takeover, `/legacy/` rollback, and `/next/*` compatibility are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
+| W8 | Trello-grade UX, RWD, A11y | `remote-closed` | drag/mobile/keyboard/a11y plus `dnd_smoke` and `keyboard_smoke` are closed by run `24549627392` on exact head `6a4b323` | already closed on the current exact-head CI proof |
 | W9 | Quality Gates, Release, Enterprise Hooks | `in_progress` | strong partial CI/local baseline exists | finish observability/release/browser-matrix scope, then close with fresh remote CI |
 
 ## W0 Baseline Audit
@@ -89,7 +89,7 @@
 - Tasks: add Go build/test/vet, frontend build/typecheck/lint, basic smoke checks, deterministic setup steps.
 - Gate: CI is green on a clean environment and failures are diagnosable.
 - Parallel lanes: CI workflow, local dev scripts, smoke test setup.
-- Current status: locally-verified for the current embedded-frontend scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - broader frontend build/typecheck/lint remains deferred until the React/Vite waves
 - Corrected gate checklist:
@@ -106,7 +106,7 @@
 - Tasks: add timeouts, graceful shutdown, request size limits, strict JSON decoding, security headers, rate limiting, unified error envelopes.
 - Gate: no bare `ListenAndServe`, no unlimited request bodies, no missing baseline security headers.
 - Parallel lanes: HTTP middleware, validation layer, security verification.
-- Current status: locally-verified for the current wave scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - stronger distributed abuse control is deferred beyond this wave
 - Corrected gate checklist:
@@ -122,7 +122,7 @@
 - Tasks: design `users` and `sessions`, implement secure login/logout/me, add throttling/lockout, add session revocation and audit trail.
 - Gate: shared-password-only production auth is removed as the default path.
 - Parallel lanes: auth domain, session store, audit design.
-- Current status: locally-verified for the current single-admin baseline scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - multi-user auth, username-based login, richer session revocation, and OIDC remain deferred to later waves
 - Corrected gate checklist:
@@ -140,7 +140,7 @@
 - Tasks: add versioned migrations, enforce FK/CHECK/indexes, move reorder to transactional batch updates, verify archive/restore correctness.
 - Gate: schema changes are reproducible and board ordering remains correct after reload and concurrent writes.
 - Parallel lanes: migration setup, DB constraints, reorder API.
-- Current status: locally-verified for the current single-board scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - broader multi-board/domain normalization remains deferred to later waves
 - Corrected gate checklist:
@@ -156,7 +156,7 @@
 - Tasks: shrink `main.go` to assembly, separate HTTP/service/repo layers, extract pure logic, add dependency boundaries and test seams.
 - Gate: core logic is no longer trapped in `main.go` and can be unit-tested.
 - Parallel lanes: handler split, service split, repo abstraction.
-- Current status: locally-verified for the planned W6 scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - root `main` remains as a compatibility shim because repo-owned scripts still build `.` during the transition
   - later waves may still refine layering ergonomics, but W6's planned package boundaries are now in place
@@ -177,16 +177,16 @@
 - Tasks: create React + TypeScript + Vite app, add React Router, TanStack Query, app shell, tokenized style system, auth guard and base pages.
 - Gate: new frontend can build, typecheck, and communicate with the Go API.
 - Parallel lanes: design system, API layer, shell and routing.
-- Current status: locally-verified for the planned W7 feature/runtime scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - the new `web/` app now builds, typechecks, runs a broader Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, has auth-aware `/login` plus guarded `/board` routes, exercises create/move/archive/restore mutations in the isolated shell, and now serves as the canonical runtime on `/` after `web/dist` is built
   - the isolated board is now split into lane/card/composer/archive/status components under `web/src/components/board`, keeps mutation ownership scoped to the active card/form/archive row, restores focus after create/move success, and uses a path-aware router basename plus relative asset base so the same build can support `/`, `/legacy/`, and `/next/*` compatibility behavior without a separate bundle
-  - the remaining W7 closure item is fresh remote CI proof for the new root-runtime ownership slice; feature/runtime work for the planned wave scope is otherwise locally complete and re-audited
+  - no feature-scope or acceptance-scope gap remains inside W7 for the recorded exact head closure
 - Corrected gate checklist:
   - `web/` has a tracked React + TypeScript + Vite scaffold
   - routing, typed API reads, typed task mutations, and a query layer exist for the current isolated-shell scope
   - the scaffold has a responsive shell and can build/typecheck/test in CI and locally
-  - W8 runtime, drag, mobile, and keyboard/a11y slices are locally verified; the remaining strict-acceptance gap is fresh remote CI proof for the exact current head
+  - W8 runtime, drag, mobile, and keyboard/a11y slices are included in the exact-head remote closure evidence recorded above
 
 ## W8 Trello-grade UX, RWD, and Accessibility
 - Goal: deliver rich board interactions that work on desktop, tablet, and mobile.
@@ -194,10 +194,10 @@
 - Tasks: implement CRUD UI, drag-and-drop as progressive enhancement, touch fallback, keyboard move controls, dialog/menu focus management, 44px targets, browser matrix checks.
 - Gate: core board movement works via mouse, touch, and keyboard; mobile and tablet are first-class; drag-and-drop is not the only path.
 - Parallel lanes: board UI, drag/drop, RWD, a11y verification.
-- Current status: locally-verified for the current documented scope.
+- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
   - no feature-scope gap remains inside W8 itself
-  - the remaining strict-acceptance gap is fresh remote CI proof for the exact current head and the new `dnd_smoke` / `keyboard_smoke` lanes
+  - no additional acceptance-scope gap remains inside W8 for the recorded exact head closure
 - Corrected gate checklist:
   - a non-drag movement path now exists in the isolated React board
   - drag-and-drop now exists as a same-lane, pointer-first progressive enhancement while button fallback remains intact
@@ -355,3 +355,5 @@
 - 2026-04-17 | W8 / Slice 3-C keyboard/focus polish, a11y verification, and keyboard smoke | done | Closed the final W8 slice with roving tabindex navigation, keyboard-focused card movement, focus restoration, axe coverage, and a dedicated board keyboard smoke lane; fixed a stale PostgreSQL bootstrap password in a reused smoke DB and updated the drag/keyboard smoke wrappers to force and restore `SMOKE_SCRIPT` so sequential runs stay isolated | W8 is now locally complete for the current documented scope, and CI now has matching keyboard smoke coverage alongside the existing drag lane | Next: move to W9 observability, release governance, and broader browser matrix work | Risk: fresh remote CI proof for the runtime takeover slice is still a separate confirmation step if desired
 - 2026-04-17 | W0-W9 / Strict acceptance taxonomy rewrite | artifact-complete | Rewrote `STATUS_HANDOFF`, `MASTER_PLAN`, and `AGENT_WORK_PLAN` so wave closure is now expressed through `artifact-complete`, `locally-verified`, and `remote-closed` instead of overloading `done` | The project now has an explicit acceptance model: `W0-W1` are `artifact-complete`, `W2-W8` are `locally-verified`, and only a fresh GitHub Actions run on the exact current head can promote a wave to `remote-closed` | Next: push the current head, observe fresh remote CI, and record the evidence needed to start promoting `W2-W8` beyond local verification | Risk: historical execution-log entries still use pre-normalization `done` wording and must be interpreted through the new wave tables rather than read literally
 - 2026-04-17 | W0-W9 / Acceptance docs simplification | artifact-complete | Simplified the top-level handoff language so `STATUS_HANDOFF`, `MASTER_PLAN`, and `AGENT_WORK_PLAN` now present one direct rule: `W0-W1` finish at `artifact-complete`, `W2-W9` finish at `remote-closed`, and `locally-verified` is transitional local proof only | The handoff docs now describe current state and final closure without the earlier dual-dimension wording, which makes wave status easier to read during resume and review | Next: keep using the simplified rule when updating wave status, then record fresh remote CI evidence before promoting any implementation wave to final closure | Risk: historical package and execution-log entries still contain older wording and must continue to be interpreted through the simplified wave tables
+- 2026-04-17 | W2-W8 / First exact-head remote closure attempt | blocked | Pushed exact head `cac1818` and observed GitHub Actions run `24549405375`, which surfaced two CI integration gaps: shell wrappers invoking `verify-smoke.sh` without `sh`, and smoke lanes assuming `web/dist` already existed | The first exact-head closure attempt provided actionable failure evidence instead of silent flake; no product regressions were found in the runtime itself | Next: patch the smoke wrappers and make `verify-smoke` build `web/dist` when missing, then rerun fresh CI | Risk: until the follow-up head is green, W2-W8 remain only locally verified
+- 2026-04-17 | W2-W8 / Exact-head remote closure | remote-closed | Pushed follow-up commit `6a4b323` and observed GitHub Actions run `24549627392` succeed for `verify`, `smoke (chromium/firefox)`, `preview_smoke (chromium/firefox)`, `dnd_smoke (chromium/firefox)`, and `keyboard_smoke (chromium/firefox)` | W2-W8 are now remote-closed for the current exact head; the runtime takeover, rollback path, drag smoke, and keyboard smoke all have fresh GitHub Actions proof recorded in the docs | Next: move the mainline back to W9 observability, release governance, and broader browser/release closure work without regressing the recorded W2-W8 proof | Risk: W9 remains open, and future runtime changes must preserve the exact-head closure discipline instead of relying on this run indefinitely
