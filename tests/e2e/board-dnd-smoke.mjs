@@ -200,9 +200,10 @@ async function dragPointerToTarget(page, sourceLocator, targetLocator) {
   assertStatus(sourceBox != null, "Drag source should be visible.");
   assertStatus(targetBox != null, "Drag target should be visible.");
 
+  const requiresExtendedPointerPath = browserName === "firefox" || browserName === "webkit";
   const source = centerPoint(sourceBox);
   const target =
-    browserName === "webkit"
+    requiresExtendedPointerPath
       ? {
           x: targetBox.x + targetBox.width / 2,
           y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
@@ -216,7 +217,7 @@ async function dragPointerToTarget(page, sourceLocator, targetLocator) {
   await sourceLocator.hover();
   await page.mouse.move(source.x, source.y);
   await page.mouse.down();
-  if (browserName === "webkit") {
+  if (requiresExtendedPointerPath) {
     await page.mouse.move(source.x, source.y + 20, { steps: 4 });
     await page.waitForTimeout(75);
     await page.mouse.move(midPoint.x, midPoint.y, { steps: 8 });
