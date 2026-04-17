@@ -215,6 +215,9 @@ async function dragPointerToTarget(page, sourceLocator, targetLocator) {
   };
 
   await sourceLocator.hover();
+  if (browserName === "firefox") {
+    await installTemporaryFirefoxSelectionGuard(page);
+  }
   await page.mouse.move(source.x, source.y);
   await page.mouse.down();
   if (requiresExtendedPointerPath) {
@@ -228,6 +231,36 @@ async function dragPointerToTarget(page, sourceLocator, targetLocator) {
     await page.mouse.move(target.x, target.y, { steps: 12 });
   }
   await page.mouse.up();
+  if (browserName === "firefox") {
+    await removeTemporaryFirefoxSelectionGuard(page);
+  }
+}
+
+async function installTemporaryFirefoxSelectionGuard(page) {
+  await page.evaluate(() => {
+    if (document.getElementById("smoke-firefox-selection-guard")) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "smoke-firefox-selection-guard";
+    style.textContent = `
+      html,
+      body,
+      .board-grid,
+      .board-grid * {
+        user-select: none !important;
+        -moz-user-select: none !important;
+      }
+    `;
+    document.head.append(style);
+  });
+}
+
+async function removeTemporaryFirefoxSelectionGuard(page) {
+  await page.evaluate(() => {
+    document.getElementById("smoke-firefox-selection-guard")?.remove();
+  });
 }
 
 function centerPoint(box) {
