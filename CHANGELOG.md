@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Future work can build on the current observability, release, and extension seams
   without reopening the initial public-fork baseline.
 
+## [0.1.2] - 2026-04-17
+
+### Fixed
+
+- Upgraded the OpenTelemetry dependency set to a non-vulnerable release so the
+  current tracing path no longer trips `govulncheck` on the exact release head.
+- Added a repo-owned container build path for hosted platforms such as Zeabur so
+  the Go binary, migrations, legacy rollback assets, and `web/dist` runtime are
+  built and shipped together instead of depending on platform-specific guesswork.
+
+### Changed
+
+- Raised the documented and CI-backed Go baseline to `1.24` to match the
+  dependency graph required by the current observability stack.
+- Clarified deployment and repository docs so hosted environments use the Docker
+  image path when they need the canonical React runtime on `/`.
+
 ## [0.1.1] - 2026-04-17
 
 ### Fixed

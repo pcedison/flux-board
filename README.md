@@ -25,7 +25,7 @@ Flux Board is a Go + PostgreSQL task board that is currently being upgraded from
 
 ## Local Development
 ### Requirements
-- Go `1.22+`
+- Go `1.24+`
 - PostgreSQL
 - Node.js `20.19+` or `22.12+` if you want to run the `web/` scaffold or browser smoke tooling
 - On Windows, local `go test -race` also needs a C toolchain such as `MSYS2 UCRT64 GCC`
@@ -56,7 +56,7 @@ Current deployment assumptions for the Go binary are:
 - `APP_ENV=development` only for local HTTP testing; hosted environments should use production defaults
 - `PORT` is supplied by the platform or defaults to `8080`
 
-This is still a transition-stage deployment model. It is suitable for development or restricted environments, not yet for open public production use.
+Hosted deployments that need the canonical React runtime on `/` should use the repo-root `Dockerfile`, because it builds `web/dist` and ships it with the Go binary, migrations, and rollback assets in one image. Platform-native Go builds that skip the frontend step will leave the React runtime unavailable at `/`.
 
 ### Verify
 ```powershell
@@ -162,11 +162,11 @@ These scripts build a versionable binary artifact, emit a SHA-256 checksum, and 
 ## Known Current Limitations
 - Current auth model is now a safer single-admin baseline with DB-backed sessions and audit logging, but it is not yet a multi-user or OIDC-backed auth model
 - The current migration baseline and reorder integrity path are in place for the embedded single-board model, but broader schema/domain normalization remains for later waves
-- Browser smoke coverage for the canonical React runtime is repo-owned and CI-backed, and the `web/` scaffold now has build/typecheck/unit tests, scoped non-drag board mutations, basic focus continuity, a rollback path on `/legacy/`, and `/next/*` compatibility redirects, but later W8/W9 interaction, browser-matrix, and release/observability work still remains
+- Browser smoke coverage for the canonical React runtime is repo-owned and CI-backed across `chromium`, `firefox`, and `webkit`, and the `web/` scaffold has build/typecheck/unit tests plus dedicated drag and keyboard smoke lanes
 - Automated backend verification is still light and currently centered on Go checks plus focused unit tests
 - The current default user-facing runtime is now the React app on `/`; the old embedded HTML shell remains available on `/legacy/` for rollback while `/next/*` redirects into the canonical routes
-- Health/readiness probes and auth audit paths now expose a minimal request-id/access-log correlation baseline, but richer observability such as metrics, tracing, and structured logs remains for later W9 slices
-- Release governance now has a first dry-run and rollback baseline, but there is still no versioning/changelog policy or multi-platform release matrix
+- Observability now includes structured `slog` request logging, request-id correlation, Prometheus metrics on `/metrics`, and an optional OTLP tracing seam, but production dashboards/alerts are still deployment-specific work
+- Release governance now has `VERSION`, `CHANGELOG.md`, cross-platform GitHub Releases, and checksum publication, but public internet production hardening still needs operator-owned secrets, reverse-proxy policy, and service-level monitoring
 
 ## Governance Docs
 - [CONTRIBUTING.md](CONTRIBUTING.md)

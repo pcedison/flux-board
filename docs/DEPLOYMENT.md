@@ -8,6 +8,7 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 - `APP_PASSWORD`: first-run bootstrap admin seed
 - `APP_ENV`: use `development` only for local HTTP testing
 - `PORT`: bind port for the Go server
+- `APP_VERSION`: optional runtime version label for logs/traces; release automation can set this to the matching `VERSION`
 
 ## Runtime Shape
 - one Go binary serves API routes, the canonical React runtime on `/`, and the legacy rollback shell on `/legacy/`
@@ -21,6 +22,8 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 - the app should run behind a trusted reverse proxy in hosted environments
 - if proxy headers are passed through, the proxy must be the sole writer of `X-Forwarded-For` and `X-Real-IP`
 - public internet deployment should still be treated as restricted or development-stage until later waves close
+- hosted platforms that auto-detect a plain Go build should prefer the repo-root `Dockerfile`, because the canonical `/` runtime depends on `web/dist` being built and shipped with the binary
+- for Zeabur specifically, point the service at the repository root so it uses the `Dockerfile`, then provide `DATABASE_URL`, `APP_PASSWORD`, and any desired `APP_VERSION`/`OTEL_EXPORTER_OTLP_ENDPOINT` values through the platform env UI
 
 ## Enterprise Deployment Seams
 - These seams are documentation only for `W9/5-B`; the current runtime does not yet enable RBAC, SSO, SCIM, or multi-workspace routing.
@@ -35,6 +38,7 @@ Flux Board is still in a transition phase between MVP and public-fork-ready base
 3. confirm `/healthz` returns `200` once the process is serving HTTP
 4. confirm `/readyz` returns `200` once the app can reach PostgreSQL
 5. confirm `/api/auth/me` returns `401` before login and `200` after login
+6. confirm `/metrics` returns Prometheus text output when observability scraping is expected
 
 ## Release Dry Run
 Use the repo-owned release dry-run scripts before treating a build as publishable:
@@ -77,4 +81,4 @@ If rollback fails any readiness or smoke step, keep the app out of rotation and 
 - no final multi-board/domain migration strategy yet beyond the current baseline
 - no multi-user auth model yet
 - no production SSO, SCIM, or workspace-aware routing yet
-- no final W8/W9 polish beyond the current runtime takeover baseline
+- no operator-owned dashboard/alert bundle is shipped in-repo; hosted monitoring remains deployment-specific
