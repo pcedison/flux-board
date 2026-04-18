@@ -27,11 +27,13 @@ var RequiredSchemaObjects = []string{
 	"users",
 	"sessions",
 	"auth_audit_logs",
+	"app_settings",
 	"idx_tasks_status_sort_order",
 	"idx_archived_tasks_archived_at",
 	"idx_sessions_expires_at",
 	"idx_sessions_username",
 	"idx_auth_audit_logs_created_at",
+	"idx_auth_audit_logs_request_id",
 }
 
 var RequiredSchemaConstraints = []string{
@@ -71,7 +73,7 @@ func InitializeSchema(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, 
 		tracing.RecordError(span, err)
 		return err
 	}
-	if err := NewAuthRepository(db).EnsureBootstrapAdmin(ctx, bootstrapUsername, bootstrapPassword); err != nil {
+	if err := NewAuthRepository(db).EnsureBootstrapAdmin(ctx, bootstrapUsername, strings.TrimSpace(bootstrapPassword)); err != nil {
 		tracing.RecordError(span, err)
 		return err
 	}
@@ -168,7 +170,7 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 			return fmt.Errorf("begin migration %s: %w", entry, err)
 		}
 		if _, err := tx.Exec(ctx, string(sqlBytes)); err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			tracing.RecordError(span, err)
 			return fmt.Errorf("apply migration %s: %w", entry, err)
 		}
@@ -178,7 +180,7 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 			checksum,
 			time.Now().UnixMilli(),
 		); err != nil {
-			tx.Rollback(ctx)
+			_ = tx.Rollback(ctx)
 			tracing.RecordError(span, err)
 			return fmt.Errorf("record migration %s: %w", entry, err)
 		}
@@ -195,7 +197,7 @@ func RunMigrations(ctx context.Context, db *pgxpool.Pool, migrationFS fs.FS, mig
 	return nil
 }
 
-func CleanupArchivedTasks(ctx context.Context, db *pgxpool.Pool, archiveRetention time.Duration) error {
+func CleanupArchivedTasks(ctx context.Context, db *pgxpool.Pool) error {
 	ctx, span := tracing.StartClientSpan(ctx, postgresTracerScope, "postgres.cleanup_archived_tasks",
 		attribute.String("db.system", "postgresql"),
 		attribute.String("db.operation", "DELETE"),
@@ -203,8 +205,17 @@ func CleanupArchivedTasks(ctx context.Context, db *pgxpool.Pool, archiveRetentio
 	)
 	defer span.End()
 
-	cutoff := time.Now().Add(-archiveRetention).UnixMilli()
-	_, err := db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff)
+	retentionDays, err := lookupArchiveRetentionDays(ctx, db)
+	if err != nil {
+		tracing.RecordError(span, err)
+		return err
+	}
+	if retentionDays == nil {
+		return nil
+	}
+
+	cutoff := time.Now().Add(-time.Duration(*retentionDays) * 24 * time.Hour).UnixMilli()
+	_, err = db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff)
 	if err != nil {
 		tracing.RecordError(span, err)
 	}

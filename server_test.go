@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"flux-board/internal/domain"
+	authservice "flux-board/internal/service/auth"
+	settingsservice "flux-board/internal/service/settings"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -17,6 +21,7 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 		passwordVerifier: func(context.Context, string) (bool, error) {
 			return false, nil
 		},
+		settingsSvc: fakeSettingsService{},
 		readinessChecker: func(context.Context) error {
 			return nil
 		},
@@ -53,6 +58,12 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 			name:       "metrics route",
 			method:     http.MethodGet,
 			target:     "/metrics",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "status route",
+			method:     http.MethodGet,
+			target:     "/api/status",
 			wantStatus: http.StatusOK,
 		},
 		{
@@ -96,6 +107,44 @@ func TestNewMuxRegistersCoreRoutes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakeSettingsService struct{}
+
+func (fakeSettingsService) BootstrapStatus(context.Context) (settingsservice.BootstrapStatus, error) {
+	return settingsservice.BootstrapStatus{NeedsSetup: false}, nil
+}
+
+func (fakeSettingsService) Bootstrap(context.Context, string, string) (authservice.LoginResult, error) {
+	return authservice.LoginResult{}, nil
+}
+
+func (fakeSettingsService) GetSettings(context.Context) (domain.AppSettings, error) {
+	return domain.AppSettings{}, nil
+}
+
+func (fakeSettingsService) UpdateSettings(context.Context, settingsservice.UpdateSettingsInput) (domain.AppSettings, error) {
+	return domain.AppSettings{}, nil
+}
+
+func (fakeSettingsService) ChangePassword(context.Context, string, string, string, string) error {
+	return nil
+}
+
+func (fakeSettingsService) ListSessions(context.Context, string) ([]domain.SessionInfo, error) {
+	return nil, nil
+}
+
+func (fakeSettingsService) RevokeSession(context.Context, string, string, string) error {
+	return nil
+}
+
+func (fakeSettingsService) Export(context.Context) (domain.ExportBundle, error) {
+	return domain.ExportBundle{}, nil
+}
+
+func (fakeSettingsService) Import(context.Context, domain.ExportBundle) error {
+	return nil
 }
 
 func TestNewMuxServesReactRuntimeRoot(t *testing.T) {

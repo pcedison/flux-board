@@ -7,6 +7,7 @@
     "test": "node tests/e2e/login-smoke.mjs",
     "smoke": "node tests/e2e/login-smoke.mjs",
     "smoke:login": "node tests/e2e/login-smoke.mjs",
+    "smoke:setup": "node tests/e2e/setup-smoke.mjs",
     "smoke:board-keyboard": "node tests/e2e/board-keyboard-smoke.mjs",
     "smoke:next": "node tests/e2e/next-preview-smoke.mjs",
     "smoke:dnd": "node tests/e2e/board-dnd-smoke.mjs"

@@ -28,6 +28,7 @@ type BoardTaskCardProps = {
     key: "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight",
   ) => void;
   onArchiveTask: (id: string, taskTitle: string) => void;
+  onEditTask: (task: Task) => void;
   onMoveTask: (move: MoveTaskRequest, announcement: string) => void;
   setRef: RefCallback<HTMLElement>;
   task: Task;
@@ -43,6 +44,7 @@ export function BoardTaskCard({
   onCardFocus,
   onCardNavigate,
   onArchiveTask,
+  onEditTask,
   onMoveTask,
   setRef,
   task,
@@ -175,6 +177,17 @@ export function BoardTaskCard({
             {target.label}
           </button>
         ))}
+        <button
+          className="action-button"
+          type="button"
+          disabled={isBusy}
+          aria-label={`Edit ${task.title}`}
+          onClick={() => {
+            onEditTask(task);
+          }}
+        >
+          Edit
+        </button>
         <button
           className="action-button action-button-secondary"
           type="button"

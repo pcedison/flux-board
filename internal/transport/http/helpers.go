@@ -26,7 +26,9 @@ func WriteError(w stdhttp.ResponseWriter, status int, message string) {
 
 func DecodeJSON(w stdhttp.ResponseWriter, r *stdhttp.Request, limit int64, dst any) bool {
 	r.Body = stdhttp.MaxBytesReader(w, r.Body, limit)
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()

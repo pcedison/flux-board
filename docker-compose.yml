@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: flux
+      POSTGRES_PASSWORD: flux
+      POSTGRES_DB: flux
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flux -d flux"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  flux-board:
+    build:
+      context: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://flux:flux@postgres:5432/flux?sslmode=disable
+      APP_ENV: production
+      PORT: "8080"
+      APP_PASSWORD: ${APP_PASSWORD:-}
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:

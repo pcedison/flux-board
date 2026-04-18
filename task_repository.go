@@ -14,5 +14,5 @@ func (a *App) taskRepository() TaskRepository {
 	if a.db == nil {
 		return nil
 	}
-	return storepostgres.NewTaskRepository(a.db, archiveRetention)
+	return storepostgres.NewTaskRepository(a.db)
 }

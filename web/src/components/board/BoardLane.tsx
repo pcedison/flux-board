@@ -16,6 +16,7 @@ type BoardLaneProps = {
   ) => void;
   onCardFocus?: (taskId: string) => void;
   onArchiveTask: (id: string, taskTitle: string) => void;
+  onEditTask: (task: Task) => void;
   onMoveTask: (move: MoveTaskRequest, announcement: string) => void;
   setCardRef: (id: string, element: HTMLElement | null) => void;
   tasks: Task[];
@@ -28,6 +29,7 @@ export function BoardLane({
   onCardNavigate = () => {},
   onCardFocus = () => {},
   onArchiveTask,
+  onEditTask,
   onMoveTask,
   setCardRef,
   tasks,
@@ -67,6 +69,7 @@ export function BoardLane({
                   onCardFocus={onCardFocus}
                   onCardNavigate={onCardNavigate}
                   onArchiveTask={onArchiveTask}
+                  onEditTask={onEditTask}
                   onMoveTask={onMoveTask}
                   setRef={(element) => setCardRef(task.id, element)}
                   task={task}

@@ -57,6 +57,9 @@ func (r *AuthRepository) EnsureBootstrapAdmin(ctx context.Context, username, pas
 	case err == nil:
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
+		if password == "" {
+			return nil
+		}
 		hash, hashErr := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 		if hashErr != nil {
 			tracing.RecordError(span, hashErr)
@@ -69,7 +72,9 @@ func (r *AuthRepository) EnsureBootstrapAdmin(ctx context.Context, username, pas
 			tracing.RecordError(span, txErr)
 			return txErr
 		}
-		defer tx.Rollback(ctx)
+		defer func() {
+			_ = tx.Rollback(ctx)
+		}()
 
 		if _, txErr = tx.Exec(ctx, `
 			INSERT INTO users (username, password_hash, role, created_at, updated_at)
@@ -90,6 +95,47 @@ func (r *AuthRepository) EnsureBootstrapAdmin(ctx context.Context, username, pas
 	}
 }
 
+func (r *AuthRepository) BootstrapAdminExists(ctx context.Context, username string) (bool, error) {
+	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.bootstrap_admin_exists",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "SELECT"),
+		attribute.String("db.collection", "users"),
+		attribute.String("auth.username", username),
+	)
+	defer span.End()
+
+	var exists bool
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)`, username).Scan(&exists); err != nil {
+		tracing.RecordError(span, err)
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *AuthRepository) UpdatePasswordHash(ctx context.Context, username, passwordHash string, updatedAt int64) error {
+	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.update_password_hash",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "UPDATE"),
+		attribute.String("db.collection", "users"),
+		attribute.String("auth.username", username),
+	)
+	defer span.End()
+
+	tag, err := r.db.Exec(ctx, `
+		UPDATE users
+		SET password_hash=$1, updated_at=$2
+		WHERE username=$3
+	`, passwordHash, updatedAt, username)
+	if err != nil {
+		tracing.RecordError(span, err)
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+	return nil
+}
+
 func (r *AuthRepository) GetActiveSession(ctx context.Context, token string) (domain.Session, error) {
 	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.get_active_session",
 		attribute.String("db.system", "postgresql"),
@@ -101,11 +147,13 @@ func (r *AuthRepository) GetActiveSession(ctx context.Context, token string) (do
 
 	var session domain.Session
 	var expiresAt int64
+	now := time.Now().UnixMilli()
 	if err := r.db.QueryRow(ctx, `
-		SELECT username, expires_at
-		FROM sessions
+		UPDATE sessions
+		SET last_seen_at=$2
 		WHERE token=$1 AND revoked_at IS NULL AND expires_at > $2
-	`, token, time.Now().UnixMilli()).Scan(&session.Username, &expiresAt); err != nil {
+		RETURNING username, expires_at
+	`, token, now).Scan(&session.Username, &expiresAt); err != nil {
 		tracing.RecordError(span, err)
 		return domain.Session{}, err
 	}
@@ -152,6 +200,74 @@ func (r *AuthRepository) DeleteSession(ctx context.Context, token string) error 
 	return err
 }
 
+func (r *AuthRepository) ListSessions(ctx context.Context, username string) ([]domain.SessionInfo, error) {
+	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.list_sessions",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "SELECT"),
+		attribute.String("db.collection", "sessions"),
+		attribute.String("auth.username", username),
+	)
+	defer span.End()
+
+	rows, err := r.db.Query(ctx, `
+		SELECT token, created_at, expires_at, last_seen_at, client_ip
+		FROM sessions
+		WHERE username=$1
+		ORDER BY last_seen_at DESC, created_at DESC, token
+	`, username)
+	if err != nil {
+		tracing.RecordError(span, err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	sessions := make([]domain.SessionInfo, 0)
+	for rows.Next() {
+		var session domain.SessionInfo
+		if err := rows.Scan(
+			&session.Token,
+			&session.CreatedAt,
+			&session.ExpiresAt,
+			&session.LastSeenAt,
+			&session.ClientIP,
+		); err != nil {
+			tracing.RecordError(span, err)
+			return nil, err
+		}
+		sessions = append(sessions, session)
+	}
+
+	if err := rows.Err(); err != nil {
+		tracing.RecordError(span, err)
+		return nil, err
+	}
+	return sessions, nil
+}
+
+func (r *AuthRepository) DeleteSessionsExcept(ctx context.Context, username string, keepTokens []string) error {
+	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.delete_sessions_except",
+		attribute.String("db.system", "postgresql"),
+		attribute.String("db.operation", "DELETE"),
+		attribute.String("db.collection", "sessions"),
+		attribute.String("auth.username", username),
+	)
+	defer span.End()
+
+	var err error
+	if len(keepTokens) == 0 {
+		_, err = r.db.Exec(ctx, `DELETE FROM sessions WHERE username=$1`, username)
+	} else {
+		_, err = r.db.Exec(ctx, `
+			DELETE FROM sessions
+			WHERE username=$1 AND token <> ALL($2::text[])
+		`, username, keepTokens)
+	}
+	if err != nil {
+		tracing.RecordError(span, err)
+	}
+	return err
+}
+
 func (r *AuthRepository) RecordAuthEvent(ctx context.Context, event domain.AuthAuditEvent) error {
 	ctx, span := tracing.StartClientSpan(ctx, authRepositoryTracerScope, "postgres.auth.record_auth_event",
 		attribute.String("db.system", "postgresql"),
@@ -166,9 +282,9 @@ func (r *AuthRepository) RecordAuthEvent(ctx context.Context, event domain.AuthA
 		event.CreatedAt = time.Now().UnixMilli()
 	}
 	_, err := r.db.Exec(ctx, `
-		INSERT INTO auth_audit_logs (username, event_type, outcome, client_ip, details, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, event.Username, event.EventType, event.Outcome, event.ClientIP, event.Details, event.CreatedAt)
+		INSERT INTO auth_audit_logs (username, event_type, outcome, client_ip, details, request_id, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, event.Username, event.EventType, event.Outcome, event.ClientIP, event.Details, event.RequestID, event.CreatedAt)
 	if err != nil {
 		tracing.RecordError(span, err)
 	}

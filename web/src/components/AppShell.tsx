@@ -6,9 +6,11 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api";
 import { boardSnapshotQueryKey } from "../lib/useBoardSnapshot";
 import { clearAuthSessionData, useAuthSession } from "../lib/useAuthSession";
+import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
 export function AppShell({ children }: PropsWithChildren) {
   const session = useAuthSession();
+  const bootstrap = useBootstrapStatus();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -26,8 +28,8 @@ export function AppShell({ children }: PropsWithChildren) {
   });
 
   const navItems = [
-    { href: "/", label: "Overview" },
-    ...(session.data ? [{ href: "/board", label: "Board" }] : []),
+    { href: "/status", label: "Status" },
+    ...(session.data ? [{ href: "/board", label: "Board" }, { href: "/settings", label: "Settings" }] : []),
   ];
 
   return (
@@ -38,15 +40,15 @@ export function AppShell({ children }: PropsWithChildren) {
       <div className="app-shell">
         <header className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">W7 Frontend Foundation</p>
-            <h1>Flux Board Next UI</h1>
+            <p className="eyebrow">Single-User Self-Hosted Board</p>
+            <h1>Flux Board</h1>
             <p className="lede">
-              A React + TypeScript + Vite board runtime that now owns `/`, `/login`, and `/board`
-              while the embedded frontend remains available on `/legacy/` as a rollback path. This
-              keeps the takeover explicit, testable, and reversible.
+              A compact planning board for one operator. Flux Board keeps the runtime deployable as
+              a single web app while still giving you backups, session controls, and a durable
+              PostgreSQL history.
             </p>
           </div>
-          <nav className="hero-nav" aria-label="Next UI routes">
+          <nav className="hero-nav" aria-label="Primary routes">
             {navItems.map((item) => (
               <NavLink
                 key={item.href}
@@ -57,9 +59,9 @@ export function AppShell({ children }: PropsWithChildren) {
                 {item.label}
               </NavLink>
             ))}
-            {session.isPending ? (
+            {session.isPending || bootstrap.isPending ? (
               <span className="nav-pill nav-pill-muted" aria-live="polite">
-                Checking session
+                Checking runtime
               </span>
             ) : session.data ? (
               <button
@@ -70,6 +72,13 @@ export function AppShell({ children }: PropsWithChildren) {
               >
                 {logoutMutation.isPending ? "Signing out..." : "Sign out"}
               </button>
+            ) : bootstrap.data?.needsSetup ? (
+              <NavLink
+                to="/setup"
+                className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
+              >
+                Setup
+              </NavLink>
             ) : (
               <NavLink
                 to="/login"

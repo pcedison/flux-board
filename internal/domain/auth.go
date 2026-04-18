@@ -24,8 +24,12 @@ type AuthAuditEvent struct {
 type AuthRepository interface {
 	BootstrapPasswordHash(context.Context, string) (string, error)
 	EnsureBootstrapAdmin(context.Context, string, string) error
+	BootstrapAdminExists(context.Context, string) (bool, error)
+	UpdatePasswordHash(context.Context, string, string, int64) error
 	GetActiveSession(context.Context, string) (Session, error)
 	CreateSession(context.Context, string, string, string, time.Time) error
 	DeleteSession(context.Context, string) error
+	ListSessions(context.Context, string) ([]SessionInfo, error)
+	DeleteSessionsExcept(context.Context, string, []string) error
 	RecordAuthEvent(context.Context, AuthAuditEvent) error
 }

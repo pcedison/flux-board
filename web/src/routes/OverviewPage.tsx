@@ -1,60 +1,85 @@
 import { Link } from "react-router-dom";
 
 import { QueryState } from "../components/QueryState";
+import { useAppStatus } from "../lib/useAppStatus";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
 export function OverviewPage() {
   const snapshot = useBoardSnapshot();
+  const status = useAppStatus();
 
   return (
     <QueryState
-      error={snapshot.error}
-      errorTitle="Failed to load frontend foundation snapshot"
-      isPending={snapshot.isPending}
-      loadingMessage="Reading the current auth and board snapshot from the Go API."
+      error={status.error ?? snapshot.error}
+      errorTitle="Failed to load deployment status"
+      isPending={status.isPending || snapshot.isPending}
+      loadingMessage="Reading the current deployment status and board snapshot from the Go API."
     >
-      {snapshot.data ? <OverviewContent data={snapshot.data} /> : null}
+      {status.data && snapshot.data ? <OverviewContent snapshot={snapshot.data} status={status.data} /> : null}
     </QueryState>
   );
 }
 
-function OverviewContent({ data }: { data: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]> }) {
-  const queued = data.tasks.filter((task) => task.status === "queued").length;
-  const active = data.tasks.filter((task) => task.status === "active").length;
-  const done = data.tasks.filter((task) => task.status === "done").length;
+function OverviewContent({
+  snapshot,
+  status,
+}: {
+  snapshot: NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>;
+  status: NonNullable<ReturnType<typeof useAppStatus>["data"]>;
+}) {
+  const queued = snapshot.tasks.filter((task) => task.status === "queued").length;
+  const active = snapshot.tasks.filter((task) => task.status === "active").length;
+  const done = snapshot.tasks.filter((task) => task.status === "done").length;
+  const statusHeading = status.status === "ready" ? "Deployment ready" : "Deployment needs attention";
+  const retentionText =
+    status.archiveRetentionDays === null
+      ? "Archived cards stay until you remove them manually."
+      : `Archived cards auto-delete after ${status.archiveRetentionDays} days.`;
+  const primaryLink = status.needsSetup ? "/setup" : snapshot.session ? "/board" : "/login";
+  const primaryLabel = status.needsSetup ? "Open setup" : snapshot.session ? "Open board" : "Open sign in";
 
   return (
     <div className="page-grid">
       <section className="panel">
-        <h2>Session</h2>
-        <p>{data.session ? "Authenticated session detected" : "No active session detected"}</p>
+        <h2>Instance status</h2>
+        <p>{statusHeading}</p>
         <p className="meta">
-          {data.session
-            ? `Expires at ${new Date(data.session.expiresAt).toLocaleString()}`
-            : "Use the canonical sign-in route to establish the shared session cookie before opening the guarded board."}
+          {`Version ${status.version} on ${status.environment}. Generated ${new Date(status.generatedAt).toLocaleString()}.`}
         </p>
+        <ul className="checklist">
+          {status.checks.map((check) => (
+            <li key={check.name}>{check.message}</li>
+          ))}
+          <li>{retentionText}</li>
+          <li>{`Primary runtime: ${status.runtimeArtifact} on ${status.runtimeOwnershipPath}`}</li>
+        </ul>
       </section>
 
       <section className="panel">
-        <h2>Board Totals</h2>
+        <h2>Board snapshot</h2>
         <div className="stats-grid">
           <StatCard label="Queued" value={queued} />
           <StatCard label="Active" value={active} />
           <StatCard label="Done" value={done} />
-          <StatCard label="Archived" value={data.archived.length} />
+          <StatCard label="Archived" value={snapshot.archived.length} />
         </div>
+        <p className="meta">
+          {snapshot.session
+            ? `This browser is signed in until ${new Date(snapshot.session.expiresAt).toLocaleString()}.`
+            : "This browser is currently signed out."}
+        </p>
       </section>
 
       <section className="panel">
-        <h2>Why this slice exists</h2>
+        <h2>Operator flow</h2>
         <ul className="checklist">
-          <li>Make the React runtime the default user-facing shell on `/`.</li>
-          <li>Exercise the real board route with the same auth/session boundary as production.</li>
-          <li>Keep `/legacy/` available as an explicit rollback path during the takeover.</li>
+          <li>{status.needsSetup ? "Finish first-run setup to create the admin password." : "Setup is complete and ready for daily sign-in."}</li>
+          <li>{`Session cleanup runs every ${status.sessionCleanupEvery}, and archive cleanup runs every ${status.archiveCleanupEvery}.`}</li>
+          <li>{`Rollback shell stays available at ${status.legacyRollbackPath} if you need a diagnostic fallback.`}</li>
         </ul>
         <div className="action-row">
-          <Link className="nav-pill nav-pill-active" to={data.session ? "/board" : "/login"}>
-            {data.session ? "Open board route" : "Open sign-in route"}
+          <Link className="nav-pill nav-pill-active" to={primaryLink}>
+            {primaryLabel}
           </Link>
         </div>
       </section>

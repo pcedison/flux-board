@@ -25,15 +25,11 @@ var taskLaneLockIDs = map[string]int64{
 }
 
 type TaskRepository struct {
-	db               *pgxpool.Pool
-	archiveRetention time.Duration
+	db *pgxpool.Pool
 }
 
-func NewTaskRepository(db *pgxpool.Pool, archiveRetention time.Duration) *TaskRepository {
-	return &TaskRepository{
-		db:               db,
-		archiveRetention: archiveRetention,
-	}
+func NewTaskRepository(db *pgxpool.Pool) *TaskRepository {
+	return &TaskRepository{db: db}
 }
 
 func (r *TaskRepository) ListTasks(ctx context.Context) ([]domain.Task, error) {
@@ -98,7 +94,9 @@ func (r *TaskRepository) CreateTask(ctx context.Context, task domain.Task) (doma
 		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	if err := lockTaskLanes(ctx, tx, task.Status); err != nil {
 		tracing.RecordError(span, err)
@@ -183,7 +181,9 @@ func (r *TaskRepository) ReorderTask(ctx context.Context, id string, reorder dom
 		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	var current domain.Task
 	err = tx.QueryRow(ctx, `
@@ -284,7 +284,9 @@ func (r *TaskRepository) ArchiveTask(ctx context.Context, id string) (domain.Arc
 		tracing.RecordError(span, err)
 		return domain.ArchivedTask{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	var task domain.ArchivedTask
 	err = tx.QueryRow(ctx, `
@@ -350,12 +352,6 @@ func (r *TaskRepository) ListArchived(ctx context.Context) ([]domain.ArchivedTas
 	)
 	defer span.End()
 
-	cutoff := time.Now().Add(-r.archiveRetention).UnixMilli()
-	if _, err := r.db.Exec(ctx, `DELETE FROM archived_tasks WHERE archived_at < $1`, cutoff); err != nil {
-		tracing.RecordError(span, err)
-		return nil, err
-	}
-
 	rows, err := r.db.Query(ctx, `
 		SELECT id, title, note, due, priority, status, sort_order, archived_at
 		FROM archived_tasks
@@ -407,7 +403,9 @@ func (r *TaskRepository) RestoreTask(ctx context.Context, id string) (domain.Tas
 		tracing.RecordError(span, err)
 		return domain.Task{}, err
 	}
-	defer tx.Rollback(ctx)
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	var task domain.Task
 	err = tx.QueryRow(ctx, `

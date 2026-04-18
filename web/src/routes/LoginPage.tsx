@@ -2,8 +2,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
-import { ApiError, loginWithPassword } from "../lib/api";
+import { ApiError, isSetupRequiredApiError, loginWithPassword } from "../lib/api";
 import { setAuthSessionData, useAuthSession } from "../lib/useAuthSession";
+import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
 type LoginLocationState = {
   from?: string;
@@ -11,6 +12,7 @@ type LoginLocationState = {
 
 export function LoginPage() {
   const session = useAuthSession();
+  const bootstrap = useBootstrapStatus();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,26 +25,30 @@ export function LoginPage() {
     return state?.from?.startsWith("/") ? state.from : "/board";
   }, [location.state]);
 
-  if (session.isPending) {
+  if (session.isPending || bootstrap.isPending) {
     return (
       <section className="panel" aria-live="polite">
-        <h2>Checking session</h2>
-        <p className="meta">Confirming whether this browser already has an active Flux Board session.</p>
+        <h2>Checking sign-in state</h2>
+        <p className="meta">Confirming whether this Flux Board instance is ready for sign-in.</p>
       </section>
     );
   }
 
-  if (session.error) {
+  if (session.error || bootstrap.error) {
     return (
       <section className="panel panel-error" role="alert">
         <h2>Unable to open the sign-in route</h2>
-        <p>{session.error.message}</p>
+        <p>{session.error?.message ?? bootstrap.error?.message}</p>
       </section>
     );
   }
 
   if (session.data) {
     return <Navigate replace to={nextPath} />;
+  }
+
+  if (bootstrap.data?.needsSetup) {
+    return <Navigate replace to="/setup" />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -62,6 +68,10 @@ export function LoginPage() {
       await queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
       navigate(nextPath, { replace: true });
     } catch (error) {
+      if (isSetupRequiredApiError(error)) {
+        navigate("/setup", { replace: true });
+        return;
+      }
       if (error instanceof ApiError) {
         setSubmitError(error.message);
       } else if (error instanceof Error) {
@@ -79,8 +89,8 @@ export function LoginPage() {
       <section className="panel">
         <h2>Sign in to view the board</h2>
         <p className="meta">
-          Use the existing Flux Board password here to open the canonical React board runtime on
-          `/board`. The legacy embedded UI now lives behind `/legacy/` as a rollback path.
+          Use the admin password for this single-user board. After sign-in, Flux Board returns you
+          to the protected workspace automatically.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -113,13 +123,11 @@ export function LoginPage() {
       </section>
 
       <section className="panel panel-secondary">
-        <h2>What this route does</h2>
+        <h2>Sign-in flow</h2>
         <ul className="checklist">
-          <li>Protects `/board` until an authenticated session cookie is present.</li>
-          <li>Reuses the current Go auth/session API for the production React runtime.</li>
-          <li>
-            Redirects you back to <code>{nextPath}</code> once the session is established.
-          </li>
+          <li>Creates an HTTP-only session cookie stored by the Go backend.</li>
+          <li>Redirects back to <code>{nextPath}</code> after the session is ready.</li>
+          <li>Leaves password rotation and session revocation in Settings after sign-in.</li>
         </ul>
       </section>
     </div>

@@ -36,7 +36,7 @@ func (a *App) runCleanupLoop(ctx context.Context, interval time.Duration, label 
 }
 
 func (a *App) cleanupArchivedTasks(ctx context.Context) error {
-	return storepostgres.CleanupArchivedTasks(ctx, a.db, archiveRetention)
+	return storepostgres.CleanupArchivedTasks(ctx, a.db)
 }
 
 func (a *App) cleanupExpiredSessions(ctx context.Context) error {

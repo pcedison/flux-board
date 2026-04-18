@@ -30,6 +30,7 @@ var (
 	ErrBlocked         = errors.New("auth blocked")
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrInvalidSession  = errors.New("invalid session")
+	ErrSetupRequired   = errors.New("setup required")
 )
 
 const tracerScope = "service/auth"
@@ -305,6 +306,9 @@ func (s service) verifyLoginPassword(ctx context.Context, given string) (bool, e
 
 	hash, err := s.repo.BootstrapPasswordHash(ctx, BootstrapAdmin)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrSetupRequired
+		}
 		return false, err
 	}
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(given)) == nil, nil

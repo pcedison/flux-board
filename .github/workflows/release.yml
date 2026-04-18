@@ -10,6 +10,11 @@ env:
 
 permissions:
   contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -18,7 +23,7 @@ jobs:
       version: ${{ steps.metadata.outputs.version }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -39,8 +44,34 @@ jobs:
           path: release-meta/
           if-no-files-found: error
 
-  build:
+  prepare_web:
     needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Build embedded web runtime
+        run: |
+          npm --prefix web ci --no-fund --no-audit
+          npm --prefix web run build
+
+      - name: Upload web runtime artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-web-dist
+          path: web/dist/
+          if-no-files-found: error
+
+  build:
+    needs:
+      - validate
+      - prepare_web
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -61,12 +92,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
+
+      - name: Download web runtime artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-web-dist
+          path: web/dist
 
       - name: Build versioned release artifact
         shell: bash
@@ -78,7 +115,7 @@ jobs:
           artifact_stem="flux-board-v${RELEASE_VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
           binary_name="${artifact_stem}${{ matrix.extension }}"
           mkdir -p "$dist_dir"
-          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" go build -trimpath -o "$dist_dir/$binary_name" ./cmd/flux-board
+          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" go build -trimpath -o "$dist_dir/$binary_name" .
           (
             cd "$dist_dir"
             sha256sum "$binary_name" > "$binary_name.sha256"
@@ -127,3 +164,37 @@ jobs:
             release-assets/SHA256SUMS
           fail_on_unmatched_files: true
           generate_release_notes: false
+
+  publish_docker:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=${{ github.ref_name }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

@@ -18,15 +18,14 @@ func newApp(cfg config.Config, pool *pgxpool.Pool) *App {
 	return &App{
 		db:                pool,
 		authTracker:       authservice.NewLoginTracker(),
+		appEnv:            cfg.AppEnv,
+		version:           appVersion(),
 		bootstrapPassword: cfg.AppPassword,
 		cookieSecure:      cfg.CookieSecure,
+		webRuntimeFS:      embeddedWebRuntimeFS(),
 	}
 }
 
 func (a *App) bootstrap() error {
 	return a.initSchema()
-}
-
-func (a *App) ensureBootstrapAdmin(ctx context.Context) error {
-	return a.authRepository().EnsureBootstrapAdmin(ctx, bootstrapAdmin, a.bootstrapPassword)
 }

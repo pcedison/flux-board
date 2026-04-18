@@ -22,10 +22,14 @@ type App struct {
 	taskRepo          domain.TaskRepository
 	taskSvc           TaskService
 	authSvc           AuthService
+	settingsRepo      domain.SettingsRepository
+	settingsSvc       SettingsService
 	authRepo          domain.AuthRepository
 	authTracker       *authservice.LoginTracker
 	metricsRegistry   *prometheus.Registry
 	observability     *transporthttp.Observability
+	appEnv            string
+	version           string
 	bootstrapPassword string
 	cookieSecure      bool
 	webRuntimeFS      fs.FS

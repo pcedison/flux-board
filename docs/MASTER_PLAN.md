@@ -1,9 +1,11 @@
 # Flux Board Master Plan
 
 ## Purpose
-- This document is the single source of truth for upgrading Flux Board from MVP to enterprise-grade quality with public-fork readiness.
-- The current recorded roadmap spans `W0-W14`: `W0-W9` capture the completed stabilization and release baseline, while `W10-W14` define the next planned platform, auth, and observability expansion waves.
-- Scope includes: security, data integrity, Go modularization, React + TypeScript + Vite frontend rebuild, Trello-level interaction quality, RWD, accessibility, CI, release governance, and resumable execution records.
+- This document is the single source of truth for upgrading Flux Board into a high-quality single-user self-hosted product.
+- The roadmap still spans `W0-W14`, but the interpretation has changed:
+  - `W0-W9` are the stabilization baseline and the historical release proof
+  - `W10-W14` are now single-user productization waves, not multi-user enterprise expansion waves
+- Scope includes: security, data integrity, Go modularization, React + TypeScript + Vite frontend ownership, accessibility, CI, release governance, deployment parity, backup safety, and resumable execution records.
 - Rule: every task must leave a progress record so work can resume cleanly after interruption.
 
 ## Execution Rules
@@ -40,19 +42,22 @@
 |---|---|---|---|---|
 | W0 | Baseline Audit | `artifact-complete` | risk map, blocker baseline, and architecture snapshot are documented | already at its final review-based closure |
 | W1 | Public Fork Baseline | `artifact-complete` | public-fork docs, onboarding, and repo hygiene are documented | already at its final review-based closure |
-| W2 | CI and Reproducibility | `remote-closed` | exact head `f659e20` is closed by run `24559887060` | already closed on the current exact-head CI proof |
-| W3 | Server Security Hardening | `remote-closed` | exact head `f659e20` is closed by run `24559887060` | already closed on the current exact-head CI proof |
-| W4 | Auth and Session Redesign | `remote-closed` | exact head `f659e20` is closed by run `24559887060` | already closed on the current exact-head CI proof |
-| W5 | Schema and Data Integrity | `remote-closed` | exact head `f659e20` is closed by run `24559887060` | already closed on the current exact-head CI proof |
-| W6 | Go Modularization | `remote-closed` | internal domain/store/service/transport packages and `cmd/flux-board` are closed by run `24559887060` on exact head `f659e20` | already closed on the current exact-head CI proof |
-| W7 | Frontend Foundation | `remote-closed` | root runtime takeover, `/legacy/` rollback, and `/next/*` compatibility are closed by run `24559887060` on exact head `f659e20` | already closed on the current exact-head CI proof |
-| W8 | Trello-grade UX, RWD, A11y | `remote-closed` | drag/mobile/keyboard/a11y plus dedicated smoke lanes are closed by run `24559887060` on exact head `f659e20` | already closed on the current exact-head CI proof |
-| W9 | Quality Gates, Release, Enterprise Hooks | `remote-closed` | exact head `f659e20` is closed by run `24559887060`; release closure is recorded by run `24560069468` and tag `v0.1.2` | already closed on the current exact-head CI + release proof |
-| W10 | Build, CI, and Hosted Deploy Hardening | `planned` | planning is captured in `docs/ROADMAP_W10_W14.md` | implement the hosted/deploy and CI modernization roadmap, then close with exact-head CI and hosted-path proof |
-| W11 | Multi-user Auth Foundation | `planned` | planning is captured in `docs/ROADMAP_W10_W14.md` | implement the multi-user local-auth roadmap, then close with exact-head CI and auth-flow proof |
-| W12 | Workspace and RBAC Foundation | `planned` | planning is captured in `docs/ROADMAP_W10_W14.md` | implement workspace data boundaries plus role enforcement, then close with exact-head CI and isolation proof |
-| W13 | OIDC and SSO Integration | `planned` | planning is captured in `docs/ROADMAP_W10_W14.md` | implement provider-backed OIDC/SSO plus break-glass local access, then close with exact-head CI and hosted callback proof |
-| W14 | Observability Productization | `planned` | planning is captured in `docs/ROADMAP_W10_W14.md` | implement dashboards, alerts, and full operator-grade observability closure, then close with exact-head CI and deployment proof |
+| W2 | CI and Reproducibility | `locally-verified` | repo-owned verification still passes locally on the current working tree, but fresh exact-head CI proof must be re-recorded after the single-user productization slice | rerun exact-head CI and restore `remote-closed` evidence |
+| W3 | Server Security Hardening | `locally-verified` | request limits, security headers, and explicit server lifecycle remain in place on the current working tree | rerun exact-head CI and restore `remote-closed` evidence |
+| W4 | Auth and Session Redesign | `locally-verified` | bootstrap-only password seeding, DB-backed sessions, and the new setup/settings split are locally verified | rerun exact-head CI and restore `remote-closed` evidence |
+| W5 | Schema and Data Integrity | `locally-verified` | migrations, ordering integrity, and archive-read cleanup removal are locally verified | rerun exact-head CI and restore `remote-closed` evidence |
+| W6 | Go Modularization | `locally-verified` | internal domain/store/service/transport boundaries remain intact and the root runtime now owns the official embedded artifact path | rerun exact-head CI and restore `remote-closed` evidence |
+| W7 | Frontend Foundation | `locally-verified` | the React runtime still owns `/`, now with auth-aware home routing and setup/settings surfaces | rerun exact-head CI and restore `remote-closed` evidence |
+| W8 | Trello-grade UX, RWD, A11y | `locally-verified` | board edit/search/keyboard/permanent-delete flows are locally verified alongside the existing drag and keyboard paths | rerun exact-head CI and restore `remote-closed` evidence |
+| W9 | Quality Gates, Release, and Runtime Safety | `locally-verified` | release dry-run parity, frontend lint, Go lint, and workflow lint are now locally verified on the current working tree | rerun exact-head CI and release-path proof before restoring `remote-closed` |
+| W10 | Build, CI, and Hosted Deploy Hardening | `in_progress` | root binary packaging, Docker-first deploy contract, CI lint lanes, and release parity work have started locally | finish exact-head CI plus hosted-path proof |
+| W11 | Single-User Security & Settings | `in_progress` | `/setup`, `/settings`, password rotation, session revocation, and retention controls are implemented locally | add deeper backend coverage and exact-head CI proof |
+| W12 | Product UX Completion | `in_progress` | auth-aware `/`, product wording, task edit flow, search, and permanent archived delete are implemented locally | finish smoke proof and product-copy polish |
+| W13 | Data Portability & Backup | `in_progress` | export/import and retention safety are implemented locally | deepen validation coverage and document operator backup paths |
+| W14 | Observability & Operability | `in_progress` | `/api/status`, `/status`, and Docker runtime smoke automation are implemented locally | add operator runbooks, exact-head CI proof, and one real hosted deployment record |
+| W15 | Hosted Release Operations | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | publish and validate the hosted release path end to end |
+| W16 | Backup and Restore Drills | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | prove restore safety with repeatable operator drills |
+| W17 | Product Polish and Mobile Depth | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | close final UX polish after deployment/runtime work stabilizes |
 
 ## W0 Baseline Audit
 - Goal: freeze the real MVP state and identify blockers before implementation.
@@ -125,7 +130,7 @@
 - Parallel lanes: auth domain, session store, audit design.
 - Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
 - Current gaps:
-  - multi-user auth, username-based login, richer session revocation, and OIDC remain deferred to later waves
+  - richer single-user settings coverage and exact-head CI re-closure remain for the current working tree
 - Corrected gate checklist:
   - `APP_PASSWORD` is bootstrap-only or otherwise no longer the live shared production secret
   - `login -> session cookie -> /api/auth/me -> logout -> post-logout 401` is verified
@@ -207,12 +212,12 @@
   - viewport-aware smoke now covers the mobile-first layout contract
   - keyboard/focus polish and explicit a11y automation are now verified for the current W8 scope
 
-## W9 Quality Gates, Release, and Enterprise Hooks
-- Goal: make the project release-ready and extensible toward enterprise features.
-- Epics: automated tests, browser matrix, release flow, rollback docs, observability, enterprise extension seams.
-- Tasks: add unit/integration/E2E coverage, verify Chromium/Firefox/WebKit, define release/rollback process, add health/metrics/logging, reserve extension points for RBAC/SSO/workspaces.
-- Gate: project is safe to publish, testable in CI, and ready for controlled future enterprise expansion.
-- Parallel lanes: QA, release engineering, observability, enterprise design.
+## W9 Quality Gates, Release, and Runtime Safety
+- Goal: make the project release-ready and safer to operate for the real single-user deployment path.
+- Epics: automated tests, browser matrix, release flow, rollback docs, observability, and runtime-safety seams.
+- Tasks: add unit/integration/E2E coverage, verify Chromium/Firefox/WebKit, define release/rollback process, add health/metrics/logging, and keep the runtime extensible without forcing multi-user scope back into the plan.
+- Gate: project is safe to publish, testable in CI, and stable enough to support the later single-user productization waves.
+- Parallel lanes: QA, release engineering, observability, runtime-safety design.
 - Current status: remote-closed on exact head `f659e20` via CI run `24559887060` plus release run `24560069468` and published tag `v0.1.2`.
 - Current gaps:
   - no remaining feature-scope gap remains inside W9 for the recorded exact-head closure
@@ -222,18 +227,19 @@
   - local Windows race verification exists in a repo-owned script
   - CI has separate root-runtime, drag-and-drop, keyboard, and compatibility/rollback smoke lanes
   - release workflow publishes checksumed multi-platform assets and records a successful exact-head release closure
-  - the project now has a structured logging baseline, `/metrics`, trace seams, and documented enterprise extension seams for the current wave scope
+  - the project now has a structured logging baseline, `/metrics`, trace seams, and documented runtime-safety seams for the current wave scope
 
 ## W10-W14 Forward Roadmap
 - `W10-W14` are planning-only in this document; the detailed non-implementation roadmap lives in [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md).
 - Recommended order:
   - `W10` first, because CI/deploy hardening reduces risk for every later wave
-  - `W11` next, because multi-user local auth is the safe base for RBAC and SSO
-  - `W12` after that, because workspace and role boundaries should exist before provider-backed identity rollout
-  - `W13` once the principal and workspace model is stable
-  - `W14` as the productization wave that turns the current observability baseline into operator-grade dashboards, alerts, and runbooks
+  - `W11` next, because the single-user auth/settings model must feel finished before more UX or backup work is called done
+  - `W12` after that, because the canonical board/runtime experience should read like a product, not a wave demo
+  - `W13` once the runtime and settings surfaces are stable enough to define durable backup expectations
+  - `W14` last, because operator-facing observability is most useful once the product and deploy contracts stop moving underneath it
 - Planning rule:
-  - do not implement `W11-W14` ad hoc; keep them aligned with the dedicated roadmap doc and promote them to `remote-closed` only with exact-head CI plus hosted-path proof
+  - do not reintroduce multi-user, RBAC, workspace, or OIDC scope unless the product goal itself changes
+  - promote `W10-W14` only with exact-head CI plus hosted-path proof
 
 ## Standard Gates
 - Security gate: no known P0 security defect; no shared-password production default; request and session protections active.
@@ -301,7 +307,7 @@
 - `W9-P1` Test gates: status `in_progress`. CI now includes repo-owned Go verification, Windows-local race proof, `web/` scaffold build/typecheck/test, richer browser smoke for login/create/archive/restore, dedicated drag-and-drop smoke through the shared verify-smoke scripts, and a dedicated `/next/*` compatibility plus `/legacy/` rollback smoke path; this slice begins the browser matrix with `chromium` plus `firefox`, while broader frontend/E2E and deeper matrix work still remain. Parallel: with W9-P2.
 - `W9-P2` CI and release flow: status `in_progress`. Workflow hardening now includes the Node 24 JavaScript action runtime pilot, a split verify/smoke job layout, repo-owned Go/web/smoke verification scripts as the CI source of truth, dedicated drag smoke coverage, and a dedicated compatibility/rollback verification wrapper, but release governance remains for later waves. Parallel: partial dependency on W9-P1.
 - `W9-P3` Observability: status `in_progress`. Minimal unauthenticated health/readiness probes now exist, but metrics and richer logging/observability beyond the current baseline remain open. Parallel: with W9-P2.
-- `W9-P4` Enterprise extension seams: status `planned`. RBAC/SSO/workspace seams are deferred. Parallel: after W7-W8 stabilize.
+- `W9-P4` Runtime-safety seams: status `planned`. Keep extensibility documentation small and single-user-first. Parallel: after W7-W8 stabilize.
 
 ## Execution Log
 - 2026-04-16 | W0 / Planning / Master Plan | done | Created condensed 10-wave master plan and resumable logging protocol | Master plan established in `docs/MASTER_PLAN.md` | Next: decompose W0 into executable epics/tasks and start baseline audit | Risk: none
@@ -371,3 +377,4 @@
 - 2026-04-17 | W2-W8 / Exact-head remote closure | remote-closed | Pushed follow-up commit `6a4b323` and observed GitHub Actions run `24549627392` succeed for `verify`, `smoke (chromium/firefox)`, `preview_smoke (chromium/firefox)`, `dnd_smoke (chromium/firefox)`, and `keyboard_smoke (chromium/firefox)` | W2-W8 are now remote-closed for the current exact head; the runtime takeover, rollback path, drag smoke, and keyboard smoke all have fresh GitHub Actions proof recorded in the docs | Next: move the mainline back to W9 observability, release governance, and broader browser/release closure work without regressing the recorded W2-W8 proof | Risk: W9 remains open, and future runtime changes must preserve the exact-head closure discipline instead of relying on this run indefinitely
 - 2026-04-17 | W9 / Enterprise extension seams (5-B) | artifact-complete | Documented concrete RBAC/SSO/workspace extension seams in `docs/ARCHITECTURE.md` and `docs/DEPLOYMENT.md`, then annotated the current migrations with harmless planning comments about local principals, future identity-link tables, default-workspace backfill, and widened workspace-scoped ordering constraints | Later enterprise work now has an explicit migration and service-boundary path without changing current runtime behavior or claiming tenant isolation before it exists | Next: keep W9 focused on the remaining implementation slices such as broader browser closure, release closure, and any future enterprise code paths that build on these seams | Risk: these are planning/documentation seams only; no RBAC, SSO, or multi-workspace enforcement exists on the current head
 - 2026-04-17 | W0-W14 / Planning / Forward roadmap formalization | artifact-complete | Updated `MASTER_PLAN.md` to reflect the recorded `W9 remote-closed` state on exact head `f659e20`, added forward-looking `W10-W14` wave placeholders, and linked the detailed next-phase roadmap in `docs/ROADMAP_W10_W14.md` | The master plan now cleanly separates the closed `W0-W9` delivery baseline from the planned `W10-W14` expansion work without mixing implementation and future design | Next: sync this docs-only commit on the secondary machine, then choose whether to start W10 as a hosted/CI hardening wave or first split the roadmap into issue-sized slices | Risk: `W10-W14` are planning-only and must be kept aligned once implementation begins
+- 2026-04-18 | W10-W13 / Single-user productization slice | locally-verified | Reworked the runtime around the real single-user target by adding setup/settings flows, export/import, archive-retention controls, task edit plus permanent archived delete, search and keyboard polish, root-binary release parity, Docker-first deployment templates, workflow lint, Go lint, frontend lint, and refreshed product/deployment docs | The current working tree is locally verified for the new single-user direction, and the release/runtime contract is now aligned around the embedded root binary plus Docker image instead of the older split assumptions | Next: push the current head, record fresh exact-head CI proof, and exercise one real Docker-hosted deployment path before promoting W2-W13 beyond `locally-verified` | Risk: hosted-path proof and backend coverage for the new settings/import-export surfaces are still lighter than the frontend/runtime proof

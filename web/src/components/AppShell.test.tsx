@@ -6,6 +6,7 @@ import { axe } from "vitest-axe";
 
 import { AppShell } from "./AppShell";
 import { useAuthSession } from "../lib/useAuthSession";
+import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
 vi.mock("../lib/useAuthSession", async () => {
   const actual = await vi.importActual<typeof import("../lib/useAuthSession")>("../lib/useAuthSession");
@@ -15,11 +16,21 @@ vi.mock("../lib/useAuthSession", async () => {
   };
 });
 
+vi.mock("../lib/useBootstrapStatus", async () => {
+  const actual = await vi.importActual<typeof import("../lib/useBootstrapStatus")>("../lib/useBootstrapStatus");
+  return {
+    ...actual,
+    useBootstrapStatus: vi.fn(),
+  };
+});
+
 const mockedUseAuthSession = vi.mocked(useAuthSession);
+const mockedUseBootstrapStatus = vi.mocked(useBootstrapStatus);
 
 describe("AppShell", () => {
   beforeEach(() => {
     mockedUseAuthSession.mockReset();
+    mockedUseBootstrapStatus.mockReset();
   });
 
   it("exposes the shell landmarks and skip link without axe violations", async () => {
@@ -28,15 +39,20 @@ describe("AppShell", () => {
       error: null,
       isPending: false,
     } as ReturnType<typeof useAuthSession>);
+    mockedUseBootstrapStatus.mockReturnValue({
+      data: { needsSetup: false },
+      error: null,
+      isPending: false,
+    } as ReturnType<typeof useBootstrapStatus>);
 
     const { container } = renderShell();
 
     expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main-content");
-    expect(screen.getByRole("navigation", { name: "Next UI routes" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Primary routes" })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
 
-    const nav = screen.getByRole("navigation", { name: "Next UI routes" });
-    expect(within(nav).getByRole("link", { name: "Overview" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Primary routes" });
+    expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Sign In" })).toBeInTheDocument();
 
     const results = await axe(container);

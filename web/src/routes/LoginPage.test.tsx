@@ -6,6 +6,7 @@ import { axe } from "vitest-axe";
 
 import { LoginPage } from "./LoginPage";
 import { useAuthSession } from "../lib/useAuthSession";
+import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
 vi.mock("../lib/useAuthSession", async () => {
   const actual = await vi.importActual<typeof import("../lib/useAuthSession")>("../lib/useAuthSession");
@@ -15,11 +16,21 @@ vi.mock("../lib/useAuthSession", async () => {
   };
 });
 
+vi.mock("../lib/useBootstrapStatus", async () => {
+  const actual = await vi.importActual<typeof import("../lib/useBootstrapStatus")>("../lib/useBootstrapStatus");
+  return {
+    ...actual,
+    useBootstrapStatus: vi.fn(),
+  };
+});
+
 const mockedUseAuthSession = vi.mocked(useAuthSession);
+const mockedUseBootstrapStatus = vi.mocked(useBootstrapStatus);
 
 describe("LoginPage", () => {
   beforeEach(() => {
     mockedUseAuthSession.mockReset();
+    mockedUseBootstrapStatus.mockReset();
   });
 
   it("keeps the sign-in form accessible and free of axe violations", async () => {
@@ -28,6 +39,11 @@ describe("LoginPage", () => {
       error: null,
       isPending: false,
     } as ReturnType<typeof useAuthSession>);
+    mockedUseBootstrapStatus.mockReturnValue({
+      data: { needsSetup: false },
+      error: null,
+      isPending: false,
+    } as ReturnType<typeof useBootstrapStatus>);
 
     const { container } = renderLoginPage();
 
@@ -44,6 +60,11 @@ describe("LoginPage", () => {
       error: new Error("session lookup failed"),
       isPending: false,
     } as ReturnType<typeof useAuthSession>);
+    mockedUseBootstrapStatus.mockReturnValue({
+      data: { needsSetup: false },
+      error: null,
+      isPending: false,
+    } as ReturnType<typeof useBootstrapStatus>);
 
     const { container } = renderLoginPage();
 

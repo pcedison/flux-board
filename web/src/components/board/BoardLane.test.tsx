@@ -11,6 +11,7 @@ describe("BoardLane", () => {
         isTaskBusy={() => false}
         lane={{ label: "Queued", status: "queued" }}
         onArchiveTask={vi.fn()}
+        onEditTask={vi.fn()}
         onMoveTask={vi.fn()}
         setCardRef={vi.fn()}
         tasks={[]}
@@ -28,6 +29,7 @@ describe("BoardLane", () => {
         isTaskBusy={(id) => id === "b"}
         lane={{ label: "Queued", status: "queued" }}
         onArchiveTask={vi.fn()}
+        onEditTask={vi.fn()}
         onMoveTask={vi.fn()}
         setCardRef={vi.fn()}
         tasks={buildQueuedTasks()}

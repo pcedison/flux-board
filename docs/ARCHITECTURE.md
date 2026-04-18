@@ -1,82 +1,96 @@
 # Architecture
 
-## Current Architecture
-Flux Board currently runs as a single Go application that:
-- reads environment variables
-- opens a PostgreSQL connection pool
-- initializes schema in-process
-- serves API routes and embedded static assets from the same binary
+## Product Scope
+- Flux Board is a single-user board.
+- One deployed instance serves one operator.
+- The system is optimized for self-hosted local or cloud deployment, not shared multi-user collaboration.
 
-## Current Runtime Flow
-1. `main.go` loads `DATABASE_URL`, `APP_PASSWORD`, and runtime settings
-2. the app creates a `pgxpool` connection
-3. schema bootstrap runs directly from the app, including first-run bootstrap admin/session tables
-4. auth, tasks, and archive routes are registered with shared middleware
-5. a built `web/dist` is served by the same process as the canonical React runtime on `/`, `static/index.html` is preserved on `/legacy/` as the rollback shell, and old `/next/*` preview URLs are redirected into the root runtime
+## Runtime Shape
+Flux Board runs as one Go process that:
+- connects to PostgreSQL
+- applies embedded SQL migrations at startup
+- serves the JSON API
+- serves the React runtime on `/`
+- preserves the legacy rollback shell on `/legacy/`
+- exposes `/healthz`, `/readyz`, and `/metrics`
 
-## Current Backend Shape
-- entrypoint: [main.go](../main.go)
-- persistence: PostgreSQL through `pgx/pgxpool`
-- auth: `APP_PASSWORD` seeds the first admin row on bootstrap; subsequent login uses the stored bcrypt hash and PostgreSQL-backed sessions
-- auth audit: auth events are recorded into PostgreSQL audit rows during login, logout, and invalid session handling
-- transport hardening: explicit `http.Server`, timeouts, graceful shutdown, strict JSON decode, and baseline security headers
-- archive cleanup: periodic in-process goroutine with cancellation-aware lifecycle
-- session cleanup: periodic in-process goroutine with cancellation-aware lifecycle
+## Packaging Shape
+- Official release artifact: self-contained root binary built from `go build .`
+- Official hosted path: repo-root `Dockerfile`
+- Embedded assets in the root binary:
+  - `migrations/*.sql`
+  - `static/`
+  - `web/dist`
+- Historical note:
+  - `cmd/flux-board` still exists as a modular entrypoint for the package layout, but the supported release contract is now the root build because it carries the embedded runtime assets
 
-## Current Frontend Shape
-- canonical Go-served `React + TypeScript + Vite` runtime from built `web/dist` on `/`
-- legacy embedded rollback file: [static/index.html](../static/index.html) on `/legacy/`
-- `/next/*` remains as a compatibility redirect into the canonical root routes
-- non-drag create/move/archive/restore plus lane-local move up/down now exist in the React board
+## Startup Flow
+1. Load env configuration.
+2. Connect to PostgreSQL.
+3. Apply embedded migrations.
+4. Start background cleanup loops.
+5. Serve HTTP routes, API, health/readiness, and the embedded frontend.
 
-## Current Coupling Risks
-- backend logic is concentrated in one file
-- frontend markup, style, and behavior are tightly coupled
-- sorting rules are split between frontend and backend
-- archive retention logic is duplicated in frontend and backend
-- auth is safer than the original MVP, but still centered on one admin account
+## Auth Model
+- There is one logical admin account: `admin`.
+- `APP_PASSWORD` is bootstrap-only.
+- If the admin does not exist yet:
+  - a non-empty `APP_PASSWORD` can seed the first password at startup
+  - otherwise the browser finishes setup at `/setup`
+- After bootstrap, normal auth uses the stored bcrypt hash in PostgreSQL and DB-backed sessions.
+- Password rotation and session revocation happen in `/settings`, not through env changes.
 
-## Target Architecture
-### Backend
-- `cmd/flux-board` entrypoint
-- layered `internal/config`, `internal/http`, `internal/service`, `internal/store/postgres`
-- migrations for schema evolution
-- stronger auth and session model
+## Data Model
+- Active tasks live in `tasks`.
+- Archived tasks live in `archived_tasks`.
+- Session data lives in `sessions`.
+- Auth audit data lives in `auth_audit_logs`.
+- Operator settings such as archive retention live in `app_settings`.
 
-### Frontend
-- `web/` app using `React + TypeScript + Vite`
-- Go-served root runtime on `/` with `/legacy/` rollback and transitional `/next/*` redirects
-- componentized board UI
-- touch, keyboard, and mouse friendly movement
-- mobile/tablet/desktop responsive layouts
+## Board Behavior
+- Canonical lanes: `queued`, `active`, `done`
+- Supported lifecycle:
+  - create
+  - edit
+  - reorder
+  - move between lanes
+  - archive
+  - restore
+  - permanently delete archived cards
+- Archive cleanup is background-only.
+- Reading archived tasks never mutates data.
 
-## Enterprise Extension Seams
-- Current scope remains intentionally narrow: one bootstrap-created admin, one board domain, and one runtime-owned workspace. `W9/5-B` documents expansion seams only; it does not implement RBAC, SSO, or multi-workspace behavior.
-- Identity seam:
-  - keep `users.username` as the canonical local principal key for now
-  - future OIDC/SAML identities should map into that local principal through a separate identity-link table such as `user_identities(provider, external_subject, username, created_at, updated_at)` instead of replacing the current primary key
-  - `sessions` should continue to point at the local principal so logout, revocation, and audit behavior do not become provider-specific
-- RBAC seam:
-  - the current `users.role = 'admin'` column is a bootstrap compatibility field, not the final authorization model
-  - future authorization should move into explicit role bindings or workspace membership rows, not into more string states on `users.role`
-  - transport should authenticate and attach principal/workspace context; authorization decisions should live in service-layer policy checks so later enterprise rules do not spread across handlers
-- Workspace seam:
-  - future multi-workspace support should introduce first-class `workspaces` and `workspace_memberships` tables
-  - board-owned rows should gain a `workspace_id` foreign key in a later migration instead of encoding tenant scope in task IDs, status values, or route-only conventions
-  - once rows are workspace-scoped, ordering and lookup constraints must widen accordingly, for example `(workspace_id, status, sort_order)` for lane ordering
-- Recommended migration order for later enterprise work:
-  1. add a default workspace and backfill existing rows into it
-  2. add workspace membership and external identity-link tables
-  3. widen task/archive constraints and indexes to include `workspace_id`
-  4. teach repositories and services to require explicit workspace scope on every board query
-- Future enterprise slices should extend the current seams instead of replacing them wholesale:
-  - `internal/service/auth` is the policy entrypoint for login/session/identity decisions
-  - `internal/store/postgres` is the place to add workspace-aware queries and identity-link persistence
-  - `internal/transport/http` should gain one canonical workspace-resolution path per request instead of ad hoc header or query parsing
-- Non-goals for the current head:
-  - no IdP callback flow
-  - no SCIM or JIT provisioning
-  - no claim that the current schema already provides tenant isolation
+## Frontend Shape
+- `web/` contains the React + TypeScript + Vite app.
+- The runtime uses:
+  - React Router
+  - TanStack Query
+  - componentized board surfaces under `web/src/components/board`
+- Main user routes:
+  - `/setup`
+  - `/login`
+  - `/board`
+  - `/settings`
+  - `/about`
 
-## Source Of Truth
-Execution priority and rollout order are defined in [docs/MASTER_PLAN.md](MASTER_PLAN.md).
+## Quality Gates Embedded In The Repo
+- Go verification scripts
+- workflow lint via `actionlint`
+- Go lint via `golangci-lint`
+- frontend typecheck, lint, tests, and production build
+- Playwright smoke flows for login, drag-and-drop, keyboard, and compatibility redirects
+- release dry-run scripts
+
+## Current Risks
+- current exact-head remote CI proof still needs to be re-recorded after the single-user productization slice
+- Docker/hosted verification is implemented in docs and CI config, but this local session did not execute it because Docker was unavailable
+- backend tests around settings/import/export still need deeper coverage
+
+## Deliberate Non-Goals
+- multi-user accounts
+- RBAC
+- workspaces
+- OIDC / SSO
+- tenant isolation
+
+Those ideas are intentionally outside the current product target and should not be reintroduced unless the product goal changes.

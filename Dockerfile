@@ -16,16 +16,12 @@ RUN go mod download
 COPY . .
 COPY --from=web-builder /src/web/dist ./web/dist
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/flux-board ./cmd/flux-board
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/flux-board .
 
 FROM gcr.io/distroless/base-debian12:nonroot
 WORKDIR /app
 
 COPY --from=go-builder /out/flux-board ./flux-board
-COPY --from=go-builder /src/static ./static
-COPY --from=go-builder /src/migrations ./migrations
-COPY --from=go-builder /src/web/dist ./web/dist
-COPY --from=go-builder /src/VERSION ./VERSION
 
 EXPOSE 8080
 

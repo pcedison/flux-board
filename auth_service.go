@@ -3,13 +3,11 @@ package main
 import authservice "flux-board/internal/service/auth"
 
 var (
-	errAuthBlocked         = authservice.ErrBlocked
-	errAuthInvalidPassword = authservice.ErrInvalidPassword
+	errAuthBlocked        = authservice.ErrBlocked
 	errAuthInvalidSession  = authservice.ErrInvalidSession
 )
 
 type AuthService = authservice.Service
-type authLoginResult = authservice.LoginResult
 
 func (a *App) authService() AuthService {
 	if a.authSvc != nil {

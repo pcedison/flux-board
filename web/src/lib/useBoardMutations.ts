@@ -3,11 +3,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   archiveTask,
   createTask,
+  deleteArchivedTask,
   isUnauthorizedApiError,
   moveTask,
   restoreTask,
+  updateTask,
   type MoveTaskInput,
   type TaskDraft,
+  type TaskUpdateDraft,
 } from "./api";
 import { boardSnapshotQueryKey } from "./useBoardSnapshot";
 import { clearAuthSessionData } from "./useAuthSession";
@@ -32,6 +35,11 @@ export function useBoardMutations() {
       onSuccess: invalidateBoardSnapshot,
       onError: handleMutationError,
     }),
+    updateTask: useMutation({
+      mutationFn: ({ id, task }: { id: string; task: TaskUpdateDraft }) => updateTask(id, task),
+      onSuccess: invalidateBoardSnapshot,
+      onError: handleMutationError,
+    }),
     moveTask: useMutation({
       mutationFn: (input: MoveTaskInput) => moveTask(input),
       onSuccess: invalidateBoardSnapshot,
@@ -44,6 +52,11 @@ export function useBoardMutations() {
     }),
     restoreTask: useMutation({
       mutationFn: (id: string) => restoreTask(id),
+      onSuccess: invalidateBoardSnapshot,
+      onError: handleMutationError,
+    }),
+    deleteArchivedTask: useMutation({
+      mutationFn: (id: string) => deleteArchivedTask(id),
       onSuccess: invalidateBoardSnapshot,
       onError: handleMutationError,
     }),

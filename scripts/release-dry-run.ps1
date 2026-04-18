@@ -30,10 +30,19 @@ $binaryPath = Join-Path $outputDir $binaryName
 $checksumPath = Join-Path $outputDir "$binaryName.sha256"
 $checksumsPath = Join-Path $outputDir "SHA256SUMS"
 $runSmoke = if ([string]::IsNullOrWhiteSpace($env:RELEASE_RUN_SMOKE)) { $true } else { $env:RELEASE_RUN_SMOKE -ne "0" }
+$webDistIndex = Join-Path $root "web/dist/index.html"
 
 Write-Host "[1/4] Validate VERSION and CHANGELOG for v$version"
 
-Write-Host "[2/4] go build -o $binaryPath ./cmd/flux-board"
+if (($env:RELEASE_WEB_BUILD -ne "0") -and -not (Test-Path $webDistIndex)) {
+  Write-Host "[prep] web/dist is missing; building the React runtime first"
+  & (Join-Path $PSScriptRoot "verify-web.ps1")
+  if ($LASTEXITCODE -ne 0) {
+    throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
+  }
+}
+
+Write-Host "[2/4] go build -o $binaryPath ."
 $previousGoOS = $env:GOOS
 $previousGoArch = $env:GOARCH
 $previousCGOEnabled = $env:CGO_ENABLED
@@ -45,7 +54,7 @@ try {
     $env:CGO_ENABLED = "0"
   }
 
-  & go build -trimpath -o $binaryPath ./cmd/flux-board
+  & go build -trimpath -o $binaryPath .
 } finally {
   $env:GOOS = $previousGoOS
   $env:GOARCH = $previousGoArch

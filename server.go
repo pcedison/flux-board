@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"time"
 
 	transporthttp "flux-board/internal/transport/http"
 
@@ -12,14 +13,23 @@ import (
 )
 
 func (a *App) transportHandler() *transporthttp.Handler {
-	return transporthttp.NewHandler(
+	return transporthttp.NewHandlerWithSettings(
 		a.taskService(),
 		a.authService(),
+		a.settingsService(),
 		transporthttp.HandlerOptions{
-			CookieSecure:     a.cookieSecure,
-			AuthBodyLimit:    authBodyLimit,
-			TaskBodyLimit:    taskBodyLimit,
-			ReadinessChecker: a.checkReadiness,
+			CookieSecure:         a.cookieSecure,
+			AuthBodyLimit:        authBodyLimit,
+			SettingsBodyLimit:    2 << 20,
+			TaskBodyLimit:        taskBodyLimit,
+			ReadinessChecker:     a.checkReadiness,
+			AppEnvironment:       a.appEnv,
+			AppVersion:           a.version,
+			ArchiveCleanupEvery:  time.Hour,
+			SessionCleanupEvery:  sessionCleanupTicker,
+			RuntimeArtifact:      "self-contained-root-runtime",
+			RuntimeOwnershipPath: "/",
+			LegacyRollbackPath:   "/legacy/",
 		},
 	)
 }

@@ -7,8 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Future work can build on the current observability, release, and extension seams
-  without reopening the initial public-fork baseline.
+### Added
+
+- Added first-run `/setup`, `/settings`, password rotation, session revocation,
+  archive-retention controls, and JSON export/import for the single-user runtime.
+- Added frontend lint, `golangci-lint`, `actionlint`, `docker-compose.yml`, and a
+  Render deployment template to the productization baseline.
+- Added `/api/status`, the `/status` operator page, a setup-first browser smoke
+  lane, and Docker runtime smoke automation for both bootstrap and daily-login paths.
+
+### Changed
+
+- Switched the supported release artifact contract from `./cmd/flux-board` to the
+  self-contained root binary built from `go build .`.
+- Updated the Dockerfile, release dry-run scripts, and release workflow so the
+  embedded root binary and Docker image now share the same runtime assumptions.
+- Updated CI and tag releases so Docker is treated as a first-class contract,
+  including runtime smoke in CI and GHCR image publishing on tagged releases.
+- Repositioned the roadmap and docs around the real single-user self-hosted
+  product target instead of future multi-user scope.
 
 ## [0.1.2] - 2026-04-17
 

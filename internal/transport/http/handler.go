@@ -3,28 +3,39 @@ package transporthttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	stdhttp "net/http"
 	"strings"
 	"time"
 
 	"flux-board/internal/domain"
 	authservice "flux-board/internal/service/auth"
+	settingsservice "flux-board/internal/service/settings"
 	taskservice "flux-board/internal/service/task"
 )
 
 const readinessTimeout = 2 * time.Second
 
 type HandlerOptions struct {
-	CookieSecure     bool
-	AuthBodyLimit    int64
-	TaskBodyLimit    int64
-	ReadinessChecker func(context.Context) error
+	CookieSecure         bool
+	AuthBodyLimit        int64
+	SettingsBodyLimit    int64
+	TaskBodyLimit        int64
+	ReadinessChecker     func(context.Context) error
+	AppEnvironment       string
+	AppVersion           string
+	ArchiveCleanupEvery  time.Duration
+	SessionCleanupEvery  time.Duration
+	RuntimeArtifact      string
+	RuntimeOwnershipPath string
+	LegacyRollbackPath   string
 }
 
 type Handler struct {
-	taskService taskservice.Service
-	authService authservice.Service
-	options     HandlerOptions
+	taskService     taskservice.Service
+	authService     authservice.Service
+	settingsService settingsservice.Service
+	options         HandlerOptions
 }
 
 type taskReorderRequest struct {
@@ -33,11 +44,41 @@ type taskReorderRequest struct {
 	PlaceAfter   bool   `json:"placeAfter"`
 }
 
+type statusCheck struct {
+	Name    string `json:"name"`
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+type appStatusResponse struct {
+	Status               string        `json:"status"`
+	Version              string        `json:"version"`
+	Environment          string        `json:"environment"`
+	NeedsSetup           bool          `json:"needsSetup"`
+	ArchiveRetentionDays *int          `json:"archiveRetentionDays"`
+	RuntimeArtifact      string        `json:"runtimeArtifact"`
+	RuntimeOwnershipPath string        `json:"runtimeOwnershipPath"`
+	LegacyRollbackPath   string        `json:"legacyRollbackPath"`
+	ArchiveCleanupEvery  string        `json:"archiveCleanupEvery"`
+	SessionCleanupEvery  string        `json:"sessionCleanupEvery"`
+	GeneratedAt          int64         `json:"generatedAt"`
+	Checks               []statusCheck `json:"checks"`
+}
+
 func NewHandler(taskService taskservice.Service, authService authservice.Service, options HandlerOptions) *Handler {
 	return &Handler{
 		taskService: taskService,
 		authService: authService,
 		options:     options,
+	}
+}
+
+func NewHandlerWithSettings(taskService taskservice.Service, authService authservice.Service, settingsService settingsservice.Service, options HandlerOptions) *Handler {
+	return &Handler{
+		taskService:     taskService,
+		authService:     authService,
+		settingsService: settingsService,
+		options:         options,
 	}
 }
 
@@ -83,6 +124,8 @@ func (h *Handler) HandleLogin(w stdhttp.ResponseWriter, r *stdhttp.Request) {
 		switch {
 		case errors.Is(err, authservice.ErrBlocked):
 			WriteError(w, stdhttp.StatusTooManyRequests, "too many attempts, try again later")
+		case errors.Is(err, authservice.ErrSetupRequired):
+			WriteError(w, stdhttp.StatusConflict, "setup required")
 		case errors.Is(err, authservice.ErrInvalidPassword):
 			WriteError(w, stdhttp.StatusUnauthorized, "invalid password")
 		default:
@@ -281,9 +324,335 @@ func (h *Handler) HandleDeleteArchived(w stdhttp.ResponseWriter, r *stdhttp.Requ
 	w.WriteHeader(stdhttp.StatusNoContent)
 }
 
+func (h *Handler) HandleStatus(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	status := appStatusResponse{
+		Status:               "ready",
+		Version:              defaultString(h.options.AppVersion, "dev"),
+		Environment:          defaultString(h.options.AppEnvironment, "production"),
+		RuntimeArtifact:      defaultString(h.options.RuntimeArtifact, "self-contained-root-runtime"),
+		RuntimeOwnershipPath: defaultString(h.options.RuntimeOwnershipPath, "/"),
+		LegacyRollbackPath:   defaultString(h.options.LegacyRollbackPath, "/legacy/"),
+		ArchiveCleanupEvery:  formatDuration(h.options.ArchiveCleanupEvery),
+		SessionCleanupEvery:  formatDuration(h.options.SessionCleanupEvery),
+		GeneratedAt:          time.Now().UnixMilli(),
+	}
+
+	if h.options.ReadinessChecker != nil {
+		readinessCtx, cancel := context.WithTimeout(r.Context(), readinessTimeout)
+		err := h.options.ReadinessChecker(readinessCtx)
+		cancel()
+		if err != nil {
+			status.Status = "degraded"
+			status.Checks = append(status.Checks, statusCheck{
+				Name:    "database",
+				OK:      false,
+				Message: err.Error(),
+			})
+		} else {
+			status.Checks = append(status.Checks, statusCheck{
+				Name:    "database",
+				OK:      true,
+				Message: "database reachable",
+			})
+		}
+	}
+
+	bootstrapStatus, err := h.settingsService.BootstrapStatus(r.Context())
+	if err != nil {
+		status.Status = "degraded"
+		status.Checks = append(status.Checks, statusCheck{
+			Name:    "bootstrap",
+			OK:      false,
+			Message: fmt.Sprintf("bootstrap status unavailable: %v", err),
+		})
+	} else {
+		status.NeedsSetup = bootstrapStatus.NeedsSetup
+		status.Checks = append(status.Checks, statusCheck{
+			Name:    "bootstrap",
+			OK:      !bootstrapStatus.NeedsSetup,
+			Message: bootstrapMessage(bootstrapStatus.NeedsSetup),
+		})
+	}
+
+	settings, err := h.settingsService.GetSettings(r.Context())
+	if err != nil {
+		status.Status = "degraded"
+		status.Checks = append(status.Checks, statusCheck{
+			Name:    "archive-retention",
+			OK:      false,
+			Message: fmt.Sprintf("archive retention unavailable: %v", err),
+		})
+	} else {
+		status.ArchiveRetentionDays = settings.ArchiveRetentionDays
+		status.Checks = append(status.Checks, statusCheck{
+			Name:    "archive-retention",
+			OK:      true,
+			Message: archiveRetentionMessage(settings.ArchiveRetentionDays),
+		})
+	}
+
+	if status.Status == "degraded" {
+		w.WriteHeader(stdhttp.StatusServiceUnavailable)
+	}
+	JSONResp(w, status)
+}
+
+func (h *Handler) HandleBootstrapStatus(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	status, err := h.settingsService.BootstrapStatus(r.Context())
+	if err != nil {
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+	JSONResp(w, status)
+}
+
+func (h *Handler) HandleBootstrapSetup(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	var payload struct {
+		Password string `json:"password"`
+	}
+	if !DecodeJSON(w, r, h.options.SettingsBodyLimit, &payload) {
+		return
+	}
+
+	result, err := h.settingsService.Bootstrap(r.Context(), payload.Password, ClientIDFromRequest(r))
+	if err != nil {
+		switch {
+		case errors.Is(err, settingsservice.ErrAlreadyConfigured):
+			WriteError(w, stdhttp.StatusConflict, "already configured")
+		case settingsservice.IsValidationError(err):
+			WriteError(w, stdhttp.StatusBadRequest, err.Error())
+		default:
+			WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		}
+		return
+	}
+
+	SetSessionCookie(w, result.Token, result.ExpiresAt, h.options.CookieSecure)
+	JSONResp(w, map[string]any{"ok": true, "expiresAt": result.ExpiresAt.UnixMilli()})
+}
+
+func (h *Handler) HandleGetSettings(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	settings, err := h.settingsService.GetSettings(r.Context())
+	if err != nil {
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+	JSONResp(w, settings)
+}
+
+func (h *Handler) HandleUpdateSettings(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	var payload struct {
+		ArchiveRetentionDays *int `json:"archiveRetentionDays"`
+	}
+	if !DecodeJSON(w, r, h.options.SettingsBodyLimit, &payload) {
+		return
+	}
+
+	settings, err := h.settingsService.UpdateSettings(r.Context(), settingsservice.UpdateSettingsInput{
+		ArchiveRetentionDays: payload.ArchiveRetentionDays,
+	})
+	if err != nil {
+		if settingsservice.IsValidationError(err) {
+			WriteError(w, stdhttp.StatusBadRequest, err.Error())
+			return
+		}
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+	JSONResp(w, settings)
+}
+
+func (h *Handler) HandleChangePassword(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		WriteError(w, stdhttp.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var payload struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if !DecodeJSON(w, r, h.options.SettingsBodyLimit, &payload) {
+		return
+	}
+
+	err := h.settingsService.ChangePassword(
+		r.Context(),
+		payload.CurrentPassword,
+		payload.NewPassword,
+		session.Token,
+		ClientIDFromRequest(r),
+	)
+	if err != nil {
+		switch {
+		case settingsservice.IsValidationError(err):
+			WriteError(w, stdhttp.StatusBadRequest, err.Error())
+		case errors.Is(err, authservice.ErrInvalidPassword):
+			WriteError(w, stdhttp.StatusUnauthorized, "invalid password")
+		case errors.Is(err, authservice.ErrSetupRequired):
+			WriteError(w, stdhttp.StatusConflict, "setup required")
+		default:
+			WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		}
+		return
+	}
+
+	w.WriteHeader(stdhttp.StatusNoContent)
+}
+
+func (h *Handler) HandleGetSessions(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		WriteError(w, stdhttp.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	sessions, err := h.settingsService.ListSessions(r.Context(), session.Token)
+	if err != nil {
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+	JSONResp(w, map[string]any{"sessions": sessions})
+}
+
+func (h *Handler) HandleDeleteSession(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	session, ok := SessionFromContext(r.Context())
+	if !ok {
+		WriteError(w, stdhttp.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	err := h.settingsService.RevokeSession(r.Context(), r.PathValue("token"), session.Token, ClientIDFromRequest(r))
+	if err != nil {
+		switch {
+		case settingsservice.IsValidationError(err):
+			WriteError(w, stdhttp.StatusBadRequest, err.Error())
+		case errors.Is(err, settingsservice.ErrSessionNotFound):
+			WriteError(w, stdhttp.StatusNotFound, "not found")
+		default:
+			WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		}
+		return
+	}
+
+	if session.Token == r.PathValue("token") {
+		ClearSessionCookie(w, h.options.CookieSecure)
+	}
+	w.WriteHeader(stdhttp.StatusNoContent)
+}
+
+func (h *Handler) HandleExport(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	bundle, err := h.settingsService.Export(r.Context())
+	if err != nil {
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"flux-board-export.json\"")
+	JSONResp(w, bundle)
+}
+
+func (h *Handler) HandleImport(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+	if h.settingsService == nil {
+		WriteError(w, stdhttp.StatusNotImplemented, "settings unavailable")
+		return
+	}
+
+	var bundle domain.ExportBundle
+	if !DecodeJSON(w, r, h.options.SettingsBodyLimit, &bundle) {
+		return
+	}
+
+	if err := h.settingsService.Import(r.Context(), bundle); err != nil {
+		if settingsservice.IsValidationError(err) {
+			WriteError(w, stdhttp.StatusBadRequest, err.Error())
+			return
+		}
+		WriteError(w, stdhttp.StatusInternalServerError, "db error")
+		return
+	}
+	w.WriteHeader(stdhttp.StatusNoContent)
+}
+
 func (h *Handler) HandleHealthz(w stdhttp.ResponseWriter, _ *stdhttp.Request) {
 	setProbeHeaders(w)
 	JSONResp(w, map[string]string{"status": "ok"})
+}
+
+func defaultString(value, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
+func formatDuration(value time.Duration) string {
+	if value <= 0 {
+		return "disabled"
+	}
+	return value.String()
+}
+
+func bootstrapMessage(needsSetup bool) string {
+	if needsSetup {
+		return "browser setup still required"
+	}
+	return "admin password already configured"
+}
+
+func archiveRetentionMessage(days *int) string {
+	if days == nil {
+		return "archived cards are kept until you delete them"
+	}
+	return fmt.Sprintf("archived cards auto-delete after %d days", *days)
 }
 
 func (h *Handler) HandleReadyz(w stdhttp.ResponseWriter, r *stdhttp.Request) {

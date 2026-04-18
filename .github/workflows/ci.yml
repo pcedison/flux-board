@@ -8,6 +8,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -35,20 +39,29 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Verify formatting context
         run: go version
+
+      - name: Verify workflows
+        run: bash ./scripts/verify-workflows.sh
+
+      - name: Verify Go lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.8.0
+          args: --timeout=5m
 
       - name: Verify Go
         run: bash ./scripts/verify-go.sh
@@ -58,6 +71,90 @@ jobs:
 
       - name: Verify web scaffold
         run: bash ./scripts/verify-web.sh
+
+      - name: Verify release artifact parity
+        env:
+          RELEASE_RUN_SMOKE: "0"
+        run: bash ./scripts/release-dry-run.sh
+
+      - name: Verify Docker image build
+        run: docker build -t flux-board:ci .
+
+      - name: Verify docker compose contract
+        run: docker compose -f docker-compose.yml config >/dev/null
+
+  docker_smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mode:
+          - name: login
+            smoke_script: smoke:login
+            app_password: ci-test-password
+            flux_password: ci-test-password
+            flux_setup_password: ci-test-password
+          - name: setup
+            smoke_script: smoke:setup
+            app_password: ""
+            flux_password: ci-bootstrap-password
+            flux_setup_password: ci-bootstrap-password
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ${{ matrix.mode.app_password }}
+      FLUX_PASSWORD: ${{ matrix.mode.flux_password }}
+      FLUX_SETUP_PASSWORD: ${{ matrix.mode.flux_setup_password }}
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      DOCKER_DATABASE_URL: postgres://flux:flux@host.docker.internal:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_BROWSER: chromium
+      SMOKE_SCRIPT: ${{ matrix.mode.smoke_script }}
+      TEST_RESULTS_DIR: test-results/github-ci/docker-smoke/${{ matrix.mode.name }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Docker runtime smoke
+        run: bash ./scripts/verify-docker-smoke.sh
+
+      - name: Upload Docker diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-docker-smoke-${{ matrix.mode.name }}
+          path: |
+            test-results/
+          if-no-files-found: ignore
 
   smoke:
     needs: verify
@@ -97,17 +194,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
@@ -165,17 +262,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
@@ -233,17 +330,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
@@ -297,17 +394,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit
@@ -331,6 +428,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     needs:
       - verify
+      - docker_smoke
       - smoke
       - dnd_smoke
       - keyboard_smoke
@@ -363,17 +461,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install root smoke dependencies
         run: npm ci --no-fund --no-audit

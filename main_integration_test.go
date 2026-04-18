@@ -190,10 +190,13 @@ func TestIntegrationInitSchemaAppliesMigrations(t *testing.T) {
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate schema_migrations: %v", err)
 	}
-	if len(versions) != 2 || versions[0] != "0001_initial" || versions[1] != "0002_task_order_constraints" {
-		t.Fatalf("expected migration history [0001_initial], got %+v", versions)
+	if len(versions) != 3 ||
+		versions[0] != "0001_initial" ||
+		versions[1] != "0002_task_order_constraints" ||
+		versions[2] != "0003_single_user_settings" {
+		t.Fatalf("expected migration history [0001_initial 0002_task_order_constraints 0003_single_user_settings], got %+v", versions)
 	}
-	if len(checksums) != 2 || checksums[0] == "" || checksums[1] == "" {
+	if len(checksums) != 3 || checksums[0] == "" || checksums[1] == "" || checksums[2] == "" {
 		t.Fatalf("expected non-empty migration checksum, got %+v", checksums)
 	}
 
@@ -402,7 +405,7 @@ func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
-		adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
+		_, _ = adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
 		adminPool.Close()
 		t.Fatalf("parse test pool config: %v", err)
 	}
@@ -413,7 +416,7 @@ func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 
 	testPool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
-		adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
+		_, _ = adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
 		adminPool.Close()
 		t.Fatalf("connect test pool: %v", err)
 	}
@@ -425,7 +428,7 @@ func newIntegrationTestApp(t *testing.T, databaseURL string) (*App, func()) {
 	}
 	if err := app.initSchema(); err != nil {
 		testPool.Close()
-		adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
+		_, _ = adminPool.Exec(ctx, `DROP SCHEMA `+schemaName+` CASCADE`)
 		adminPool.Close()
 		t.Fatalf("init schema: %v", err)
 	}

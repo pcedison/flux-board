@@ -35,6 +35,9 @@ func NewMux(handler *Handler, options MuxOptions) (*stdhttp.ServeMux, error) {
 	mux.Handle("GET /healthz", WithObservedRoute("GET /healthz", stdhttp.HandlerFunc(handler.HandleHealthz)))
 	mux.Handle("GET /readyz", WithObservedRoute("GET /readyz", stdhttp.HandlerFunc(handler.HandleReadyz)))
 	mux.Handle("GET /metrics", WithObservedRoute("GET /metrics", observability.MetricsHandler()))
+	mux.Handle("GET /api/status", WithObservedRoute("GET /api/status", stdhttp.HandlerFunc(handler.HandleStatus)))
+	mux.Handle("GET /api/bootstrap/status", WithObservedRoute("GET /api/bootstrap/status", stdhttp.HandlerFunc(handler.HandleBootstrapStatus)))
+	mux.Handle("POST /api/bootstrap/setup", WithObservedRoute("POST /api/bootstrap/setup", stdhttp.HandlerFunc(handler.HandleBootstrapSetup)))
 	mux.Handle("POST /api/auth/login", WithObservedRoute("POST /api/auth/login", stdhttp.HandlerFunc(handler.HandleLogin)))
 	mux.Handle("POST /api/auth/logout", WithObservedRoute("POST /api/auth/logout", stdhttp.HandlerFunc(handler.HandleLogout)))
 	mux.Handle("GET /api/auth/me", WithObservedRoute("GET /api/auth/me", stdhttp.HandlerFunc(handler.Auth(handler.HandleGetSession))))
@@ -48,6 +51,13 @@ func NewMux(handler *Handler, options MuxOptions) (*stdhttp.ServeMux, error) {
 	mux.Handle("GET /api/archived", WithObservedRoute("GET /api/archived", stdhttp.HandlerFunc(handler.Auth(handler.HandleGetArchived))))
 	mux.Handle("POST /api/archived/{id}/restore", WithObservedRoute("POST /api/archived/{id}/restore", stdhttp.HandlerFunc(handler.Auth(handler.HandleRestoreTask))))
 	mux.Handle("DELETE /api/archived/{id}", WithObservedRoute("DELETE /api/archived/{id}", stdhttp.HandlerFunc(handler.Auth(handler.HandleDeleteArchived))))
+	mux.Handle("GET /api/settings", WithObservedRoute("GET /api/settings", stdhttp.HandlerFunc(handler.Auth(handler.HandleGetSettings))))
+	mux.Handle("PATCH /api/settings", WithObservedRoute("PATCH /api/settings", stdhttp.HandlerFunc(handler.Auth(handler.HandleUpdateSettings))))
+	mux.Handle("POST /api/settings/password", WithObservedRoute("POST /api/settings/password", stdhttp.HandlerFunc(handler.Auth(handler.HandleChangePassword))))
+	mux.Handle("GET /api/settings/sessions", WithObservedRoute("GET /api/settings/sessions", stdhttp.HandlerFunc(handler.Auth(handler.HandleGetSessions))))
+	mux.Handle("DELETE /api/settings/sessions/{token}", WithObservedRoute("DELETE /api/settings/sessions/{token}", stdhttp.HandlerFunc(handler.Auth(handler.HandleDeleteSession))))
+	mux.Handle("GET /api/export", WithObservedRoute("GET /api/export", stdhttp.HandlerFunc(handler.Auth(handler.HandleExport))))
+	mux.Handle("POST /api/import", WithObservedRoute("POST /api/import", stdhttp.HandlerFunc(handler.Auth(handler.HandleImport))))
 
 	rootRuntime, err := NewRootWebRuntimeHandler(options.WebFS)
 	if err != nil {

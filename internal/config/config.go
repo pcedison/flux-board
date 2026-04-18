@@ -18,15 +18,11 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	appPassword, err := require("APP_PASSWORD")
-	if err != nil {
-		return Config{}, err
-	}
 
 	appEnv := get("APP_ENV", "production")
 	return Config{
 		DatabaseURL:  databaseURL,
-		AppPassword:  appPassword,
+		AppPassword:  get("APP_PASSWORD", ""),
 		Port:         get("PORT", "8080"),
 		AppEnv:       appEnv,
 		CookieSecure: appEnv != "development",

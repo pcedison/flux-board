@@ -39,8 +39,8 @@ export function BoardComposerPanel({
     <div>
       <h2>Create task</h2>
       <p className="meta">
-        This W7/W8 slice adds the first non-drag mutation path to the new frontend while keeping
-        the board layout intentionally simple.
+        Add new cards without leaving the board. Keyboard-friendly controls remain available even
+        when drag-and-drop is not convenient.
       </p>
       <form className={`board-form${isPending ? " board-form-pending" : ""}`} onSubmit={onSubmit} noValidate>
         <label className="form-field" htmlFor="board-task-title">

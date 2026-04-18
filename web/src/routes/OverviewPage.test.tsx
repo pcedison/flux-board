@@ -4,20 +4,32 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 
 import { OverviewPage } from "./OverviewPage";
+import { useAppStatus } from "../lib/useAppStatus";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
 vi.mock("../lib/useBoardSnapshot", () => ({
   useBoardSnapshot: vi.fn(),
 }));
 
+vi.mock("../lib/useAppStatus", () => ({
+  useAppStatus: vi.fn(),
+}));
+
 const mockedUseBoardSnapshot = vi.mocked(useBoardSnapshot);
+const mockedUseAppStatus = vi.mocked(useAppStatus);
 
 describe("OverviewPage", () => {
   beforeEach(() => {
     mockedUseBoardSnapshot.mockReset();
+    mockedUseAppStatus.mockReset();
   });
 
   it("renders loading state while the snapshot is pending", async () => {
+    mockedUseAppStatus.mockReturnValue({
+      data: undefined,
+      error: null,
+      isPending: true,
+    } as ReturnType<typeof useAppStatus>);
     mockedUseBoardSnapshot.mockReturnValue({
       data: undefined,
       error: null,
@@ -31,12 +43,33 @@ describe("OverviewPage", () => {
     );
 
     expect(screen.getByText("Loading")).toBeInTheDocument();
-    expect(screen.getByText("Reading the current auth and board snapshot from the Go API.")).toBeInTheDocument();
+    expect(screen.getByText("Reading the current deployment status and board snapshot from the Go API.")).toBeInTheDocument();
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);
   });
 
   it("renders authenticated totals from the snapshot", async () => {
+    mockedUseAppStatus.mockReturnValue({
+      data: {
+        status: "ready",
+        version: "dev",
+        environment: "development",
+        needsSetup: false,
+        archiveRetentionDays: null,
+        runtimeArtifact: "self-contained-root-runtime",
+        runtimeOwnershipPath: "/",
+        legacyRollbackPath: "/legacy/",
+        archiveCleanupEvery: "1h0m0s",
+        sessionCleanupEvery: "15m0s",
+        generatedAt: new Date("2026-04-30T08:00:00Z").getTime(),
+        checks: [
+          { name: "database", ok: true, message: "database reachable" },
+          { name: "bootstrap", ok: true, message: "admin password already configured" },
+        ],
+      },
+      error: null,
+      isPending: false,
+    } as ReturnType<typeof useAppStatus>);
     mockedUseBoardSnapshot.mockReturnValue({
       data: {
         session: {
@@ -62,12 +95,13 @@ describe("OverviewPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Authenticated session detected")).toBeInTheDocument();
+    expect(screen.getByText("Deployment ready")).toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
     expect(screen.getByText("Archived")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Open board route" })).toHaveAttribute("href", "/board");
+    expect(screen.getByText("database reachable")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open board" })).toHaveAttribute("href", "/board");
     expect(screen.getAllByText("1")).toHaveLength(4);
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);

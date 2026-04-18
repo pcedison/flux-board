@@ -21,10 +21,15 @@ run_smoke=${RELEASE_RUN_SMOKE:-1}
 
 mkdir -p "$output_dir"
 
+if [ "${RELEASE_WEB_BUILD:-1}" != "0" ] && [ ! -f "web/dist/index.html" ]; then
+  echo "[prep] web/dist is missing; building the React runtime first"
+  sh "$script_dir/verify-web.sh"
+fi
+
 echo "[1/4] Validate VERSION and CHANGELOG for v$version"
 
-echo "[2/4] go build -o $binary_path ./cmd/flux-board"
-CGO_ENABLED=${CGO_ENABLED:-0} GOOS="$target_goos" GOARCH="$target_goarch" go build -trimpath -o "$binary_path" ./cmd/flux-board
+echo "[2/4] go build -o $binary_path ."
+CGO_ENABLED=${CGO_ENABLED:-0} GOOS="$target_goos" GOARCH="$target_goarch" go build -trimpath -o "$binary_path" .
 
 echo "[3/4] Generate checksums"
 (

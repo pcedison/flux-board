@@ -13,13 +13,13 @@ import (
 	"flux-board/internal/config"
 	"flux-board/internal/observability/tracing"
 	authservice "flux-board/internal/service/auth"
+	settingsservice "flux-board/internal/service/settings"
 	taskservice "flux-board/internal/service/task"
 	storepostgres "flux-board/internal/store/postgres"
 	transporthttp "flux-board/internal/transport/http"
 )
 
 const (
-	archiveRetention           = 3 * 24 * time.Hour
 	readHeaderTimeout          = 5 * time.Second
 	readTimeout                = 15 * time.Second
 	writeTimeout               = 15 * time.Second
@@ -27,6 +27,7 @@ const (
 	shutdownTimeout            = 10 * time.Second
 	traceShutdownTimeout       = 5 * time.Second
 	authBodyLimit        int64 = 8 << 10
+	settingsBodyLimit    int64 = 2 << 20
 	taskBodyLimit        int64 = 64 << 10
 	readinessTimeout           = 2 * time.Second
 )
@@ -79,12 +80,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	taskRepo := storepostgres.NewTaskRepository(pool, archiveRetention)
+	taskRepo := storepostgres.NewTaskRepository(pool)
 	authRepo := storepostgres.NewAuthRepository(pool)
+	settingsRepo := storepostgres.NewSettingsRepository(pool)
 	taskSvc := taskservice.New(taskRepo)
 	authSvc := authservice.New(authRepo, authservice.Options{
 		RequestIDFromContext: transporthttp.RequestIDFromContext,
 	})
+	settingsSvc := settingsservice.New(authRepo, settingsRepo, taskRepo, authSvc, appVersion(), settingsservice.Options{})
 	observability := transporthttp.NewObservability(transporthttp.ObservabilityOptions{
 		Logger: logger,
 	})
@@ -93,17 +96,25 @@ func main() {
 	defer stop()
 
 	go runCleanupLoop(runtimeCtx, time.Hour, "archive cleanup", logger, func(ctx context.Context) error {
-		return storepostgres.CleanupArchivedTasks(ctx, pool, archiveRetention)
+		return storepostgres.CleanupArchivedTasks(ctx, pool)
 	})
 	go runCleanupLoop(runtimeCtx, 15*time.Minute, "session cleanup", logger, func(ctx context.Context) error {
 		return storepostgres.CleanupExpiredSessions(ctx, pool, time.Now())
 	})
 
 	mux, err := transporthttp.NewMux(
-		transporthttp.NewHandler(taskSvc, authSvc, transporthttp.HandlerOptions{
-			CookieSecure:  cfg.CookieSecure,
-			AuthBodyLimit: authBodyLimit,
-			TaskBodyLimit: taskBodyLimit,
+		transporthttp.NewHandlerWithSettings(taskSvc, authSvc, settingsSvc, transporthttp.HandlerOptions{
+			CookieSecure:         cfg.CookieSecure,
+			AuthBodyLimit:        authBodyLimit,
+			SettingsBodyLimit:    settingsBodyLimit,
+			TaskBodyLimit:        taskBodyLimit,
+			AppEnvironment:       cfg.AppEnv,
+			AppVersion:           appVersion(),
+			ArchiveCleanupEvery:  time.Hour,
+			SessionCleanupEvery:  15 * time.Minute,
+			RuntimeArtifact:      "filesystem-root-runtime",
+			RuntimeOwnershipPath: "/",
+			LegacyRollbackPath:   "/legacy/",
 			ReadinessChecker: func(ctx context.Context) error {
 				readinessCtx, cancel := context.WithTimeout(ctx, readinessTimeout)
 				defer cancel()
