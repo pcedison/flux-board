@@ -149,7 +149,7 @@ jobs:
 
       - name: Upload Docker diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-docker-smoke-${{ matrix.mode.name }}
           path: |
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-${{ matrix.browser }}
           path: |
@@ -279,7 +279,7 @@ jobs:
 
       - name: Upload setup diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-setup-smoke-chromium
           path: |
@@ -340,7 +340,7 @@ jobs:
 
       - name: Upload settings diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-settings-smoke-chromium
           path: |
@@ -408,7 +408,7 @@ jobs:
 
       - name: Upload diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-dnd-smoke-${{ matrix.browser }}
           path: |
@@ -476,7 +476,7 @@ jobs:
 
       - name: Upload keyboard diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-keyboard-smoke-${{ matrix.browser }}
           path: |
@@ -540,7 +540,7 @@ jobs:
 
       - name: Upload preview diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ci-diagnostics-next-preview-${{ matrix.browser }}
           path: |
@@ -609,7 +609,7 @@ jobs:
 
       - name: Upload release dry-run artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-dry-run-linux-amd64
           path: |
