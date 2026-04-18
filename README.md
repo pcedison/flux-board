@@ -112,6 +112,7 @@ export FLUX_PASSWORD="your-password"
 
 Related smoke lanes:
 - `./scripts/verify-setup-smoke.sh`
+- `./scripts/verify-settings-smoke.sh`
 - `./scripts/verify-dnd-smoke.sh`
 - `./scripts/verify-board-keyboard-smoke.sh`
 - `./scripts/verify-next-preview.sh`

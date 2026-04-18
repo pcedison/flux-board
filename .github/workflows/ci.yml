@@ -224,6 +224,129 @@ jobs:
             test-results/
           if-no-files-found: ignore
 
+  setup_smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ""
+      FLUX_PASSWORD: ci-bootstrap-password
+      FLUX_SETUP_PASSWORD: ci-bootstrap-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "120000"
+      PLAYWRIGHT_BROWSER: chromium
+      TEST_RESULTS_DIR: test-results/github-ci/setup-smoke/chromium
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify root setup smoke
+        run: bash ./scripts/verify-setup-smoke.sh
+
+      - name: Upload setup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-setup-smoke-chromium
+          path: |
+            test-results/
+          if-no-files-found: ignore
+
+  settings_smoke:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+      APP_ENV: development
+      APP_PASSWORD: ci-test-password
+      FLUX_PASSWORD: ci-test-password
+      DATABASE_URL: postgres://flux:flux@127.0.0.1:5432/flux?sslmode=disable
+      BASE_URL: http://127.0.0.1:8080
+      SMOKE_TIMEOUT_MS: "180000"
+      PLAYWRIGHT_BROWSER: chromium
+      TEST_RESULTS_DIR: test-results/github-ci/settings-smoke/chromium
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flux
+          POSTGRES_PASSWORD: flux
+          POSTGRES_DB: flux
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U flux -d flux"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Install root smoke dependencies
+        run: npm ci --no-fund --no-audit
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify settings smoke
+        run: bash ./scripts/verify-settings-smoke.sh
+
+      - name: Upload settings diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-diagnostics-settings-smoke-chromium
+          path: |
+            test-results/
+          if-no-files-found: ignore
+
   dnd_smoke:
     needs: verify
     runs-on: ubuntu-latest
@@ -430,6 +553,8 @@ jobs:
       - verify
       - docker_smoke
       - smoke
+      - setup_smoke
+      - settings_smoke
       - dnd_smoke
       - keyboard_smoke
       - preview_smoke

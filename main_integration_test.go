@@ -335,6 +335,397 @@ func TestIntegrationUpdateTaskDoesNotClobberOrdering(t *testing.T) {
 	assertLaneOrder(t, app, "active", []string{"task-b"})
 }
 
+func TestIntegrationSettingsUpdateExportAndImportWithDatabase(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration settings/export/import test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	handler := app.transportHandler()
+	sessionCookie := loginForIntegration(t, app, "integration-secret", "127.0.0.1:4567")
+
+	updateReq := httptest.NewRequest(http.MethodPatch, "/api/settings", strings.NewReader(`{"archiveRetentionDays":30}`))
+	updateReq.RemoteAddr = "127.0.0.1:4567"
+	updateReq.AddCookie(sessionCookie)
+	updateRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleUpdateSettings)(updateRec, updateReq)
+	if updateRec.Code != http.StatusOK {
+		t.Fatalf("expected settings update status 200, got %d body=%s", updateRec.Code, updateRec.Body.String())
+	}
+
+	var updatedSettings domain.AppSettings
+	if err := json.NewDecoder(updateRec.Body).Decode(&updatedSettings); err != nil {
+		t.Fatalf("decode settings update response: %v", err)
+	}
+	if updatedSettings.ArchiveRetentionDays == nil || *updatedSettings.ArchiveRetentionDays != 30 {
+		t.Fatalf("expected archive retention 30 days, got %+v", updatedSettings)
+	}
+
+	var storedRetention string
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT value
+		FROM app_settings
+		WHERE key='archive_retention_days'
+	`).Scan(&storedRetention); err != nil {
+		t.Fatalf("query updated archive retention: %v", err)
+	}
+	if storedRetention != "30" {
+		t.Fatalf("expected stored archive retention value 30, got %q", storedRetention)
+	}
+
+	createTaskForIntegration(t, app, domain.Task{ID: "task-export-active", Title: "Task export active", Due: "2026-05-01", Priority: "medium"})
+	createTaskForIntegration(t, app, domain.Task{ID: "task-export-archived", Title: "Task export archived", Due: "2026-05-02", Priority: "high"})
+
+	archiveReq := httptest.NewRequest(http.MethodDelete, "/api/tasks/task-export-archived", nil)
+	archiveReq.SetPathValue("id", "task-export-archived")
+	archiveRec := httptest.NewRecorder()
+	app.handleArchiveTask(archiveRec, archiveReq)
+	if archiveRec.Code != http.StatusOK {
+		t.Fatalf("expected archive-before-export status 200, got %d body=%s", archiveRec.Code, archiveRec.Body.String())
+	}
+
+	exportReq := httptest.NewRequest(http.MethodGet, "/api/export", nil)
+	exportReq.RemoteAddr = "127.0.0.1:4567"
+	exportReq.AddCookie(sessionCookie)
+	exportRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleExport)(exportRec, exportReq)
+	if exportRec.Code != http.StatusOK {
+		t.Fatalf("expected export status 200, got %d body=%s", exportRec.Code, exportRec.Body.String())
+	}
+	if exportRec.Header().Get("Content-Disposition") != `attachment; filename="flux-board-export.json"` {
+		t.Fatalf("expected export attachment header, got %q", exportRec.Header().Get("Content-Disposition"))
+	}
+
+	var exportBundle domain.ExportBundle
+	if err := json.NewDecoder(exportRec.Body).Decode(&exportBundle); err != nil {
+		t.Fatalf("decode export response: %v", err)
+	}
+	if exportBundle.Version == "" || exportBundle.ExportedAt <= 0 {
+		t.Fatalf("expected export metadata to be populated, got %+v", exportBundle)
+	}
+	if exportBundle.Settings.ArchiveRetentionDays == nil || *exportBundle.Settings.ArchiveRetentionDays != 30 {
+		t.Fatalf("expected exported settings to include retention 30 days, got %+v", exportBundle.Settings)
+	}
+	if len(exportBundle.Tasks) != 1 || exportBundle.Tasks[0].ID != "task-export-active" {
+		t.Fatalf("expected exported active task snapshot, got %+v", exportBundle.Tasks)
+	}
+	if len(exportBundle.Archived) != 1 || exportBundle.Archived[0].ID != "task-export-archived" {
+		t.Fatalf("expected exported archived task snapshot, got %+v", exportBundle.Archived)
+	}
+
+	importRetention := 14
+	importBundle := domain.ExportBundle{
+		Version:    "integration-import",
+		ExportedAt: time.Now().UnixMilli(),
+		Settings: domain.AppSettings{
+			ArchiveRetentionDays: &importRetention,
+		},
+		Tasks: []domain.Task{
+			{
+				ID:          "queued-second",
+				Title:       "Queued second",
+				Note:        "",
+				Due:         "2026-05-10",
+				Priority:    "high",
+				Status:      "queued",
+				SortOrder:   9,
+				LastUpdated: 100,
+			},
+			{
+				ID:          "queued-first",
+				Title:       "Queued first",
+				Note:        "",
+				Due:         "2026-05-09",
+				Priority:    "medium",
+				Status:      "queued",
+				SortOrder:   2,
+				LastUpdated: 200,
+			},
+			{
+				ID:          "active-only",
+				Title:       "Active only",
+				Note:        "",
+				Due:         "2026-05-11",
+				Priority:    "critical",
+				Status:      "active",
+				SortOrder:   4,
+				LastUpdated: 300,
+			},
+		},
+		Archived: []domain.ArchivedTask{
+			{
+				ID:         "archived-imported",
+				Title:      "Archived imported",
+				Note:       "",
+				Due:        "2026-05-12",
+				Priority:   "medium",
+				Status:     "done",
+				SortOrder:  6,
+				ArchivedAt: time.Now().UnixMilli(),
+			},
+		},
+	}
+
+	importReq := httptest.NewRequest(http.MethodPost, "/api/import", strings.NewReader(mustJSONForIntegration(t, importBundle)))
+	importReq.RemoteAddr = "127.0.0.1:4567"
+	importReq.AddCookie(sessionCookie)
+	importRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleImport)(importRec, importReq)
+	if importRec.Code != http.StatusNoContent {
+		t.Fatalf("expected import status 204, got %d body=%s", importRec.Code, importRec.Body.String())
+	}
+
+	assertLaneOrder(t, app, "active", []string{"active-only"})
+	assertLaneOrder(t, app, "queued", []string{"queued-first", "queued-second"})
+	assertArchivedIDs(t, app, []string{"archived-imported"})
+
+	var legacyActiveExists bool
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT EXISTS(SELECT 1 FROM tasks WHERE id='task-export-active')
+	`).Scan(&legacyActiveExists); err != nil {
+		t.Fatalf("check imported task replacement for active task: %v", err)
+	}
+	if legacyActiveExists {
+		t.Fatal("expected import to replace previously exported active task")
+	}
+
+	var legacyArchivedExists bool
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT EXISTS(SELECT 1 FROM archived_tasks WHERE id='task-export-archived')
+	`).Scan(&legacyArchivedExists); err != nil {
+		t.Fatalf("check imported task replacement for archived task: %v", err)
+	}
+	if legacyArchivedExists {
+		t.Fatal("expected import to replace previously exported archived task")
+	}
+
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT value
+		FROM app_settings
+		WHERE key='archive_retention_days'
+	`).Scan(&storedRetention); err != nil {
+		t.Fatalf("query imported archive retention: %v", err)
+	}
+	if storedRetention != "14" {
+		t.Fatalf("expected imported archive retention value 14, got %q", storedRetention)
+	}
+}
+
+func TestIntegrationListAndRevokeSessionsWithDatabase(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration session list/revoke test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	handler := app.transportHandler()
+	currentCookie := loginForIntegration(t, app, "integration-secret", "127.0.0.1:4567")
+	otherCookie := loginForIntegration(t, app, "integration-secret", "127.0.0.2:4567")
+
+	listReq := httptest.NewRequest(http.MethodGet, "/api/settings/sessions", nil)
+	listReq.RemoteAddr = "127.0.0.1:4567"
+	listReq.AddCookie(currentCookie)
+	listRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleGetSessions)(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected list sessions status 200, got %d body=%s", listRec.Code, listRec.Body.String())
+	}
+
+	var listBody struct {
+		Sessions []domain.SessionInfo `json:"sessions"`
+	}
+	if err := json.NewDecoder(listRec.Body).Decode(&listBody); err != nil {
+		t.Fatalf("decode list sessions response: %v", err)
+	}
+	if len(listBody.Sessions) != 2 {
+		t.Fatalf("expected 2 sessions, got %+v", listBody.Sessions)
+	}
+
+	currentCount := 0
+	foundOther := false
+	for _, session := range listBody.Sessions {
+		if session.Token == currentCookie.Value {
+			if !session.Current {
+				t.Fatalf("expected current session to be marked current, got %+v", session)
+			}
+			if session.ClientIP != "127.0.0.1" {
+				t.Fatalf("expected current session client IP 127.0.0.1, got %+v", session)
+			}
+			currentCount++
+		}
+		if session.Token == otherCookie.Value {
+			foundOther = true
+			if session.Current {
+				t.Fatalf("expected non-current session to be marked not current, got %+v", session)
+			}
+			if session.ClientIP != "127.0.0.2" {
+				t.Fatalf("expected other session client IP 127.0.0.2, got %+v", session)
+			}
+		}
+	}
+	if currentCount != 1 {
+		t.Fatalf("expected exactly one current session, got %+v", listBody.Sessions)
+	}
+	if !foundOther {
+		t.Fatalf("expected other session %q in %+v", otherCookie.Value, listBody.Sessions)
+	}
+
+	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/settings/sessions/"+otherCookie.Value, nil)
+	revokeReq.RemoteAddr = "127.0.0.1:4567"
+	revokeReq.SetPathValue("token", otherCookie.Value)
+	revokeReq.AddCookie(currentCookie)
+	revokeRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleDeleteSession)(revokeRec, revokeReq)
+	if revokeRec.Code != http.StatusNoContent {
+		t.Fatalf("expected revoke session status 204, got %d body=%s", revokeRec.Code, revokeRec.Body.String())
+	}
+
+	var sessionCount int
+	if err := app.db.QueryRow(context.Background(), `SELECT COUNT(*) FROM sessions`).Scan(&sessionCount); err != nil {
+		t.Fatalf("count sessions after revoke: %v", err)
+	}
+	if sessionCount != 1 {
+		t.Fatalf("expected exactly one session after revoke, got %d", sessionCount)
+	}
+
+	meHandler := handler.Auth(handler.HandleGetSession)
+
+	revokedReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	revokedReq.RemoteAddr = "127.0.0.2:4567"
+	revokedReq.AddCookie(otherCookie)
+	revokedRec := httptest.NewRecorder()
+	meHandler(revokedRec, revokedReq)
+	if revokedRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected revoked session to be unauthorized, got %d body=%s", revokedRec.Code, revokedRec.Body.String())
+	}
+
+	currentReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	currentReq.RemoteAddr = "127.0.0.1:4567"
+	currentReq.AddCookie(currentCookie)
+	currentRec := httptest.NewRecorder()
+	meHandler(currentRec, currentReq)
+	if currentRec.Code != http.StatusOK {
+		t.Fatalf("expected current session to stay valid, got %d body=%s", currentRec.Code, currentRec.Body.String())
+	}
+
+	var eventType, outcome, clientIP, details string
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT event_type, outcome, client_ip, details
+		FROM auth_audit_logs
+		WHERE event_type='session_revoke'
+		ORDER BY id DESC
+		LIMIT 1
+	`).Scan(&eventType, &outcome, &clientIP, &details); err != nil {
+		t.Fatalf("query session revoke audit log: %v", err)
+	}
+	if eventType != "session_revoke" || outcome != "success" || clientIP != "127.0.0.1" || !strings.Contains(details, otherCookie.Value) {
+		t.Fatalf("expected successful session revoke audit event, got type=%q outcome=%q clientIP=%q details=%q", eventType, outcome, clientIP, details)
+	}
+}
+
+func TestIntegrationChangePasswordRevokesOtherSessionsWithDatabase(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("DATABASE_URL is not set; skipping integration password rotation test")
+	}
+
+	app, cleanup := newIntegrationTestApp(t, databaseURL)
+	defer cleanup()
+
+	handler := app.transportHandler()
+	currentCookie := loginForIntegration(t, app, "integration-secret", "127.0.0.1:4567")
+	otherCookie := loginForIntegration(t, app, "integration-secret", "127.0.0.2:4567")
+
+	changeReq := httptest.NewRequest(http.MethodPost, "/api/settings/password", strings.NewReader(`{
+		"currentPassword":"integration-secret",
+		"newPassword":"integration-secret-rotated"
+	}`))
+	changeReq.RemoteAddr = "127.0.0.1:4567"
+	changeReq.AddCookie(currentCookie)
+	changeRec := httptest.NewRecorder()
+	handler.Auth(handler.HandleChangePassword)(changeRec, changeReq)
+	if changeRec.Code != http.StatusNoContent {
+		t.Fatalf("expected change password status 204, got %d body=%s", changeRec.Code, changeRec.Body.String())
+	}
+
+	rows, err := app.db.Query(context.Background(), `
+		SELECT token
+		FROM sessions
+		ORDER BY token ASC
+	`)
+	if err != nil {
+		t.Fatalf("query sessions after password change: %v", err)
+	}
+	defer rows.Close()
+
+	var remainingTokens []string
+	for rows.Next() {
+		var token string
+		if err := rows.Scan(&token); err != nil {
+			t.Fatalf("scan session after password change: %v", err)
+		}
+		remainingTokens = append(remainingTokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate sessions after password change: %v", err)
+	}
+	if len(remainingTokens) != 1 || remainingTokens[0] != currentCookie.Value {
+		t.Fatalf("expected only the current session to remain after password change, got %+v", remainingTokens)
+	}
+
+	meHandler := handler.Auth(handler.HandleGetSession)
+
+	currentReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	currentReq.RemoteAddr = "127.0.0.1:4567"
+	currentReq.AddCookie(currentCookie)
+	currentRec := httptest.NewRecorder()
+	meHandler(currentRec, currentReq)
+	if currentRec.Code != http.StatusOK {
+		t.Fatalf("expected current session to remain valid after password change, got %d body=%s", currentRec.Code, currentRec.Body.String())
+	}
+
+	otherReq := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	otherReq.RemoteAddr = "127.0.0.2:4567"
+	otherReq.AddCookie(otherCookie)
+	otherRec := httptest.NewRecorder()
+	meHandler(otherRec, otherReq)
+	if otherRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected other session to be revoked after password change, got %d body=%s", otherRec.Code, otherRec.Body.String())
+	}
+
+	oldLoginReq := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(`{"password":"integration-secret"}`))
+	oldLoginReq.RemoteAddr = "127.0.0.3:4567"
+	oldLoginRec := httptest.NewRecorder()
+	app.handleLogin(oldLoginRec, oldLoginReq)
+	if oldLoginRec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected old password login status 401 after rotation, got %d body=%s", oldLoginRec.Code, oldLoginRec.Body.String())
+	}
+
+	newCookie := loginForIntegration(t, app, "integration-secret-rotated", "127.0.0.3:4567")
+	if newCookie == nil || newCookie.Value == "" {
+		t.Fatal("expected rotated password login to issue a session cookie")
+	}
+
+	var outcome, clientIP string
+	if err := app.db.QueryRow(context.Background(), `
+		SELECT outcome, client_ip
+		FROM auth_audit_logs
+		WHERE event_type='password_change'
+		ORDER BY id DESC
+		LIMIT 1
+	`).Scan(&outcome, &clientIP); err != nil {
+		t.Fatalf("query password change audit log: %v", err)
+	}
+	if outcome != "success" || clientIP != "127.0.0.1" {
+		t.Fatalf("expected successful password change audit event, got outcome=%q clientIP=%q", outcome, clientIP)
+	}
+}
+
 func createTaskForIntegration(t *testing.T, app *App, task domain.Task) {
 	t.Helper()
 
@@ -345,6 +736,34 @@ func createTaskForIntegration(t *testing.T, app *App, task domain.Task) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("expected create status 201, got %d body=%s", rec.Code, rec.Body.String())
 	}
+}
+
+func loginForIntegration(t *testing.T, app *App, password, remoteAddr string) *http.Cookie {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", strings.NewReader(fmt.Sprintf(`{"password":"%s"}`, password)))
+	req.RemoteAddr = remoteAddr
+	rec := httptest.NewRecorder()
+	app.handleLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected login status 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	cookies := rec.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected login to issue a session cookie")
+	}
+	return cookies[0]
+}
+
+func mustJSONForIntegration(t *testing.T, value any) string {
+	t.Helper()
+
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal integration payload: %v", err)
+	}
+	return string(payload)
 }
 
 func assertLaneOrder(t *testing.T, app *App, status string, expectedIDs []string) {
@@ -384,6 +803,40 @@ func assertLaneOrder(t *testing.T, app *App, status string, expectedIDs []string
 	for i := range expectedIDs {
 		if ids[i] != expectedIDs[i] {
 			t.Fatalf("expected lane %s ids %+v, got %+v", status, expectedIDs, ids)
+		}
+	}
+}
+
+func assertArchivedIDs(t *testing.T, app *App, expectedIDs []string) {
+	t.Helper()
+
+	rows, err := app.db.Query(context.Background(), `
+		SELECT id
+		FROM archived_tasks
+		ORDER BY archived_at DESC, id ASC
+	`)
+	if err != nil {
+		t.Fatalf("query archived ids: %v", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			t.Fatalf("scan archived ids: %v", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate archived ids: %v", err)
+	}
+	if len(ids) != len(expectedIDs) {
+		t.Fatalf("expected archived ids %+v, got %+v", expectedIDs, ids)
+	}
+	for i := range expectedIDs {
+		if ids[i] != expectedIDs[i] {
+			t.Fatalf("expected archived ids %+v, got %+v", expectedIDs, ids)
 		}
 	}
 }
