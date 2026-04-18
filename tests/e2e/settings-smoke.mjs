@@ -478,7 +478,7 @@ async function importBundle(page, bundlePath) {
     response.status() >= 200 && response.status() < 300,
     `Import failed with ${response.status()}`
   );
-  await page.getByText("Import finished and replaced the current board data.").waitFor();
+  await page.getByText("Board restored from backup.").waitFor();
 }
 
 async function importBundleExpectFailure(page, bundlePath, { expectedMessage, expectedStatus }) {
@@ -516,10 +516,10 @@ async function locateSavedSessionRow(page, session) {
   ]);
   const row = page
     .locator(".archive-item")
-    .filter({ hasText: "Saved session" })
-    .filter({ hasText: `Last seen ${lastSeenText}` })
+    .filter({ hasText: "Another signed-in browser" })
+    .filter({ hasText: `Last active ${lastSeenText}` })
     .filter({ hasText: `expires ${expiresText}` })
-    .filter({ hasText: `Client ${session.clientIP || "unknown"}` })
+    .filter({ hasText: `IP address ${session.clientIP || "unknown"}` })
     .first();
   await row.waitFor({ state: "visible", timeout: 10000 });
   return row;
