@@ -10,6 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Future work can build on the current observability, release, and extension seams
 without reopening the initial public-fork baseline.
 
+## [0.1.4] - 2026-04-19
+
+### Added
+
+- Added repo-owned hosted verification scripts for the live deployment path,
+  including GitHub deployment resolution and `/api/status` contract artifacts.
+- Added operator-facing runbooks for hosted troubleshooting and backup/restore
+  drills, plus a scratch restore rehearsal that proves sign-in, board access,
+  settings access, and status checks on a restored instance.
+
+### Changed
+
+- Hardened settings import validation so malformed bundles are rejected before
+  they can replace the current board snapshot.
+- Expanded settings smoke coverage to prove rejected imports do not mutate the
+  live board or archive-retention state before the happy-path import continues.
+- Formalized `W15-W17` as real single-user roadmap waves and kept `W18`
+  explicitly unopened unless a concrete post-polish scope appears.
+- Polished the web runtime title from the older preview wording to the final
+  product name.
+
 ## [0.1.3] - 2026-04-18
 
 ### Added
