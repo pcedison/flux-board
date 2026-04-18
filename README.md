@@ -1,6 +1,7 @@
 # Flux Board
 
 Flux Board is a single-user self-hosted task board built with Go, PostgreSQL, and React.
+It is designed to be easy to fork, deploy, and operate as one board for one operator.
 
 The intended product flow is simple:
 - fork the repo
@@ -9,11 +10,18 @@ The intended product flow is simple:
 - finish setup or sign in
 - use one board as one operator
 
-## Current Position
+## Project Snapshot
 - current maturity: strong single-user self-hosted beta
 - canonical runtime: React app on `/`
 - rollback shell: legacy HTML runtime on `/legacy/`
-- current roadmap: [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md)
+
+## Start Here
+- deployment contracts and hosting notes: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- architecture summary: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- operator checks and troubleshooting: [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md)
+- backup and restore drill: [docs/BACKUP_RESTORE_DRILL.md](docs/BACKUP_RESTORE_DRILL.md)
+
+Contributor planning docs still live under `docs/`, but you do not need them to fork, deploy, or evaluate the project.
 
 ## What The App Does Today
 - first-run setup at `/setup` if no admin password exists yet
@@ -59,6 +67,8 @@ Copy [.env.example](.env.example) and set:
 - optional `APP_PASSWORD`
 - optional `APP_VERSION`
 
+The root binary reads `.env` from the current working directory and still lets exported environment variables override any value from that file.
+
 Important:
 - `APP_PASSWORD` is bootstrap-only
 - leave it empty if you prefer to finish first-run setup in the browser
@@ -77,12 +87,17 @@ For hosted Docker paths that build from source, keep release parity by setting
 
 ### Local binary
 ```sh
-./scripts/verify-web.sh
 go build -o flux-board .
 ./flux-board
 ```
 
 Open [http://localhost:8080](http://localhost:8080).
+
+If you change files under `web/`, rebuild the embedded React runtime before shipping a new local binary:
+
+```sh
+./scripts/verify-web.sh
+```
 
 ## Verification
 ### Go

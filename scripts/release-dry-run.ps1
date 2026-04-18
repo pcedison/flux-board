@@ -1,6 +1,5 @@
 $ErrorActionPreference = "Stop"
 
-$root = (Resolve-Path ".").Path
 $version = & (Join-Path $PSScriptRoot "validate-release.ps1")
 
 $hostGoOS = (& go env GOHOSTOS).Trim()
@@ -30,24 +29,15 @@ $binaryPath = Join-Path $outputDir $binaryName
 $checksumPath = Join-Path $outputDir "$binaryName.sha256"
 $checksumsPath = Join-Path $outputDir "SHA256SUMS"
 $runSmoke = if ([string]::IsNullOrWhiteSpace($env:RELEASE_RUN_SMOKE)) { $true } else { $env:RELEASE_RUN_SMOKE -ne "0" }
-$webDistIndex = Join-Path $root "web/dist/index.html"
 $ldflags = "-X main.buildVersion=$version"
 
 Write-Host "[1/4] Validate VERSION and CHANGELOG for v$version"
 
 if ($env:RELEASE_WEB_BUILD -ne "0") {
-  $needsWebBuild = -not (Test-Path $webDistIndex)
-  if (-not $needsWebBuild) {
-    $releaseWebContents = Get-Content $webDistIndex -Raw
-    $needsWebBuild = $releaseWebContents -match "Flux Board Runtime Placeholder"
-  }
-
-  if ($needsWebBuild) {
-    Write-Host "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
-    & (Join-Path $PSScriptRoot "verify-web.ps1")
-    if ($LASTEXITCODE -ne 0) {
-      throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
-    }
+  Write-Host "[prep] Building the embedded React runtime before producing the release artifact"
+  & (Join-Path $PSScriptRoot "verify-web.ps1")
+  if ($LASTEXITCODE -ne 0) {
+    throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
   }
 }
 

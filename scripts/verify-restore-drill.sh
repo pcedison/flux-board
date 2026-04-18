@@ -83,11 +83,7 @@ ensure_web_dist() {
     return
   fi
 
-  if [ -f "$repo_root/web/dist/index.html" ] && ! grep -q "Flux Board Runtime Placeholder" "$repo_root/web/dist/index.html"; then
-    return
-  fi
-
-  echo "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+  echo "[prep] Building the embedded React runtime for the restore drill"
   sh "$script_dir/verify-web.sh"
 }
 

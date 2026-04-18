@@ -47,7 +47,6 @@ $stdoutLog = Join-Path $resultsDir "server.stdout.log"
 $stderrLog = Join-Path $resultsDir "server.stderr.log"
 $readyAttempts = if ($env:SMOKE_READY_ATTEMPTS) { [int]$env:SMOKE_READY_ATTEMPTS } else { 60 }
 $readyDelaySeconds = if ($env:SMOKE_READY_DELAY_SECONDS) { [int]$env:SMOKE_READY_DELAY_SECONDS } else { 2 }
-$webDistIndex = Join-Path $root "web/dist/index.html"
 
 function Show-ServerLogs {
   foreach ($path in @($stdoutLog, $stderrLog)) {
@@ -79,14 +78,7 @@ function Ensure-WebDist {
     return
   }
 
-  if (Test-Path $webDistIndex) {
-    $webDistContents = Get-Content $webDistIndex -Raw
-    if ($webDistContents -notmatch "Flux Board Runtime Placeholder") {
-      return
-    }
-  }
-
-  Write-Host "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+  Write-Host "[prep] Building the embedded React runtime for smoke verification"
   & (Join-Path $PSScriptRoot "verify-web.ps1")
   if ($LASTEXITCODE -ne 0) {
     throw "verify-web.ps1 failed with exit code $LASTEXITCODE"

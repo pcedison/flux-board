@@ -22,8 +22,8 @@ ldflags="-X main.buildVersion=$version"
 
 mkdir -p "$output_dir"
 
-if [ "${RELEASE_WEB_BUILD:-1}" != "0" ] && { [ ! -f "web/dist/index.html" ] || grep -q "Flux Board Runtime Placeholder" "web/dist/index.html"; }; then
-  echo "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+if [ "${RELEASE_WEB_BUILD:-1}" != "0" ]; then
+  echo "[prep] Building the embedded React runtime before producing the release artifact"
   sh "$script_dir/verify-web.sh"
 fi
 

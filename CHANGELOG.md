@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Future work can build on the current observability, release, and extension seams
 without reopening the initial public-fork baseline.
 
+## [0.1.8] - 2026-04-19
+
+### Fixed
+
+- Made explicit-hosted verification work cleanly outside GitHub checkouts so
+  `verify-hosted-deploy.sh` now tolerates non-GitHub remotes when operators
+  provide `BASE_URL` directly.
+- Taught the supported runtime to load `.env` defaults without overriding
+  exported environment variables, aligning local startup behavior with the
+  documented onboarding contract.
+
+### Changed
+
+- Promoted the built web runtime assets into the public repository contract so
+  fresh clones keep the same embedded frontend that the root Go binary ships.
+- Updated release, smoke, and restore verification lanes to rebuild the
+  embedded React runtime explicitly instead of depending on placeholder state.
+- Reframed the public docs and package metadata so adopters can start from the
+  product docs without maintainer-only planning material.
+
 ## [0.1.7] - 2026-04-19
 
 ### Fixed

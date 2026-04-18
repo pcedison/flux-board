@@ -1,8 +1,9 @@
 # Flux Board Roadmap
 
 ## Purpose
-- This document is the public roadmap for Flux Board.
+- This document is the contributor roadmap for Flux Board.
 - It explains what has already been delivered, what quality bar each wave must clear, and what work remains inside the single-user product direction.
+- If you just want to fork, deploy, or evaluate the app, start with `README.md` and the deployment docs instead of this planning file.
 
 ## Product Direction
 - Flux Board is a single-user self-hosted task board.
@@ -78,10 +79,10 @@
 - Do not open `W18` just to hold release-sync, hosted-proof, or polish work that still belongs to `W9`, `W15`, `W16`, or `W17`.
 - Open `W18` only if a new product gap appears after the current single-user roadmap is actually complete.
 
-## Public References
-- Product overview and quick start: [README.md](../README.md)
+## Related Docs
+- Start here for adoption and local setup: [README.md](../README.md)
 - Deployment contract: [docs/DEPLOYMENT.md](DEPLOYMENT.md)
 - Architecture summary: [docs/ARCHITECTURE.md](ARCHITECTURE.md)
-- Detailed W10-W17 roadmap: [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md)
 - Operator runbook: [docs/OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md)
 - Backup and restore drill: [docs/BACKUP_RESTORE_DRILL.md](BACKUP_RESTORE_DRILL.md)
+- Contributor roadmap detail: [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md)

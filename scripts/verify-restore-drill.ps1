@@ -84,15 +84,7 @@ function Ensure-WebDist {
     return
   }
 
-  $webDistIndex = Join-Path $root "web/dist/index.html"
-  if (Test-Path $webDistIndex) {
-    $webDistContents = Get-Content $webDistIndex -Raw
-    if ($webDistContents -notmatch "Flux Board Runtime Placeholder") {
-      return
-    }
-  }
-
-  Write-Host "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+  Write-Host "[prep] Building the embedded React runtime for the restore drill"
   & (Join-Path $scriptDir "verify-web.ps1")
   if ($LASTEXITCODE -ne 0) {
     throw "verify-web.ps1 failed with exit code $LASTEXITCODE"

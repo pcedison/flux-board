@@ -6,7 +6,6 @@ repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 timestamp=$(date +"%Y%m%d-%H%M%S")
 results_dir=${TEST_RESULTS_DIR:-"test-results/hosted-deploy/verify-hosted-deploy-$timestamp"}
 deployment_environment=${HOSTED_ENVIRONMENT:-production}
-deployment_sha=${HOSTED_DEPLOY_SHA:-$(git -C "$repo_root" rev-parse HEAD)}
 repository_full_name=${GITHUB_REPOSITORY:-}
 base_url=${BASE_URL-}
 allow_live_deployment_discovery=${ALLOW_LIVE_DEPLOYMENT_DISCOVERY:-}
@@ -71,6 +70,42 @@ fetch_repo_full_name() {
   fi
 
   normalize_repository_full_name "$remote_url"
+}
+
+maybe_fetch_repo_full_name() {
+  if [ -n "$repository_full_name" ]; then
+    printf '%s\n' "$repository_full_name"
+    return 0
+  fi
+
+  remote_url=$(git -C "$repo_root" config --get remote.origin.url 2>/dev/null || true)
+  if [ -z "$remote_url" ]; then
+    printf '\n'
+    return 0
+  fi
+
+  case "$remote_url" in
+    git@github.com:*|git+https://github.com/*|https://github.com/*|ssh://git@github.com/*)
+      normalize_repository_full_name "$remote_url"
+      ;;
+    *)
+      printf '\n'
+      ;;
+  esac
+}
+
+resolve_deployment_sha() {
+  if [ -n "${HOSTED_DEPLOY_SHA-}" ]; then
+    printf '%s\n' "$HOSTED_DEPLOY_SHA"
+    return 0
+  fi
+
+  if git -C "$repo_root" rev-parse HEAD >/dev/null 2>&1; then
+    git -C "$repo_root" rev-parse HEAD
+    return 0
+  fi
+
+  printf '\n'
 }
 
 fetch_deployment_metadata() {
@@ -153,7 +188,7 @@ run_optional_auth_smoke() {
   fi
 }
 
-repo_full_name=$(fetch_repo_full_name)
+deployment_sha=$(resolve_deployment_sha)
 
 if [ -z "$base_url" ]; then
   if ! is_truthy "$allow_live_deployment_discovery"; then
@@ -167,11 +202,18 @@ if [ -z "$base_url" ]; then
     exit 1
   fi
 
+  repo_full_name=$(fetch_repo_full_name)
+  if [ -z "$deployment_sha" ]; then
+    echo "could not determine deployment sha; set HOSTED_DEPLOY_SHA or run from a git checkout when using live deployment discovery" >&2
+    exit 1
+  fi
+
   metadata=$(fetch_deployment_metadata "$repo_full_name")
   deployment_id=$(printf '%s\n' "$metadata" | sed -n '1p')
   base_url=$(printf '%s\n' "$metadata" | sed -n '2p')
   target_url=$(printf '%s\n' "$metadata" | sed -n '3p')
 else
+  repo_full_name=$(maybe_fetch_repo_full_name)
   deployment_id=""
   target_url=""
 fi
@@ -240,8 +282,8 @@ node --input-type=module -e '
   const summary = {
     status: process.env.AUTH_SMOKE_STATUS_VALUE === "failed" ? "failed" : "passed",
     checkedAt: new Date().toISOString(),
-    repository: process.env.REPOSITORY_VALUE,
-    headSha: process.env.DEPLOYMENT_SHA_VALUE,
+    repository: process.env.REPOSITORY_VALUE || null,
+    headSha: process.env.DEPLOYMENT_SHA_VALUE || null,
     environment: process.env.DEPLOYMENT_ENVIRONMENT_VALUE,
     deploymentId: process.env.DEPLOYMENT_ID_VALUE || null,
     baseURL: process.env.BASE_URL_VALUE,

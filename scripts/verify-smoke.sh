@@ -2,7 +2,6 @@
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 timestamp=$(date +"%Y%m%d-%H%M%S")
 results_dir=${TEST_RESULTS_DIR:-"test-results/smoke/verify-smoke-$timestamp"}
 base_url=${BASE_URL:-"http://127.0.0.1:8080"}
@@ -40,11 +39,7 @@ ensure_web_dist() {
     return
   fi
 
-  if [ -f "$repo_root/web/dist/index.html" ] && ! grep -q "Flux Board Runtime Placeholder" "$repo_root/web/dist/index.html"; then
-    return
-  fi
-
-  echo "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+  echo "[prep] Building the embedded React runtime for smoke verification"
   sh "$script_dir/verify-web.sh"
 }
 

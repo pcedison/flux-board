@@ -1,8 +1,19 @@
 {
   "name": "flux-board",
   "version": "1.0.0",
-  "description": "Repo-owned smoke tooling for the current Flux Board MVP frontend and auth flow.",
+  "description": "Single-user self-hosted task board with built-in smoke tests and deployment verification tooling.",
   "private": true,
+  "keywords": [
+    "self-hosted",
+    "task-board",
+    "kanban",
+    "postgresql",
+    "react",
+    "go"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node tests/e2e/login-smoke.mjs",
     "smoke": "node tests/e2e/login-smoke.mjs",

@@ -134,6 +134,17 @@ EXPECT_ENVIRONMENT=production \
 ./scripts/verify-hosted-deploy.sh
 ```
 
+When `BASE_URL` is already set, `verify-hosted-deploy.sh` treats GitHub deployment metadata as optional summary context only. It no longer requires `gh`, `GITHUB_REPOSITORY`, or `remote.origin.url` just to verify that explicit target.
+
+Windows:
+
+```powershell
+$env:BASE_URL="https://your-host.example"
+$env:EXPECT_NEEDS_SETUP="false"
+$env:EXPECT_ENVIRONMENT="production"
+./scripts/verify-hosted-deploy.ps1
+```
+
 If you intentionally want the script to discover the live deployment from GitHub deployment metadata, opt in explicitly:
 
 ```sh
@@ -141,6 +152,11 @@ ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1 \
 HOSTED_ENVIRONMENT=production \
 ./scripts/verify-hosted-deploy.sh
 ```
+
+Discovery mode still requires GitHub metadata:
+- `gh` on `PATH`
+- either `GITHUB_REPOSITORY` or a GitHub `remote.origin.url`
+- a deployment SHA from `HOSTED_DEPLOY_SHA` or the current git checkout `HEAD`
 
 Without `BASE_URL` or `ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1`, `verify-hosted-deploy.sh` now exits immediately instead of probing production by default.
 

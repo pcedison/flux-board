@@ -2,6 +2,7 @@
 
 Historical note:
 - this file keeps the old `ROADMAP_W10_W14.md` path for link stability, but it now carries the formal `W10-W17` roadmap plus the current `W18` boundary decision
+- external adopters can ignore this file and start with `README.md` plus `docs/DEPLOYMENT.md`
 
 ## Purpose
 - This roadmap continues from the delivered `W0-W9` baseline, but it explicitly stays inside the product's real target: a high-quality single-user self-hosted board.
@@ -15,11 +16,9 @@ Historical note:
 - Every wave after `W1` still closes only at `remote-closed`.
 
 ## Current Snapshot
-- exact-head CI is now green on `06aa923` via run `24609716418`
-- exact-head hosted public proof and hosted authenticated `/board` + `/settings` proof are now recorded for `06aa923`
-- `W10-W14`, `W16`, and `W17` now have real exact-head closure evidence on the current operational baseline
-- `W15` still has a release-tag-dependent final closure nuance because the latest published tag/GHCR evidence still points at `e880d63` / `v0.1.4`
-- `W18` remains intentionally unopened because no concrete post-polish scope has appeared outside `W15-W17`
+- `W10-W14`, `W16`, and `W17` are part of the delivered single-user product baseline
+- `W15` remains the roadmap bucket for keeping hosted release evidence and release-surface alignment current
+- `W18` remains intentionally unopened unless a real post-polish gap appears outside `W15-W17`
 
 ## Recommended Order
 1. `W10` Build, CI, and Hosted Deploy Hardening
