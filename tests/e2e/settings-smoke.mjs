@@ -148,15 +148,15 @@ try {
     `Expected archive retention ${updatedRetentionDays}, got ${JSON.stringify(updatedSettings)}`
   );
 
-  logStep("Export board data");
+  logStep("Download backup");
   const exportResponsePromise = page.waitForResponse(
     (res) => res.url().endsWith("/api/export") && res.request().method() === "GET",
     { timeout: 10000 }
   );
-  await page.getByRole("button", { name: "Export board data" }).click();
+  await page.getByRole("button", { name: "Download backup" }).click();
   const exportResponse = await exportResponsePromise;
   assertStatus(exportResponse.status() === 200, `Export failed with ${exportResponse.status()}`);
-  await page.getByText("Export completed.").waitFor();
+  await page.getByText("Backup downloaded.").waitFor();
   const exportedBundle = await exportResponse.json();
   assertStatus(
     exportedBundle.settings?.archiveRetentionDays === updatedRetentionDays,
