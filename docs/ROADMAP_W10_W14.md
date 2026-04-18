@@ -15,15 +15,11 @@ Historical note:
 - Every wave after `W1` still closes only at `remote-closed`.
 
 ## Current Snapshot
-- `W10-W13` now have local implementation work in progress on the current working tree.
-- `W14` now has its first implementation slice locally: `/api/status`, `/status`, and Docker runtime smoke automation.
-- Local proof already exists for:
-  - frontend lint, tests, and production build
-  - `go test ./...`
-  - `golangci-lint`
-  - `actionlint`
-  - release dry run with the root self-contained binary
-- Exact-head GitHub Actions proof and hosted-path proof still need to be re-recorded after these changes are pushed.
+- exact-head CI is now green on `06aa923` via run `24609716418`
+- exact-head hosted public proof and hosted authenticated `/board` + `/settings` proof are now recorded for `06aa923`
+- `W10-W14`, `W16`, and `W17` now have real exact-head closure evidence on the current operational baseline
+- `W15` still has a release-tag-dependent final closure nuance because the latest published tag/GHCR evidence still points at `e880d63` / `v0.1.4`
+- `W18` remains intentionally unopened because no concrete post-polish scope has appeared outside `W15-W17`
 
 ## Recommended Order
 1. `W10` Build, CI, and Hosted Deploy Hardening
@@ -238,6 +234,6 @@ Historical note:
 
 ## W18 Boundary
 - `W18` does not need a formal implementation wave yet.
-- The actual planning gap was that `W15-W17` existed only as short blurbs; they now need the same goal/scope/work-package/closure treatment as earlier waves.
-- Keep the acceptance rule simple: `W15-W17` should still close at `remote-closed` on their own exact heads.
+- The actual planning gap was that `W15-W17` existed only as short blurbs; that gap has already been addressed, and the resulting work has now been exercised on a real exact head.
+- Keep the acceptance rule simple: do not invent `W18` to absorb release-sync, hosted-proof, or polish work that still belongs to `W15-W17`.
 - Only open `W18` if a real post-polish gap appears that does not fit `W15-W17`; do not use `W18` as a catch-all bucket for closure work that should belong to the wave being closed.

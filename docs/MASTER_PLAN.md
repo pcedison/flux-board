@@ -42,22 +42,22 @@
 |---|---|---|---|---|
 | W0 | Baseline Audit | `artifact-complete` | risk map, blocker baseline, and architecture snapshot are documented | already at its final review-based closure |
 | W1 | Public Fork Baseline | `artifact-complete` | public-fork docs, onboarding, and repo hygiene are documented | already at its final review-based closure |
-| W2 | CI and Reproducibility | `locally-verified` | repo-owned verification still passes locally on the current working tree, but fresh exact-head CI proof must be re-recorded after the single-user productization slice | rerun exact-head CI and restore `remote-closed` evidence |
-| W3 | Server Security Hardening | `locally-verified` | request limits, security headers, and explicit server lifecycle remain in place on the current working tree | rerun exact-head CI and restore `remote-closed` evidence |
-| W4 | Auth and Session Redesign | `locally-verified` | bootstrap-only password seeding, DB-backed sessions, and the new setup/settings split are locally verified | rerun exact-head CI and restore `remote-closed` evidence |
-| W5 | Schema and Data Integrity | `locally-verified` | migrations, ordering integrity, and archive-read cleanup removal are locally verified | rerun exact-head CI and restore `remote-closed` evidence |
-| W6 | Go Modularization | `locally-verified` | internal domain/store/service/transport boundaries remain intact and the root runtime now owns the official embedded artifact path | rerun exact-head CI and restore `remote-closed` evidence |
-| W7 | Frontend Foundation | `locally-verified` | the React runtime still owns `/`, now with auth-aware home routing and setup/settings surfaces | rerun exact-head CI and restore `remote-closed` evidence |
-| W8 | Trello-grade UX, RWD, A11y | `locally-verified` | board edit/search/keyboard/permanent-delete flows are locally verified alongside the existing drag and keyboard paths | rerun exact-head CI and restore `remote-closed` evidence |
-| W9 | Quality Gates, Release, and Runtime Safety | `locally-verified` | release dry-run parity, frontend lint, Go lint, and workflow lint are now locally verified on the current working tree | rerun exact-head CI and release-path proof before restoring `remote-closed` |
-| W10 | Build, CI, and Hosted Deploy Hardening | `in_progress` | root binary packaging, Docker-first deploy contract, CI lint lanes, and release parity work have started locally | finish exact-head CI plus hosted-path proof |
-| W11 | Single-User Security & Settings | `in_progress` | `/setup`, `/settings`, password rotation, session revocation, and retention controls are implemented locally | add deeper backend coverage and exact-head CI proof |
-| W12 | Product UX Completion | `in_progress` | auth-aware `/`, product wording, task edit flow, search, and permanent archived delete are implemented locally | finish smoke proof and product-copy polish |
-| W13 | Data Portability & Backup | `in_progress` | export/import and retention safety are implemented locally, and repo-owned backup/restore drill docs now exist | deepen validation coverage and run a repeatable restore rehearsal |
-| W14 | Observability & Operability | `in_progress` | `/api/status`, `/status`, Docker runtime smoke automation, and operator runbooks now exist locally | record exact-head CI proof and one real hosted deployment record |
-| W15 | Hosted Release Operations | `planned` | formal goal, scope, work packages, and hosted evidence lane are now documented in `docs/ROADMAP_W10_W14.md` and `docs/OPERATIONS_RUNBOOK.md` | publish and validate the hosted release path end to end |
-| W16 | Backup and Restore Drills | `planned` | formal goal, scope, work packages, and scratch restore drill are now documented in `docs/ROADMAP_W10_W14.md` and `docs/BACKUP_RESTORE_DRILL.md` | prove restore safety with repeatable operator drills |
-| W17 | Product Polish and Mobile Depth | `planned` | formal goal, scope, and closure expectations are now documented in `docs/ROADMAP_W10_W14.md` | close final UX polish after deployment/runtime work stabilizes |
+| W2 | CI and Reproducibility | `remote-closed` | exact head `06aa923` is green in GitHub Actions run `24609716418` | maintain exact-head CI closure on future heads |
+| W3 | Server Security Hardening | `remote-closed` | request limits, security headers, and explicit server lifecycle remain active on exact head `06aa923`, with CI run `24609716418` green | maintain exact-head CI closure on future heads |
+| W4 | Auth and Session Redesign | `remote-closed` | exact head `06aa923` has green CI plus hosted authenticated `/board` and `/settings` proof in `test-results/hosted-auth/verify-hosted-auth-20260419-011706/summary.json` | maintain exact-head CI plus hosted auth closure on future heads |
+| W5 | Schema and Data Integrity | `remote-closed` | migration/data-integrity behavior remains covered on exact head `06aa923` via CI run `24609716418` | maintain exact-head CI closure on future heads |
+| W6 | Go Modularization | `remote-closed` | internal boundaries and canonical root runtime path remain intact on exact head `06aa923`, with CI run `24609716418` green | maintain exact-head CI closure on future heads |
+| W7 | Frontend Foundation | `remote-closed` | canonical React runtime, auth-aware routing, and hosted shell remain proven on exact head `06aa923` via CI run `24609716418` plus hosted proof | maintain exact-head CI plus hosted proof on future heads |
+| W8 | Trello-grade UX, RWD, A11y | `remote-closed` | drag, keyboard, preview, and browser smoke matrix passed on exact head `06aa923` in CI run `24609716418` | maintain exact-head browser-matrix closure on future heads |
+| W9 | Quality Gates, Release, and Runtime Safety | `in_progress` | exact head `06aa923` has green CI and hosted runtime proof, but the latest published tag/release/GHCR evidence still points at `e880d63` / `v0.1.4` | re-record exact-head tagged release parity before calling W9 final again |
+| W10 | Build, CI, and Hosted Deploy Hardening | `remote-closed` | exact head `06aa923` has green CI `24609716418`, successful production deployment `4410690278`, and hosted public proof in `test-results/hosted-deploy/verify-hosted-deploy-20260419-011706/summary.json` | maintain exact-head CI plus hosted-path closure on future heads |
+| W11 | Single-User Security & Settings | `remote-closed` | setup/settings flows, password rotation, session revocation, and retention controls are now proven on exact head `06aa923` via CI plus hosted auth/settings proof | maintain exact-head CI plus hosted auth/settings closure on future heads |
+| W12 | Product UX Completion | `remote-closed` | product copy, search, edit, and board lifecycle flows are covered on exact head `06aa923` by the full browser matrix and hosted auth proof | maintain exact-head UX/smoke closure on future heads |
+| W13 | Data Portability & Backup | `remote-closed` | import safety, export/import smoke, and restore artifacts remain proven and repo-owned on the current operational baseline | maintain exact-head restore and settings-smoke closure on future heads |
+| W14 | Observability & Operability | `remote-closed` | `/api/status`, `/status`, metrics, and operator runbooks are exercised on exact head `06aa923` by hosted public proof plus CI | maintain exact-head status-contract and hosted-path closure on future heads |
+| W15 | Hosted Release Operations | `in_progress` | hosted exact-head proof now exists on `06aa923`, but the closure language still depends on a tagged build and the latest published tag remains `v0.1.4` on `e880d63` | cut and validate a new exact-head release before calling W15 final |
+| W16 | Backup and Restore Drills | `remote-closed` | repo-owned restore drill automation and saved restore artifacts now prove recovery safety for the current product direction | maintain repeatable restore-drill evidence on future heads |
+| W17 | Product Polish and Mobile Depth | `remote-closed` | polished copy plus browser-matrix proof and hosted authenticated `/board` + `/settings` evidence are now recorded on exact head `06aa923` | maintain exact-head UX acceptance on future heads |
 
 ## W0 Baseline Audit
 - Goal: freeze the real MVP state and identify blockers before implementation.
@@ -95,7 +95,7 @@
 - Tasks: add Go build/test/vet, frontend build/typecheck/lint, basic smoke checks, deterministic setup steps.
 - Gate: CI is green on a clean environment and failures are diagnosable.
 - Parallel lanes: CI workflow, local dev scripts, smoke test setup.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - broader frontend build/typecheck/lint remains deferred until the React/Vite waves
 - Corrected gate checklist:
@@ -112,7 +112,7 @@
 - Tasks: add timeouts, graceful shutdown, request size limits, strict JSON decoding, security headers, rate limiting, unified error envelopes.
 - Gate: no bare `ListenAndServe`, no unlimited request bodies, no missing baseline security headers.
 - Parallel lanes: HTTP middleware, validation layer, security verification.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - stronger distributed abuse control is deferred beyond this wave
 - Corrected gate checklist:
@@ -128,7 +128,7 @@
 - Tasks: design `users` and `sessions`, implement secure login/logout/me, add throttling/lockout, add session revocation and audit trail.
 - Gate: shared-password-only production auth is removed as the default path.
 - Parallel lanes: auth domain, session store, audit design.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - richer single-user settings coverage and exact-head CI re-closure remain for the current working tree
 - Corrected gate checklist:
@@ -146,7 +146,7 @@
 - Tasks: add versioned migrations, enforce FK/CHECK/indexes, move reorder to transactional batch updates, verify archive/restore correctness.
 - Gate: schema changes are reproducible and board ordering remains correct after reload and concurrent writes.
 - Parallel lanes: migration setup, DB constraints, reorder API.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - broader multi-board/domain normalization remains deferred to later waves
 - Corrected gate checklist:
@@ -162,7 +162,7 @@
 - Tasks: shrink `main.go` to assembly, separate HTTP/service/repo layers, extract pure logic, add dependency boundaries and test seams.
 - Gate: core logic is no longer trapped in `main.go` and can be unit-tested.
 - Parallel lanes: handler split, service split, repo abstraction.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - root `main` remains as a compatibility shim because repo-owned scripts still build `.` during the transition
   - later waves may still refine layering ergonomics, but W6's planned package boundaries are now in place
@@ -183,7 +183,7 @@
 - Tasks: create React + TypeScript + Vite app, add React Router, TanStack Query, app shell, tokenized style system, auth guard and base pages.
 - Gate: new frontend can build, typecheck, and communicate with the Go API.
 - Parallel lanes: design system, API layer, shell and routing.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - the new `web/` app now builds, typechecks, runs a broader Vitest + Testing Library baseline, routes, proxies `/api`, reads the live Go API through React Query, has auth-aware `/login` plus guarded `/board` routes, exercises create/move/archive/restore mutations in the isolated shell, and now serves as the canonical runtime on `/` after `web/dist` is built
   - the isolated board is now split into lane/card/composer/archive/status components under `web/src/components/board`, keeps mutation ownership scoped to the active card/form/archive row, restores focus after create/move success, and uses a path-aware router basename plus relative asset base so the same build can support `/`, `/legacy/`, and `/next/*` compatibility behavior without a separate bundle
@@ -200,7 +200,7 @@
 - Tasks: implement CRUD UI, drag-and-drop as progressive enhancement, touch fallback, keyboard move controls, dialog/menu focus management, 44px targets, browser matrix checks.
 - Gate: core board movement works via mouse, touch, and keyboard; mobile and tablet are first-class; drag-and-drop is not the only path.
 - Parallel lanes: board UI, drag/drop, RWD, a11y verification.
-- Current status: remote-closed on exact head `6a4b323` via run `24549627392`.
+- Current status: remote-closed on exact head `06aa923` via run `24609716418`.
 - Current gaps:
   - no feature-scope gap remains inside W8 itself
   - no additional acceptance-scope gap remains inside W8 for the recorded exact head closure
@@ -218,7 +218,7 @@
 - Tasks: add unit/integration/E2E coverage, verify Chromium/Firefox/WebKit, define release/rollback process, add health/metrics/logging, and keep the runtime extensible without forcing multi-user scope back into the plan.
 - Gate: project is safe to publish, testable in CI, and stable enough to support the later single-user productization waves.
 - Parallel lanes: QA, release engineering, observability, runtime-safety design.
-- Current status: remote-closed on exact head `f659e20` via CI run `24559887060` plus release run `24560069468` and published tag `v0.1.2`.
+- Current status: in_progress on exact head `06aa923`: CI run `24609716418` and hosted proof are current, but the latest published tag/release/GHCR evidence still points at `e880d63` / `v0.1.4`.
 - Current gaps:
   - no remaining feature-scope gap remains inside W9 for the recorded exact-head closure
   - follow-on platform/auth/productization work is now intentionally moved into `W10-W14` instead of being retroactively folded into W9
@@ -226,11 +226,11 @@
   - CI runs repo-owned Go verification, race detection, `web/` scaffold build/typecheck/test, and browser smoke across `chromium`, `firefox`, and `webkit` for the current recorded scope
   - local Windows race verification exists in a repo-owned script
   - CI has separate root-runtime, drag-and-drop, keyboard, and compatibility/rollback smoke lanes
-  - release workflow publishes checksumed multi-platform assets and records a successful exact-head release closure
+  - release workflow publishes checksumed multi-platform assets and records a successful exact-head release closure when the latest operational head is tagged
   - the project now has a structured logging baseline, `/metrics`, trace seams, and documented runtime-safety seams for the current wave scope
 
 ## W10-W17 Forward Roadmap
-- `W10-W17` are planning-only in this document; the detailed non-implementation roadmap lives in [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md).
+- `W10-W17` use the wave table above as the current status source of truth; the detailed scope/closure definitions still live in [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md).
 - Recommended order:
   - `W10` first, because CI/deploy hardening reduces risk for every later wave
   - `W11` next, because the single-user auth/settings model must feel finished before more UX or backup work is called done
@@ -385,3 +385,4 @@
 - 2026-04-18 | W10-W13 / Settings + setup verification hardening | locally-verified | Added repo-owned root-binary `setup` smoke, added a new `/settings` end-to-end smoke lane covering retention update, export/import, session revoke, and password rotation, expanded CI with dedicated `setup_smoke` and `settings_smoke` jobs, added PostgreSQL-backed handler integration tests for settings/export/import/session revoke/password rotation, and reran local Go, race, workflow, release, root-runtime smoke, Docker smoke, setup smoke, and settings smoke verification | The current head now has materially stronger local proof for the highest-risk single-user settings and backup flows, and the root binary deployment contract is exercised locally for both bootstrap-first and steady-state settings paths | Next: push the exact current head, record the fresh GitHub Actions matrix including the new setup/settings lanes, and produce one real hosted Docker deployment record before promoting W10-W13 toward `remote-closed` | Risk: exact-head remote CI proof, hosted-path proof, and operator runbook closure still remain open
 - 2026-04-18 | W11-W13 / Import validation hardening + rejected-import proof | locally-verified | Tightened the settings import path so bundles now require export metadata before any destructive replace, added settings-service tests that prove invalid bundles do not write board state, extended the repo-owned settings smoke lane to upload a malformed import and confirm the live board/settings remain unchanged, and documented operator backup plus failed-import guidance in the deployment handoff docs | W11-W13 now have stronger repo-owned evidence that malformed imports fail safely instead of partially mutating a single-user instance, and the backup/import operator story is clearer for future closure work | Next: push the exact head, record fresh GitHub Actions proof for the updated settings smoke lane, and exercise one real hosted Docker deployment path | Risk: exact-head remote CI proof, hosted-path proof, and broader W14 troubleshooting docs still remain open
 - 2026-04-18 | W14-W17 / Planning + operability runbooks | locally-verified | Formalized `W15-W17` with explicit goal/scope/work-package/closure definitions, recorded that `W18` should remain unopened for now, added repo-owned operator runbook and backup/restore drill docs, added a status-contract verification script plus `/api/status` contract tests, and reran `go test ./...` plus an isolated Docker-backed `./scripts/verify-status-contract.sh` check with `EXPECT_NEEDS_SETUP=true` | W14 now has repo-owned troubleshooting and deployment-evidence assets, W15-W17 now have formal planning definitions instead of short blurbs, and the status contract is both test-covered and executable against a real runtime | Next: run the status-contract lane against a real hosted deployment, record fresh exact-head GitHub Actions proof, and execute the documented restore drill on a scratch target | Risk: hosted deployment evidence and exact-head remote closure are still missing, and `W18` should stay unopened unless a new concrete post-polish scope appears
+- 2026-04-19 | W0-W18 / Current-state sync after exact-head closure | artifact-complete | Updated `status overview`, `MASTER_PLAN`, and `ROADMAP_W10_W14` to reflect exact head `06aa923`, GitHub Actions run `24609716418`, Zeabur production deployment `4410690278`, hosted public proof, and hosted authenticated `/board` + `/settings` proof | The plan is now synchronized to the current operational baseline: `W2-W8` and `W10-W14` plus `W16-W17` are recorded as `remote-closed`, `W9` and `W15` stay intentionally short of final closure until exact-head tag/release parity is re-recorded, and `W18` remains unopened because no scope exists outside `W15-W17` | Next: only cut a new tagged release if we want to promote the latest head from current-state sync to final release closure; otherwise keep `W18` closed to new scope until a real gap appears | Risk: if a future release/tag is required on the latest head, `W9` and `W15` still need that last exact-head release evidence
