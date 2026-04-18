@@ -72,7 +72,7 @@ try {
     throw new Error(`Login failed with ${loginResult.status()}`);
   }
   await page.waitForURL(/\/board$/);
-  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
   await assertStatus(
     (await page.locator(".board-grid > .lane").count()) === 3,
     "Expected three board lanes on the React runtime."

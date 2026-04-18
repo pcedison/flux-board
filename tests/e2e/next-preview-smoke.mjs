@@ -74,7 +74,7 @@ try {
     throw new Error(`Alias login failed with ${loginResult.status()}`);
   }
   await page.waitForURL(/\/board$/);
-  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
 
   const smokeTaskTitle = `Next alias smoke task ${Date.now()}`;
 

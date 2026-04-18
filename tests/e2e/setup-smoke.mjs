@@ -46,7 +46,7 @@ try {
   logStep("Open first-run setup");
   await page.goto(baseURL, { waitUntil: "domcontentloaded" });
   await page.waitForURL(/\/setup$/);
-  await page.getByRole("heading", { name: "Set the admin password" }).waitFor();
+  await page.getByRole("heading", { name: "Set the board password" }).waitFor();
   await page.screenshot({ path: path.join(resultsDir, "01-setup.png"), fullPage: true });
 
   logStep("Bootstrap");
@@ -60,7 +60,7 @@ try {
   const bootstrapResult = await bootstrapResponse;
   assertStatus(bootstrapResult.status() === 200, `Bootstrap failed with ${bootstrapResult.status()}`);
   await page.waitForURL(/\/board$/);
-  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
 
   const bootstrapStatus = await requestJson(page, "/api/bootstrap/status");
   assertStatus(

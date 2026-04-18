@@ -416,7 +416,7 @@ async function openSettings(page, baseURL) {
   await page.goto(`${baseURL}/settings`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Archive policy" }).waitFor();
   await page.getByRole("heading", { name: "Sessions" }).waitFor();
-  await page.getByRole("heading", { name: "Backup & import" }).waitFor();
+  await page.getByRole("heading", { name: "Backup & restore" }).waitFor();
 }
 
 async function submitLogin(page, nextPassword) {
@@ -435,7 +435,7 @@ async function login(page, nextPassword) {
   await page.waitForURL((url) => !url.pathname.endsWith("/login"), { timeout: 10000 });
   const currentPath = new URL(page.url()).pathname;
   if (currentPath.endsWith("/board")) {
-    await page.getByRole("heading", { name: "Create task" }).waitFor();
+    await page.getByRole("heading", { name: "New task" }).waitFor();
     return;
   }
   if (currentPath.endsWith("/settings")) {

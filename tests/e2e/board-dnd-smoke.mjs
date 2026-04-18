@@ -65,7 +65,7 @@ try {
     throw new Error(`Login failed with ${loginResult.status()}`);
   }
   await page.waitForURL(/\/board$/);
-  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
 
   logStep("Create tasks");
   const firstTaskTitle = `DnD smoke first ${runSeed}`;

@@ -65,7 +65,7 @@ try {
   assertStatus(loginResult.status() === 200, `Login failed with ${loginResult.status()}`);
 
   await page.waitForURL(/\/board$/);
-  await page.getByRole("heading", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
   await page.getByLabel("Title").waitFor({ state: "visible" });
 
   logStep("Create tasks");

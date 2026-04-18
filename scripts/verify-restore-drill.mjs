@@ -69,7 +69,7 @@ try {
   const loginResult = await loginResponse;
   assert(loginResult.status() === 200, `Login failed with ${loginResult.status()}`);
   await page.waitForURL(/\/board$/);
-  await page.getByRole("button", { name: "Create task" }).waitFor();
+  await page.getByRole("heading", { name: "New task" }).waitFor();
 
   const session = await requestJson(page, "/api/auth/me", requestTimeoutMs);
   assert(session.status === 200 && session.body?.authenticated === true, `Expected live auth session, got ${JSON.stringify(session)}`);
@@ -85,7 +85,7 @@ try {
 
   logStep("Open settings");
   await page.goto(`${baseURL}/settings`, { waitUntil: "domcontentloaded" });
-  await page.getByRole("heading", { name: "Backup & import" }).waitFor();
+  await page.getByRole("heading", { name: "Backup & restore" }).waitFor();
 
   const settings = await requestJson(page, "/api/settings", requestTimeoutMs);
   assert(settings.status === 200 && isObject(settings.body), `Expected /api/settings to return an object, got ${JSON.stringify(settings)}`);
