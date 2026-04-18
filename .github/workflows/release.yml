@@ -115,7 +115,8 @@ jobs:
           artifact_stem="flux-board-v${RELEASE_VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}"
           binary_name="${artifact_stem}${{ matrix.extension }}"
           mkdir -p "$dist_dir"
-          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" go build -trimpath -o "$dist_dir/$binary_name" .
+          ldflags="-X main.buildVersion=${RELEASE_VERSION}"
+          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" go build -trimpath -ldflags "$ldflags" -o "$dist_dir/$binary_name" .
           (
             cd "$dist_dir"
             sha256sum "$binary_name" > "$binary_name.sha256"
@@ -195,6 +196,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          build-args: |
+            BUILD_VERSION=${{ needs.validate.outputs.version }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

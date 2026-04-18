@@ -57,10 +57,13 @@ Copy [.env.example](.env.example) and set:
 - `APP_ENV`
 - `PORT`
 - optional `APP_PASSWORD`
+- optional `APP_VERSION`
 
 Important:
 - `APP_PASSWORD` is bootstrap-only
 - leave it empty if you prefer to finish first-run setup in the browser
+- tagged release artifacts and Docker images already embed the tracked `VERSION`
+- set `APP_VERSION` only if you intentionally want runtime status to announce a different operator-supplied label
 
 ## Quick Start
 ### Docker

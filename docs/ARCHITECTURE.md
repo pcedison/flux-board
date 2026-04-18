@@ -82,9 +82,9 @@ Flux Board runs as one Go process that:
 - release dry-run scripts
 
 ## Current Risks
-- current exact-head remote CI proof still needs to be re-recorded after the single-user productization slice
-- Docker/hosted verification is implemented in docs and CI config, but this local session did not execute it because Docker was unavailable
-- backend tests around settings/import/export still need deeper coverage
+- local root-binary builds still depend on a prebuilt `web/dist` unless operators use the Docker path or the repo-owned release scripts
+- the public repo still carries active planning logs alongside operator docs, which is acceptable but less polished than a slimmer public-facing docs surface
+- the product remains intentionally optimized for one operator per instance, so adopters needing shared multi-user behavior must extend it rather than configure it
 
 ## Deliberate Non-Goals
 - multi-user accounts

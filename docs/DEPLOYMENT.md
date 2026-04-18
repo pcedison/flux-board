@@ -28,6 +28,8 @@ Optional:
   - If empty and no admin exists yet, finish setup in the browser at `/setup`.
   - If set and no admin exists yet, Flux Board seeds the first admin password automatically.
   - After bootstrap, changing `APP_PASSWORD` does not rotate the live password.
+- tagged release artifacts and Docker images already embed the tracked `VERSION`.
+- `APP_VERSION` is an override knob for operators who intentionally want runtime status or tracing to announce a different version label.
 
 ## Local Docker Path
 Use [docker-compose.yml](../docker-compose.yml):
@@ -146,5 +148,5 @@ Current rollback is intentionally simple:
 6. keep `/legacy/` available as the HTML rollback shell during frontend incidents
 
 ## Current Gaps
-- this repo now defines the supported contracts clearly, but exact-head hosted proof still needs to be recorded on a fresh CI/deploy cycle
+- local `go build .` still assumes `web/dist` has already been built unless you use the Docker path or the release dry-run path
 - provider-specific operational details like managed Postgres backups and TLS termination remain operator-owned

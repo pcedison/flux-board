@@ -18,6 +18,7 @@ binary_path="$output_dir/$binary_name"
 checksum_name="$binary_name.sha256"
 checksum_path="$output_dir/$checksum_name"
 run_smoke=${RELEASE_RUN_SMOKE:-1}
+ldflags="-X main.buildVersion=$version"
 
 mkdir -p "$output_dir"
 
@@ -29,7 +30,8 @@ fi
 echo "[1/4] Validate VERSION and CHANGELOG for v$version"
 
 echo "[2/4] go build -o $binary_path ."
-CGO_ENABLED=${CGO_ENABLED:-0} GOOS="$target_goos" GOARCH="$target_goarch" go build -trimpath -o "$binary_path" .
+CGO_ENABLED=${CGO_ENABLED:-0} GOOS="$target_goos" GOARCH="$target_goarch" \
+  go build -trimpath -ldflags "$ldflags" -o "$binary_path" .
 
 echo "[3/4] Generate checksums"
 (

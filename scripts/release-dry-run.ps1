@@ -31,6 +31,7 @@ $checksumPath = Join-Path $outputDir "$binaryName.sha256"
 $checksumsPath = Join-Path $outputDir "SHA256SUMS"
 $runSmoke = if ([string]::IsNullOrWhiteSpace($env:RELEASE_RUN_SMOKE)) { $true } else { $env:RELEASE_RUN_SMOKE -ne "0" }
 $webDistIndex = Join-Path $root "web/dist/index.html"
+$ldflags = "-X main.buildVersion=$version"
 
 Write-Host "[1/4] Validate VERSION and CHANGELOG for v$version"
 
@@ -62,7 +63,7 @@ try {
     $env:CGO_ENABLED = "0"
   }
 
-  & go build -trimpath -o $binaryPath .
+  & go build -trimpath -ldflags $ldflags -o $binaryPath .
 } finally {
   $env:GOOS = $previousGoOS
   $env:GOARCH = $previousGoArch

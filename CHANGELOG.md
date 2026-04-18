@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Future work can build on the current observability, release, and extension seams
 without reopening the initial public-fork baseline.
 
+## [0.1.5] - 2026-04-19
+
+### Added
+
+- Added build-version fallback tests for both supported Go entrypoints so
+  release artifacts and Docker images now report the validated release version
+  by default unless an operator intentionally overrides it with `APP_VERSION`.
+
+### Fixed
+
+- Restored executable bits on the documented shell verification scripts so a
+  fresh clone can follow the README and deployment docs without hitting
+  `permission denied` on `./scripts/...` commands.
+
+### Changed
+
+- Release dry runs, tagged release artifacts, and Docker images now inject the
+  validated `VERSION` into the runtime at build time while keeping
+  `APP_VERSION` as the highest-priority override.
+
 ## [0.1.4] - 2026-04-19
 
 ### Added
