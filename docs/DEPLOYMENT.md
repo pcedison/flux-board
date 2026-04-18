@@ -19,6 +19,7 @@ Both contracts assume:
 Optional:
 - `APP_PASSWORD`
 - `APP_VERSION`
+- `BUILD_VERSION`
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 
 ### Env behavior
@@ -29,6 +30,8 @@ Optional:
   - If set and no admin exists yet, Flux Board seeds the first admin password automatically.
   - After bootstrap, changing `APP_PASSWORD` does not rotate the live password.
 - tagged release artifacts and Docker images already embed the tracked `VERSION`.
+- source-built hosted Docker paths should set `BUILD_VERSION` to the same release
+  label so `/api/status` and tracing stay aligned with the deployed artifact.
 - `APP_VERSION` is an override knob for operators who intentionally want runtime status or tracing to announce a different version label.
 
 ## Local Docker Path

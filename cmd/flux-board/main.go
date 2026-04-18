@@ -44,7 +44,7 @@ func main() {
 
 	traceShutdown, err := tracing.Configure(context.Background(), tracing.Config{
 		ServiceName:    "flux-board",
-		ServiceVersion: os.Getenv("APP_VERSION"),
+		ServiceVersion: appVersion(),
 		Environment:    cfg.AppEnv,
 		Endpoint:       os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 		Logger:         logger,

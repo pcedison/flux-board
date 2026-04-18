@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Future work can build on the current observability, release, and extension seams
 without reopening the initial public-fork baseline.
 
+## [0.1.7] - 2026-04-19
+
+### Fixed
+
+- Taught both supported Go entrypoints to use the embedded build version for
+  tracing metadata when operators do not set `APP_VERSION`, keeping runtime
+  status and telemetry aligned on hosted Docker releases.
+
+### Changed
+
+- Documented `BUILD_VERSION` as the supported way to keep source-built hosted
+  Docker deployments aligned with the tagged release version.
+
 ## [0.1.6] - 2026-04-19
 
 ### Fixed

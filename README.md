@@ -63,6 +63,7 @@ Important:
 - `APP_PASSWORD` is bootstrap-only
 - leave it empty if you prefer to finish first-run setup in the browser
 - tagged release artifacts and Docker images already embed the tracked `VERSION`
+- hosted Docker builds can inject the same release label with `BUILD_VERSION`
 - set `APP_VERSION` only if you intentionally want runtime status to announce a different operator-supplied label
 
 ## Quick Start
@@ -70,6 +71,9 @@ Important:
 ```sh
 docker compose up --build
 ```
+
+For hosted Docker paths that build from source, keep release parity by setting
+`BUILD_VERSION` to the same value as [`VERSION`](VERSION) before the deploy.
 
 ### Local binary
 ```sh
