@@ -6,6 +6,28 @@ import (
 	"testing"
 )
 
+func unsetEnvForTest(t *testing.T, keys ...string) {
+	t.Helper()
+
+	for _, key := range keys {
+		value, ok := os.LookupEnv(key)
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("Unsetenv(%q) returned error: %v", key, err)
+		}
+
+		if ok {
+			t.Cleanup(func() {
+				_ = os.Setenv(key, value)
+			})
+			continue
+		}
+
+		t.Cleanup(func() {
+			_ = os.Unsetenv(key)
+		})
+	}
+}
+
 func TestLoadDotEnvFileLoadsValuesWithoutOverridingExistingEnv(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".env")
@@ -14,11 +36,8 @@ func TestLoadDotEnvFileLoadsValuesWithoutOverridingExistingEnv(t *testing.T) {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
+	unsetEnvForTest(t, "DATABASE_URL", "APP_ENV")
 	t.Setenv("APP_PASSWORD", "existing")
-	t.Cleanup(func() {
-		_ = os.Unsetenv("DATABASE_URL")
-		_ = os.Unsetenv("APP_ENV")
-	})
 
 	if err := loadDotEnvFile(path); err != nil {
 		t.Fatalf("loadDotEnvFile returned error: %v", err)
