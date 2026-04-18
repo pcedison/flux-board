@@ -102,6 +102,31 @@ After any deploy, verify:
 5. `/settings` loads password, session, retention, and backup controls
 6. `/legacy/` remains reachable as the rollback shell
 
+For a repo-owned status artifact set, run:
+
+```sh
+BASE_URL=https://your-host.example \
+EXPECT_NEEDS_SETUP=false \
+EXPECT_ENVIRONMENT=production \
+./scripts/verify-status-contract.sh
+```
+
+Windows:
+
+```powershell
+$env:BASE_URL="https://your-host.example"
+$env:EXPECT_NEEDS_SETUP="false"
+$env:EXPECT_ENVIRONMENT="production"
+./scripts/verify-status-contract.ps1
+```
+
+## Backup And Restore Notes
+- Use `/settings -> Export board data` before manual imports, host moves, or risky maintenance that could change the live board.
+- Flux Board rejects malformed import bundles before replacing the current board snapshot. If an import fails, the current board and archive-retention policy stay in place; fix the JSON or re-export from the source instance before retrying.
+- JSON export/import covers active tasks, archived tasks, and archive-retention settings. It is the right tool for logical board migration, but it is not a full-instance disaster-recovery substitute for auth/session/audit tables.
+- For full-instance recovery, take a PostgreSQL backup before upgrades or destructive imports. On self-managed Postgres, `pg_dump "$DATABASE_URL" > flux-board-$(date +%F).sql` and `psql "$DATABASE_URL" < flux-board-YYYY-MM-DD.sql` remain the baseline workflow; managed snapshot equivalents are fine when the host provides them.
+- The full operator drill now lives in [docs/BACKUP_RESTORE_DRILL.md](BACKUP_RESTORE_DRILL.md), and the incident/deploy troubleshooting flow lives in [docs/OPERATIONS_RUNBOOK.md](OPERATIONS_RUNBOOK.md).
+
 ## Rollback Baseline
 Current rollback is intentionally simple:
 1. stop the new app instance

@@ -70,6 +70,7 @@ type stubSettingsRepository struct {
 	updatePasswordHashFn   func(context.Context, string, string, int64) error
 	deleteSessionsExceptFn func(context.Context, string, []string) error
 	setArchiveRetentionFn  func(context.Context, *int, int64) error
+	replaceBoardSnapshotFn func(context.Context, []domain.Task, []domain.ArchivedTask) error
 }
 
 func (s *stubSettingsRepository) BootstrapAdminExists(ctx context.Context, username string) (bool, error) {
@@ -108,13 +109,16 @@ func (s *stubSettingsRepository) SetArchiveRetentionDays(ctx context.Context, da
 	return nil
 }
 
-func (s *stubSettingsRepository) ReplaceBoardSnapshot(context.Context, []domain.Task, []domain.ArchivedTask) error {
+func (s *stubSettingsRepository) ReplaceBoardSnapshot(ctx context.Context, tasks []domain.Task, archived []domain.ArchivedTask) error {
+	if s.replaceBoardSnapshotFn != nil {
+		return s.replaceBoardSnapshotFn(ctx, tasks, archived)
+	}
 	return nil
 }
 
 type stubTaskRepository struct {
-	tasks     []domain.Task
-	archived  []domain.ArchivedTask
+	tasks    []domain.Task
+	archived []domain.ArchivedTask
 }
 
 func (s stubTaskRepository) ListTasks(context.Context) ([]domain.Task, error) {
@@ -241,14 +245,97 @@ func TestUpdateSettingsRejectsInvalidRetention(t *testing.T) {
 	}
 }
 
-func TestImportRejectsDuplicateIDsAcrossTasksAndArchived(t *testing.T) {
+func TestImportRejectsInvalidBundlesWithoutReplacingBoard(t *testing.T) {
 	t.Parallel()
 
-	service := New(&stubAuthRepository{}, &stubSettingsRepository{}, stubTaskRepository{}, nil, "", Options{})
-	days := 30
+	cases := []struct {
+		name   string
+		mutate func(domain.ExportBundle) domain.ExportBundle
+		want   string
+	}{
+		{
+			name: "missing export version",
+			mutate: func(bundle domain.ExportBundle) domain.ExportBundle {
+				bundle.Version = "   "
+				return bundle
+			},
+			want: "export version is required",
+		},
+		{
+			name: "missing exported timestamp",
+			mutate: func(bundle domain.ExportBundle) domain.ExportBundle {
+				bundle.ExportedAt = 0
+				return bundle
+			},
+			want: "exportedAt must be a positive unix timestamp in milliseconds",
+		},
+		{
+			name: "duplicate task ids across active and archived",
+			mutate: func(bundle domain.ExportBundle) domain.ExportBundle {
+				bundle.Archived = []domain.ArchivedTask{
+					{
+						ID:         bundle.Tasks[0].ID,
+						Title:      "Archived",
+						Note:       "",
+						Due:        "2026-04-21",
+						Priority:   "high",
+						Status:     "done",
+						SortOrder:  0,
+						ArchivedAt: time.Now().UnixMilli(),
+					},
+				}
+				return bundle
+			},
+			want: "task ids must be unique across the import bundle",
+		},
+	}
 
-	err := service.Import(context.Background(), domain.ExportBundle{
-		Version:    "test",
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			replaceCalls := 0
+			retentionWrites := 0
+			service := New(
+				&stubAuthRepository{},
+				&stubSettingsRepository{
+					replaceBoardSnapshotFn: func(context.Context, []domain.Task, []domain.ArchivedTask) error {
+						replaceCalls++
+						return nil
+					},
+					setArchiveRetentionFn: func(context.Context, *int, int64) error {
+						retentionWrites++
+						return nil
+					},
+				},
+				stubTaskRepository{},
+				nil,
+				"",
+				Options{},
+			)
+
+			err := service.Import(context.Background(), tc.mutate(validImportBundleForTest()))
+			if !IsValidationError(err) {
+				t.Fatalf("expected validation error, got %v", err)
+			}
+			if err.Error() != tc.want {
+				t.Fatalf("expected validation error %q, got %q", tc.want, err.Error())
+			}
+			if replaceCalls != 0 {
+				t.Fatalf("expected invalid import to skip board replacement, got %d replace calls", replaceCalls)
+			}
+			if retentionWrites != 0 {
+				t.Fatalf("expected invalid import to skip retention writes, got %d writes", retentionWrites)
+			}
+		})
+	}
+}
+
+func validImportBundleForTest() domain.ExportBundle {
+	days := 30
+	return domain.ExportBundle{
+		Version:    "test-export",
 		ExportedAt: time.Now().UnixMilli(),
 		Settings: domain.AppSettings{
 			ArchiveRetentionDays: &days,
@@ -264,20 +351,5 @@ func TestImportRejectsDuplicateIDsAcrossTasksAndArchived(t *testing.T) {
 				SortOrder: 0,
 			},
 		},
-		Archived: []domain.ArchivedTask{
-			{
-				ID:         "task-1",
-				Title:      "Archived",
-				Note:       "",
-				Due:        "2026-04-21",
-				Priority:   "high",
-				Status:     "done",
-				SortOrder:  0,
-				ArchivedAt: time.Now().UnixMilli(),
-			},
-		},
-	})
-	if !IsValidationError(err) {
-		t.Fatalf("expected validation error, got %v", err)
 	}
 }

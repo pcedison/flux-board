@@ -270,6 +270,9 @@ func (s service) Export(ctx context.Context) (domain.ExportBundle, error) {
 }
 
 func (s service) Import(ctx context.Context, bundle domain.ExportBundle) error {
+	if err := validateImportBundle(bundle); err != nil {
+		return err
+	}
 	if err := validateArchiveRetentionDays(bundle.Settings.ArchiveRetentionDays); err != nil {
 		return err
 	}
@@ -298,6 +301,16 @@ func validateArchiveRetentionDays(days *int) error {
 	}
 	if *days > maxArchiveRetentionDay {
 		return NewValidationError(fmt.Sprintf("archive retention must be %d days or fewer", maxArchiveRetentionDay))
+	}
+	return nil
+}
+
+func validateImportBundle(bundle domain.ExportBundle) error {
+	if strings.TrimSpace(bundle.Version) == "" {
+		return NewValidationError("export version is required")
+	}
+	if bundle.ExportedAt <= 0 {
+		return NewValidationError("exportedAt must be a positive unix timestamp in milliseconds")
 	}
 	return nil
 }

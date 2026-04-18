@@ -20,6 +20,7 @@ const resultsDir =
   path.join("test-results", "e2e", `settings-smoke-${timestamp}`);
 const originalBundlePath = path.join(resultsDir, "original-export.json");
 const exportedBundlePath = path.join(resultsDir, "exported-settings-bundle.json");
+const invalidBundlePath = path.join(resultsDir, "invalid-import-bundle.json");
 const mutatedBundlePath = path.join(resultsDir, "mutated-import-bundle.json");
 const rotatedPassword = `settings-smoke-${Date.now()}-pw`;
 const importedTaskTitle = `Settings import smoke ${Date.now()}`;
@@ -63,6 +64,7 @@ let originalStateRestored = true;
 let originalPasswordRestored = true;
 let rollback = { attempted: false, steps: [] };
 let initialSessions = [];
+let invalidImportRejected = false;
 
 try {
   logStep("Login primary session");
@@ -88,6 +90,25 @@ try {
   );
   originalBundle = originalExportResponse.body;
   await writeFile(originalBundlePath, JSON.stringify(originalBundle, null, 2), "utf8");
+
+  logStep("Reject malformed import without mutating state");
+  const invalidBundle = buildInvalidBundle(originalBundle);
+  await writeFile(invalidBundlePath, JSON.stringify(invalidBundle, null, 2), "utf8");
+  await importBundleExpectFailure(page, invalidBundlePath, {
+    expectedMessage: "export version is required",
+    expectedStatus: 400,
+  });
+  invalidImportRejected = true;
+  const stateAfterInvalidImport = await requestJson(page, "/api/export");
+  assertStatus(
+    stateAfterInvalidImport.status === 200 &&
+      bundlesMatchForState(originalBundle, stateAfterInvalidImport.body),
+    "Expected malformed import rejection to preserve the current board snapshot."
+  );
+  await page.screenshot({
+    path: path.join(resultsDir, "02-invalid-import-rejected.png"),
+    fullPage: true,
+  });
 
   logStep("Create secondary session");
   secondaryContext = await browser.newContext({ baseURL });
@@ -164,7 +185,7 @@ try {
     state: "visible",
     timeout: 10000,
   });
-  await page.screenshot({ path: path.join(resultsDir, "02-imported-board.png"), fullPage: true });
+  await page.screenshot({ path: path.join(resultsDir, "03-imported-board.png"), fullPage: true });
   await openSettings(page, baseURL);
 
   logStep("Revoke secondary session");
@@ -188,7 +209,7 @@ try {
     revokedAuth.status === 401,
     `Expected revoked secondary session to be unauthorized, got ${JSON.stringify(revokedAuth)}`
   );
-  await page.screenshot({ path: path.join(resultsDir, "03-session-revoked.png"), fullPage: true });
+  await page.screenshot({ path: path.join(resultsDir, "04-session-revoked.png"), fullPage: true });
 
   logStep("Restore original board export");
   await importBundle(page, originalBundlePath);
@@ -213,7 +234,7 @@ try {
   await changePasswordViaSettings(page, password, rotatedPassword);
   activePassword = rotatedPassword;
   await page.getByText("Password updated. Other sessions were signed out.").waitFor();
-  await page.screenshot({ path: path.join(resultsDir, "04-password-rotated.png"), fullPage: true });
+  await page.screenshot({ path: path.join(resultsDir, "05-password-rotated.png"), fullPage: true });
 
   logStep("Re-login with rotated password");
   await signOut(page);
@@ -243,7 +264,7 @@ try {
       finalSessions.body?.sessions?.[0]?.current === true,
     `Expected a single current session at the end of smoke, got ${JSON.stringify(finalSessions)}`
   );
-  await page.screenshot({ path: path.join(resultsDir, "05-settings-restored.png"), fullPage: true });
+  await page.screenshot({ path: path.join(resultsDir, "06-settings-restored.png"), fullPage: true });
 
   logStep("Logout");
   await signOut(page);
@@ -261,6 +282,7 @@ try {
         browser: browserName,
         canonicalRuntime: "/login -> /settings",
         importedTaskTitle,
+        invalidImportRejected,
         restoration: {
           boardExport: originalStateRestored ? "restored" : "dirty",
           password: originalPasswordRestored ? "restored" : "dirty",
@@ -301,6 +323,7 @@ try {
         browser: browserName,
         canonicalRuntime: "/login -> /settings",
         importedTaskTitle,
+        invalidImportRejected,
         restoration: {
           boardExport: originalStateRestored ? "restored" : "dirty",
           password: originalPasswordRestored ? "restored" : "dirty",
@@ -458,6 +481,27 @@ async function importBundle(page, bundlePath) {
   await page.getByText("Import finished and replaced the current board data.").waitFor();
 }
 
+async function importBundleExpectFailure(page, bundlePath, { expectedMessage, expectedStatus }) {
+  const importResponse = page.waitForResponse(
+    (res) => res.url().endsWith("/api/import") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await page.locator("#import-file").setInputFiles(bundlePath);
+  const response = await importResponse;
+  assertStatus(
+    response.status() === expectedStatus,
+    `Expected failed import status ${expectedStatus}, got ${response.status()}`
+  );
+  await page.getByText(expectedMessage).waitFor();
+}
+
+function buildInvalidBundle(bundle) {
+  const nextBundle = JSON.parse(JSON.stringify(bundle));
+  nextBundle.version = " ";
+  nextBundle.exportedAt = 0;
+  return nextBundle;
+}
+
 function findExtraSession(previousSessions, nextSessions) {
   const previousTokens = new Set(previousSessions.map((session) => session.token));
   const extras = nextSessions.filter((session) => !previousTokens.has(session.token));
@@ -513,6 +557,54 @@ function buildMutatedBundle(bundle, archiveRetentionDays) {
   ];
 
   return nextBundle;
+}
+
+function bundlesMatchForState(left, right) {
+  return canonicalizeBundleState(left) === canonicalizeBundleState(right);
+}
+
+function canonicalizeBundleState(bundle) {
+  return JSON.stringify({
+    settings: {
+      archiveRetentionDays: bundle?.settings?.archiveRetentionDays ?? null,
+    },
+    tasks: canonicalizeTasks(bundle?.tasks ?? []),
+    archived: canonicalizeArchivedTasks(bundle?.archived ?? []),
+  });
+}
+
+function canonicalizeTasks(tasks) {
+  return [...tasks]
+    .map((task) => ({
+      due: task.due,
+      id: task.id,
+      lastUpdated: task.lastUpdated ?? 0,
+      note: task.note ?? "",
+      priority: task.priority,
+      sort_order: task.sort_order ?? task.sortOrder ?? 0,
+      status: task.status,
+      title: task.title,
+    }))
+    .sort(compareCanonicalItems);
+}
+
+function canonicalizeArchivedTasks(tasks) {
+  return [...tasks]
+    .map((task) => ({
+      archivedAt: task.archivedAt ?? 0,
+      due: task.due,
+      id: task.id,
+      note: task.note ?? "",
+      priority: task.priority,
+      sort_order: task.sort_order ?? task.sortOrder ?? 0,
+      status: task.status,
+      title: task.title,
+    }))
+    .sort(compareCanonicalItems);
+}
+
+function compareCanonicalItems(left, right) {
+  return JSON.stringify(left).localeCompare(JSON.stringify(right));
 }
 
 function selectRetentionDays(exclusions) {

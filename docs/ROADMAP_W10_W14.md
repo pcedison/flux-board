@@ -1,8 +1,11 @@
-# Flux Board W10-W14 Roadmap
+# Flux Board W10-W17 Roadmap
+
+Historical note:
+- this file keeps the old `ROADMAP_W10_W14.md` path for link stability, but it now carries the formal `W10-W17` roadmap plus the current `W18` boundary decision
 
 ## Purpose
 - This roadmap continues from the delivered `W0-W9` baseline, but it explicitly stays inside the product's real target: a high-quality single-user self-hosted board.
-- `W10-W14` are no longer reserved for multi-user, RBAC, or SSO work.
+- `W10-W17` stay inside the same single-user self-hosted direction and are not reserved for multi-user, RBAC, or SSO work.
 - The planning rule is simple: optimize for a reliable single-user runtime before expanding scope that the product does not need.
 
 ## Product Guardrails
@@ -28,6 +31,9 @@
 3. `W12` Product UX Completion
 4. `W13` Data Portability & Backup
 5. `W14` Observability & Operability
+6. `W15` Hosted Release Operations
+7. `W16` Backup and Restore Drills
+8. `W17` Product Polish and Mobile Depth
 
 ## Shared Remote-Closed Standard
 - Local verification:
@@ -160,24 +166,78 @@
 ### Closure
 - operators can diagnose setup, auth, DB, and backup issues from repo-owned docs and signals without reverse-engineering the app
 
-## Beyond W14
-### W15 Hosted Release Operations
-- Goal: make tagged releases feel production-ready for hosted operators.
-- Scope:
-  - GHCR image publishing verification
-  - image versioning policy and rollback notes
-  - hosted deployment evidence for at least one real cloud path
+## W15 Hosted Release Operations
+### Goal
+- Make tagged releases feel production-ready for hosted operators instead of being "works locally" artifacts.
 
-### W16 Backup and Restore Drills
-- Goal: turn export/import and PostgreSQL backup guidance into repeatable operator drills.
-- Scope:
-  - import validation hardening
-  - documented restore rehearsal
-  - optional scheduled backup guidance
+### Scope
+- GHCR image publishing verification
+- image versioning and rollback policy
+- hosted deployment evidence capture
+- repo-owned post-deploy verification artifacts
 
-### W17 Product Polish and Mobile Depth
-- Goal: remove the last rough edges from the single-user board experience.
-- Scope:
-  - empty states and microcopy polish
-  - richer mobile ergonomics and touch audit
-  - final UX cleanup after the deployment/runtime work settles
+### Work Packages
+- `W15-P1` release artifact policy
+  - pin how tagged releases map to Docker image tags, root-binary artifacts, and changelog notes
+  - keep rollback notes and version metadata aligned with the actual release contract
+- `W15-P2` hosted deployment evidence
+  - exercise at least one real Docker-hosted path end to end
+  - record `/healthz`, `/readyz`, `/api/status`, `/status`, `/login` or `/setup`, `/board`, `/settings`, and `/legacy/`
+- `W15-P3` operator verification lane
+  - keep a repo-owned script for status-contract and hosted-runtime checks
+  - save enough artifact output that another operator can review the hosted proof later
+
+### Closure
+- a tagged build can be deployed on a real hosted Docker path, validated through repo-owned checks, and rolled back with written evidence instead of memory
+
+## W16 Backup and Restore Drills
+### Goal
+- Turn export/import and PostgreSQL backup guidance into repeatable operator drills that prove recovery safety.
+
+### Scope
+- import validation hardening
+- JSON export rehearsal
+- PostgreSQL restore rehearsal
+- optional scheduled backup guidance
+
+### Work Packages
+- `W16-P1` drillable backup baseline
+  - define the exact JSON export plus PostgreSQL dump artifacts an operator should keep
+  - keep destructive imports behind an explicit "backup first" workflow
+- `W16-P2` restore rehearsal
+  - document a scratch restore drill that proves the latest backup can be opened safely
+  - require post-restore verification through `/api/status`, `/login`, `/board`, and `/settings`
+- `W16-P3` operator cadence
+  - document when to rerun drills, what artifacts to retain, and what failures should block release or deploy promotion
+
+### Closure
+- operators can rehearse export, backup, restore, and post-restore verification from repo-owned docs without inventing ad hoc recovery steps
+
+## W17 Product Polish and Mobile Depth
+### Goal
+- Remove the last rough edges from the single-user board experience after runtime, deploy, and backup work have stabilized.
+
+### Scope
+- empty states and microcopy polish
+- richer mobile ergonomics and touch audit
+- final UX cleanup after deployment/runtime work settles
+
+### Work Packages
+- `W17-P1` copy and state polish
+  - remove stale "internal wave" language from residual user-facing corners
+  - make empty, signed-out, and recovery states read as a finished product
+- `W17-P2` mobile and touch audit
+  - capture the remaining touch and narrow-width rough edges after hosted/runtime work lands
+  - keep keyboard and fallback interaction quality intact while polishing touch behavior
+- `W17-P3` final UX acceptance
+  - rerun the existing browser smoke lanes against the polished UI
+  - close the last operator-facing UX roughness that blocks a confident hosted recommendation
+
+### Closure
+- the single-user runtime feels polished on desktop and mobile without sacrificing the already-proven fallback, keyboard, and deployment flows
+
+## W18 Boundary
+- `W18` does not need a formal implementation wave yet.
+- The actual planning gap was that `W15-W17` existed only as short blurbs; they now need the same goal/scope/work-package/closure treatment as earlier waves.
+- Keep the acceptance rule simple: `W15-W17` should still close at `remote-closed` on their own exact heads.
+- Only open `W18` if a real post-polish gap appears that does not fit `W15-W17`; do not use `W18` as a catch-all bucket for closure work that should belong to the wave being closed.

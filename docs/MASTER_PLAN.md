@@ -4,7 +4,7 @@
 - This document is the single source of truth for upgrading Flux Board into a high-quality single-user self-hosted product.
 - The roadmap now spans `W0-W17`, but the interpretation has changed:
   - `W0-W9` are the stabilization baseline and the historical release proof
-  - `W10-W14` are now single-user productization waves, not multi-user enterprise expansion waves
+  - `W10-W17` are now single-user productization, operability, and polish waves, not multi-user enterprise expansion waves
 - Scope includes: security, data integrity, Go modularization, React + TypeScript + Vite frontend ownership, accessibility, CI, release governance, deployment parity, backup safety, and resumable execution records.
 - Rule: every task must leave a progress record so work can resume cleanly after interruption.
 
@@ -21,7 +21,7 @@
 - `remote-closed`: the exact current head has a fresh GitHub Actions run with the required matrix green, and that evidence is recorded here.
 - Reading rule:
   - `W0-W1` use `artifact-complete` as their final closure.
-  - `W2-W14` use `remote-closed` as their final closure.
+  - `W2-W17` use `remote-closed` as their final closure.
   - historical `done` wording in old package lines is delivery history only; use the wave table below as the current source of truth.
 
 ## Progress Recording Protocol
@@ -53,11 +53,11 @@
 | W10 | Build, CI, and Hosted Deploy Hardening | `in_progress` | root binary packaging, Docker-first deploy contract, CI lint lanes, and release parity work have started locally | finish exact-head CI plus hosted-path proof |
 | W11 | Single-User Security & Settings | `in_progress` | `/setup`, `/settings`, password rotation, session revocation, and retention controls are implemented locally | add deeper backend coverage and exact-head CI proof |
 | W12 | Product UX Completion | `in_progress` | auth-aware `/`, product wording, task edit flow, search, and permanent archived delete are implemented locally | finish smoke proof and product-copy polish |
-| W13 | Data Portability & Backup | `in_progress` | export/import and retention safety are implemented locally | deepen validation coverage and document operator backup paths |
-| W14 | Observability & Operability | `in_progress` | `/api/status`, `/status`, and Docker runtime smoke automation are implemented locally | add operator runbooks, exact-head CI proof, and one real hosted deployment record |
-| W15 | Hosted Release Operations | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | publish and validate the hosted release path end to end |
-| W16 | Backup and Restore Drills | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | prove restore safety with repeatable operator drills |
-| W17 | Product Polish and Mobile Depth | `planned` | next-step scope is documented in `docs/ROADMAP_W10_W14.md` | close final UX polish after deployment/runtime work stabilizes |
+| W13 | Data Portability & Backup | `in_progress` | export/import and retention safety are implemented locally, and repo-owned backup/restore drill docs now exist | deepen validation coverage and run a repeatable restore rehearsal |
+| W14 | Observability & Operability | `in_progress` | `/api/status`, `/status`, Docker runtime smoke automation, and operator runbooks now exist locally | record exact-head CI proof and one real hosted deployment record |
+| W15 | Hosted Release Operations | `planned` | formal goal, scope, work packages, and hosted evidence lane are now documented in `docs/ROADMAP_W10_W14.md` and `docs/OPERATIONS_RUNBOOK.md` | publish and validate the hosted release path end to end |
+| W16 | Backup and Restore Drills | `planned` | formal goal, scope, work packages, and scratch restore drill are now documented in `docs/ROADMAP_W10_W14.md` and `docs/BACKUP_RESTORE_DRILL.md` | prove restore safety with repeatable operator drills |
+| W17 | Product Polish and Mobile Depth | `planned` | formal goal, scope, and closure expectations are now documented in `docs/ROADMAP_W10_W14.md` | close final UX polish after deployment/runtime work stabilizes |
 
 ## W0 Baseline Audit
 - Goal: freeze the real MVP state and identify blockers before implementation.
@@ -229,17 +229,21 @@
   - release workflow publishes checksumed multi-platform assets and records a successful exact-head release closure
   - the project now has a structured logging baseline, `/metrics`, trace seams, and documented runtime-safety seams for the current wave scope
 
-## W10-W14 Forward Roadmap
-- `W10-W14` are planning-only in this document; the detailed non-implementation roadmap lives in [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md).
+## W10-W17 Forward Roadmap
+- `W10-W17` are planning-only in this document; the detailed non-implementation roadmap lives in [docs/ROADMAP_W10_W14.md](ROADMAP_W10_W14.md).
 - Recommended order:
   - `W10` first, because CI/deploy hardening reduces risk for every later wave
   - `W11` next, because the single-user auth/settings model must feel finished before more UX or backup work is called done
   - `W12` after that, because the canonical board/runtime experience should read like a product, not a wave demo
   - `W13` once the runtime and settings surfaces are stable enough to define durable backup expectations
   - `W14` last, because operator-facing observability is most useful once the product and deploy contracts stop moving underneath it
+  - `W15` after W14, because hosted release evidence needs the observability baseline to already exist
+  - `W16` after W15, because backup drills should reuse the hosted verification contract instead of inventing a second acceptance path
+  - `W17` last, because final polish should happen after deploy, observability, and recovery seams stop moving
 - Planning rule:
   - do not reintroduce multi-user, RBAC, workspace, or OIDC scope unless the product goal itself changes
-  - promote `W10-W14` only with exact-head CI plus hosted-path proof
+  - promote `W10-W17` only with exact-head CI plus hosted-path proof
+  - `W18` is intentionally unopened; only define it if a concrete post-polish gap remains that does not belong to `W15-W17`
 
 ## Standard Gates
 - Security gate: no known P0 security defect; no shared-password production default; request and session protections active.
@@ -379,3 +383,5 @@
 - 2026-04-17 | W0-W14 / Planning / Forward roadmap formalization | artifact-complete | Updated `MASTER_PLAN.md` to reflect the recorded `W9 remote-closed` state on exact head `f659e20`, added forward-looking `W10-W14` wave placeholders, and linked the detailed next-phase roadmap in `docs/ROADMAP_W10_W14.md` | The master plan now cleanly separates the closed `W0-W9` delivery baseline from the planned `W10-W14` expansion work without mixing implementation and future design | Next: sync this docs-only commit on the secondary machine, then choose whether to start W10 as a hosted/CI hardening wave or first split the roadmap into issue-sized slices | Risk: `W10-W14` are planning-only and must be kept aligned once implementation begins
 - 2026-04-18 | W10-W13 / Single-user productization slice | locally-verified | Reworked the runtime around the real single-user target by adding setup/settings flows, export/import, archive-retention controls, task edit plus permanent archived delete, search and keyboard polish, root-binary release parity, Docker-first deployment templates, workflow lint, Go lint, frontend lint, and refreshed product/deployment docs | The current working tree is locally verified for the new single-user direction, and the release/runtime contract is now aligned around the embedded root binary plus Docker image instead of the older split assumptions | Next: push the current head, record fresh exact-head CI proof, and exercise one real Docker-hosted deployment path before promoting W2-W13 beyond `locally-verified` | Risk: hosted-path proof and backend coverage for the new settings/import-export surfaces are still lighter than the frontend/runtime proof
 - 2026-04-18 | W10-W13 / Settings + setup verification hardening | locally-verified | Added repo-owned root-binary `setup` smoke, added a new `/settings` end-to-end smoke lane covering retention update, export/import, session revoke, and password rotation, expanded CI with dedicated `setup_smoke` and `settings_smoke` jobs, added PostgreSQL-backed handler integration tests for settings/export/import/session revoke/password rotation, and reran local Go, race, workflow, release, root-runtime smoke, Docker smoke, setup smoke, and settings smoke verification | The current head now has materially stronger local proof for the highest-risk single-user settings and backup flows, and the root binary deployment contract is exercised locally for both bootstrap-first and steady-state settings paths | Next: push the exact current head, record the fresh GitHub Actions matrix including the new setup/settings lanes, and produce one real hosted Docker deployment record before promoting W10-W13 toward `remote-closed` | Risk: exact-head remote CI proof, hosted-path proof, and operator runbook closure still remain open
+- 2026-04-18 | W11-W13 / Import validation hardening + rejected-import proof | locally-verified | Tightened the settings import path so bundles now require export metadata before any destructive replace, added settings-service tests that prove invalid bundles do not write board state, extended the repo-owned settings smoke lane to upload a malformed import and confirm the live board/settings remain unchanged, and documented operator backup plus failed-import guidance in the deployment handoff docs | W11-W13 now have stronger repo-owned evidence that malformed imports fail safely instead of partially mutating a single-user instance, and the backup/import operator story is clearer for future closure work | Next: push the exact head, record fresh GitHub Actions proof for the updated settings smoke lane, and exercise one real hosted Docker deployment path | Risk: exact-head remote CI proof, hosted-path proof, and broader W14 troubleshooting docs still remain open
+- 2026-04-18 | W14-W17 / Planning + operability runbooks | locally-verified | Formalized `W15-W17` with explicit goal/scope/work-package/closure definitions, recorded that `W18` should remain unopened for now, added repo-owned operator runbook and backup/restore drill docs, added a status-contract verification script plus `/api/status` contract tests, and reran `go test ./...` plus an isolated Docker-backed `./scripts/verify-status-contract.sh` check with `EXPECT_NEEDS_SETUP=true` | W14 now has repo-owned troubleshooting and deployment-evidence assets, W15-W17 now have formal planning definitions instead of short blurbs, and the status contract is both test-covered and executable against a real runtime | Next: run the status-contract lane against a real hosted deployment, record fresh exact-head GitHub Actions proof, and execute the documented restore drill on a scratch target | Risk: hosted deployment evidence and exact-head remote closure are still missing, and `W18` should stay unopened unless a new concrete post-polish scope appears
