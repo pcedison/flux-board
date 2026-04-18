@@ -22,7 +22,7 @@ export function SetupPage() {
     return (
       <section className="panel" aria-live="polite">
         <h2>Preparing setup</h2>
-        <p className="meta">Checking whether this Flux Board instance already has an admin password.</p>
+        <p className="meta">Checking whether this board already has a password.</p>
       </section>
     );
   }
@@ -70,9 +70,9 @@ export function SetupPage() {
   return (
     <div className="auth-layout">
       <section className="panel">
-        <h2>Set the admin password</h2>
+        <h2>Set the board password</h2>
         <p className="meta">
-          This is a single-user installation. Create the first password once, then use it for daily sign-in.
+          This board is built for one person. Create the password once, then use it for daily sign-in.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -86,7 +86,7 @@ export function SetupPage() {
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Create a strong admin password"
+            placeholder="Create a strong board password"
           />
 
           <label className="form-field" htmlFor="setup-confirm-password">
@@ -116,9 +116,9 @@ export function SetupPage() {
       <section className="panel panel-secondary">
         <h2>What happens next</h2>
         <ul className="checklist">
-          <li>The password is stored as a bcrypt hash in PostgreSQL.</li>
-          <li>Flux Board signs this browser in immediately after setup succeeds.</li>
-          <li>You can later rotate the password and archive policy from Settings.</li>
+          <li>Your password is saved securely.</li>
+          <li>This browser signs in automatically after setup finishes.</li>
+          <li>You can later change the password and archive policy in Settings.</li>
         </ul>
       </section>
     </div>

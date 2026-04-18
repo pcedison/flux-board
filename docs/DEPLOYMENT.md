@@ -120,6 +120,15 @@ $env:EXPECT_ENVIRONMENT="production"
 ./scripts/verify-status-contract.ps1
 ```
 
+For a repo-owned hosted auth artifact on macOS with an already signed-in Chrome session, run:
+
+```sh
+BASE_URL=https://your-host.example \
+./scripts/verify-hosted-auth-browser.sh
+```
+
+The script fails if Chrome lands anywhere other than `/board` and `/settings`, and it writes the captured URL/title evidence under `test-results/hosted-auth/...`.
+
 ## Backup And Restore Notes
 - Use `/settings -> Export board data` before manual imports, host moves, or risky maintenance that could change the live board.
 - Flux Board rejects malformed import bundles before replacing the current board snapshot. If an import fails, the current board and archive-retention policy stay in place; fix the JSON or re-export from the source instance before retrying.

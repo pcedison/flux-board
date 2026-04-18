@@ -72,6 +72,21 @@ $env:EXPECT_ENVIRONMENT="production"
   - `metrics.txt`
   - `summary.json`
 
+- Signed-in hosted browser proof on macOS:
+
+```sh
+BASE_URL=https://your-host.example \
+./scripts/verify-hosted-auth-browser.sh
+```
+
+- Use this when you already have a valid Chrome session and want repo-owned evidence that the hosted deployment opens `/board` and `/settings` directly instead of bouncing to `/login`.
+- The script writes artifact files under `test-results/hosted-auth/...`, including:
+  - `board-url.txt`
+  - `board-title.txt`
+  - `settings-url.txt`
+  - `settings-title.txt`
+  - `summary.json`
+
 ## Common Failures
 ### Bad `DATABASE_URL`
 - Symptoms:
@@ -125,6 +140,7 @@ $env:EXPECT_ENVIRONMENT="production"
 ## Hosted Release Checklist
 - Record the exact Git commit and release tag or image tag being deployed.
 - Run `verify-status-contract` against the real host and save the artifact directory.
+- If you are validating an already signed-in browser instead of using a test password, run `verify-hosted-auth-browser.sh` and save that artifact directory too.
 - Confirm these routes manually or through existing smoke lanes:
   - `/healthz`
   - `/readyz`

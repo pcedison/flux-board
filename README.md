@@ -118,6 +118,25 @@ Related smoke lanes:
 - `./scripts/verify-next-preview.sh`
 - `./scripts/verify-docker-smoke.sh`
 
+### Restore drill
+```sh
+npm ci
+export FLUX_PASSWORD="your-password"
+export RESTORE_DRILL_DUMP_PATH="$PWD/backups/flux-board-YYYYMMDD-HHMMSS.dump"
+export RESTORE_DATABASE_URL='postgres://flux:flux@127.0.0.1:5432/flux_restore?sslmode=disable'
+./scripts/verify-restore-drill.sh
+```
+
+Full operator guidance: [docs/BACKUP_RESTORE_DRILL.md](docs/BACKUP_RESTORE_DRILL.md)
+
+### Hosted auth proof
+```sh
+BASE_URL=https://your-host.example \
+./scripts/verify-hosted-auth-browser.sh
+```
+
+Use this on macOS when Chrome already has a valid hosted session and you want a repo-owned artifact proving `/board` and `/settings` open directly.
+
 ## Hosted Templates
 - local Docker stack: [docker-compose.yml](docker-compose.yml)
 - Render Docker template: [deploy/render.yaml](deploy/render.yaml)

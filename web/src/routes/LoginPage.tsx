@@ -29,7 +29,7 @@ export function LoginPage() {
     return (
       <section className="panel" aria-live="polite">
         <h2>Checking sign-in state</h2>
-        <p className="meta">Confirming whether this Flux Board instance is ready for sign-in.</p>
+        <p className="meta">Checking whether this board is ready for sign-in.</p>
       </section>
     );
   }
@@ -89,8 +89,8 @@ export function LoginPage() {
       <section className="panel">
         <h2>Sign in to view the board</h2>
         <p className="meta">
-          Use the admin password for this single-user board. After sign-in, Flux Board returns you
-          to the protected workspace automatically.
+          Use the board password to continue. If you were sent here from another page, you will go
+          right back after sign-in.
         </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -123,11 +123,11 @@ export function LoginPage() {
       </section>
 
       <section className="panel panel-secondary">
-        <h2>Sign-in flow</h2>
+        <h2>After sign-in</h2>
         <ul className="checklist">
-          <li>Creates an HTTP-only session cookie stored by the Go backend.</li>
-          <li>Redirects back to <code>{nextPath}</code> after the session is ready.</li>
-          <li>Leaves password rotation and session revocation in Settings after sign-in.</li>
+          <li>Returns you to <code>{nextPath}</code> as soon as access is confirmed.</li>
+          <li>Keeps password changes and session controls in Settings.</li>
+          <li>Sends you to setup first if the board has not been configured yet.</li>
         </ul>
       </section>
     </div>

@@ -37,10 +37,10 @@ export function BoardComposerPanel({
 }: BoardComposerPanelProps) {
   return (
     <div>
-      <h2>Create task</h2>
+      <h2>New task</h2>
       <p className="meta">
-        Add new cards without leaving the board. Keyboard-friendly controls remain available even
-        when drag-and-drop is not convenient.
+        Add a task without leaving the board. Keyboard-friendly controls stay available whenever
+        drag and drop is not the easiest option.
       </p>
       <form className={`board-form${isPending ? " board-form-pending" : ""}`} onSubmit={onSubmit} noValidate>
         <label className="form-field" htmlFor="board-task-title">
@@ -54,7 +54,7 @@ export function BoardComposerPanel({
           onChange={(event) => {
             onTitleChange(event.target.value);
           }}
-          placeholder="Ship the next board slice"
+          placeholder="Follow up with design review"
           required
           aria-invalid={Boolean(fieldErrors.title)}
           aria-describedby={fieldErrors.title ? "board-task-title-error" : undefined}
@@ -118,7 +118,7 @@ export function BoardComposerPanel({
           onChange={(event) => {
             onNoteChange(event.target.value);
           }}
-          placeholder="Optional implementation note"
+          placeholder="Add context, links, or handoff notes"
           rows={4}
         />
         <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={isPending}>

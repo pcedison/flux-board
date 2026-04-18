@@ -108,7 +108,7 @@ export function BoardTaskCard({
         <span className={`priority priority-${task.priority}`}>{task.priority}</span>
       </div>
       <p className="meta">
-        Due {task.due} / order {task.sort_order}
+        Due {task.due}
       </p>
       {task.note ? <p className="card-note">{task.note}</p> : null}
       <div className="card-actions">

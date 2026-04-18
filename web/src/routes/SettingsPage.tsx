@@ -89,11 +89,11 @@ export function SettingsPage() {
     onSuccess: (bundle) => {
       downloadExport(bundle);
       setImportError(null);
-      setImportStatus("Export completed.");
+      setImportStatus("Backup downloaded.");
     },
     onError: (error) => {
       setImportStatus(null);
-      setImportError(error instanceof Error ? error.message : "Unable to export data.");
+      setImportError(error instanceof Error ? error.message : "Unable to download backup.");
     },
   });
 
@@ -105,11 +105,11 @@ export function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: settingsQueryKey }),
       ]);
       setImportError(null);
-      setImportStatus("Import finished and replaced the current board data.");
+      setImportStatus("Board restored from backup.");
     },
     onError: (error) => {
       setImportStatus(null);
-      setImportError(error instanceof Error ? error.message : "Unable to import data.");
+      setImportError(error instanceof Error ? error.message : "Unable to restore backup.");
     },
   });
 
@@ -265,7 +265,7 @@ function SettingsContent({
 
       <section className="panel">
         <h2>Password</h2>
-        <p className="meta">Rotate the single admin password without re-running instance setup.</p>
+        <p className="meta">Change the board password without running setup again.</p>
         <form className="board-form" onSubmit={handlePasswordSubmit}>
           <label className="form-field" htmlFor="current-password">
             Current password
@@ -331,12 +331,12 @@ function SettingsContent({
           {sessions.map((session) => (
             <div key={session.token} className="archive-item">
               <div>
-                <strong>{session.current ? "Current browser" : "Saved session"}</strong>
+                <strong>{session.current ? "This browser" : "Another signed-in browser"}</strong>
                 <p className="meta">
-                  Last seen {new Date(session.lastSeenAt).toLocaleString()} / expires{" "}
+                  Last active {new Date(session.lastSeenAt).toLocaleString()} • expires{" "}
                   {new Date(session.expiresAt).toLocaleString()}
                 </p>
-                <p className="meta">Client {session.clientIP || "unknown"}</p>
+                <p className="meta">IP address {session.clientIP || "unknown"}</p>
               </div>
               <button
                 className="action-button action-button-secondary"
@@ -354,14 +354,14 @@ function SettingsContent({
       </section>
 
       <section className="panel">
-        <h2>Backup & import</h2>
-        <p className="meta">Export a full JSON snapshot or replace the current board from a previous export.</p>
+        <h2>Backup & restore</h2>
+        <p className="meta">Download a full backup or restore the board from an earlier export.</p>
         <div className="board-form">
           <button className="nav-pill nav-pill-active auth-submit" type="button" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-            {exportMutation.isPending ? "Exporting..." : "Export board data"}
+            {exportMutation.isPending ? "Preparing backup..." : "Download backup"}
           </button>
           <label className="form-field" htmlFor="import-file">
-            Import JSON export
+            Restore from export
           </label>
           <input id="import-file" className="text-input" type="file" accept="application/json" onChange={handleImportFile} />
           {importError ? (

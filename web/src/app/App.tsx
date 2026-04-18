@@ -38,7 +38,7 @@ function HomePage() {
       error={bootstrap.error ?? session.error}
       errorTitle="Unable to open Flux Board"
       isPending={bootstrap.isPending || session.isPending}
-      loadingMessage="Checking whether this browser should continue to setup, sign-in, or the board."
+      loadingMessage="Checking whether to send you to setup, sign in, or your board."
     >
       {bootstrap.data ? (
         bootstrap.data.needsSetup ? (
@@ -62,7 +62,7 @@ function RequireAuthRoute() {
       error={session.error}
       errorTitle="Unable to verify your session"
       isPending={session.isPending}
-      loadingMessage="Checking whether the current runtime can safely open the protected board route."
+      loadingMessage="Checking your sign-in before opening the board."
     >
       {session.data ? (
         <Outlet />

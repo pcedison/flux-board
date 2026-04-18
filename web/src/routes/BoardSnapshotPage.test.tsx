@@ -87,7 +87,7 @@ describe("BoardSnapshotPage", () => {
 
     renderPage();
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Failed to load board snapshot");
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to load the board");
     expect(screen.getByRole("alert")).toHaveTextContent("api down");
   });
 
@@ -98,13 +98,13 @@ describe("BoardSnapshotPage", () => {
 
     expect(screen.getByText("Queue me")).toBeInTheDocument();
     expect(screen.getByText("Do me")).toBeInTheDocument();
-    expect(screen.getByText("Due 2026-04-20 / order 0")).toBeInTheDocument();
+    expect(screen.getByText("Due 2026-04-20")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Drag Queue me to reorder within Queued" })).toBeInTheDocument();
     expect(screen.getByText("Queue me").closest("article")).toHaveAttribute("tabindex", "0");
     expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Archive Queue me" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore Archived" })).toBeInTheDocument();
-    expect(screen.getByText("1 archived cards")).toBeInTheDocument();
+    expect(screen.getByText("1 archived task")).toBeInTheDocument();
   });
 
   it("has no accessibility violations for the default board snapshot", async () => {

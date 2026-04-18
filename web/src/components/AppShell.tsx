@@ -40,12 +40,11 @@ export function AppShell({ children }: PropsWithChildren) {
       <div className="app-shell">
         <header className="hero">
           <div className="hero-copy">
-            <p className="eyebrow">Single-User Self-Hosted Board</p>
+            <p className="eyebrow">Self-Hosted Personal Board</p>
             <h1>Flux Board</h1>
             <p className="lede">
-              A compact planning board for one operator. Flux Board keeps the runtime deployable as
-              a single web app while still giving you backups, session controls, and a durable
-              PostgreSQL history.
+              A focused planning board for one person. Flux Board keeps tasks, archived work,
+              backups, and sign-in controls together in one simple app you can run yourself.
             </p>
           </div>
           <nav className="hero-nav" aria-label="Primary routes">
@@ -61,7 +60,7 @@ export function AppShell({ children }: PropsWithChildren) {
             ))}
             {session.isPending || bootstrap.isPending ? (
               <span className="nav-pill nav-pill-muted" aria-live="polite">
-                Checking runtime
+                Checking access
               </span>
             ) : session.data ? (
               <button

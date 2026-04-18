@@ -114,7 +114,7 @@ describe("App auth-aware routing", () => {
     expect(screen.getByRole("link", { name: "Sign In" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Board" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
-    expect(screen.getByText(/Redirects back to/i)).toHaveTextContent("/board");
+    expect(screen.getByText(/Returns you to/i)).toHaveTextContent("/board");
   });
 
   it("allows authenticated visitors through to the board snapshot route", () => {

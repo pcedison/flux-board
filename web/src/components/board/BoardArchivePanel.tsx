@@ -17,13 +17,13 @@ export function BoardArchivePanel({
   pendingRestoreTaskID,
   setArchiveButtonRef,
 }: BoardArchivePanelProps) {
+  const archivedLabel = `${archived.length} archived ${archived.length === 1 ? "task" : "tasks"}`;
+
   return (
     <div>
-      <h2>Archive Snapshot</h2>
-      <p className="meta">
-        Restore or permanently remove archived cards without leaving the current workspace.
-      </p>
-      <p className="archive-total">{archived.length} archived cards</p>
+      <h2>Archive</h2>
+      <p className="meta">Restore archived tasks or remove them for good.</p>
+      <p className="archive-total">{archivedLabel}</p>
       {archived.length === 0 ? (
         <p className="empty">Nothing is archived right now.</p>
       ) : (

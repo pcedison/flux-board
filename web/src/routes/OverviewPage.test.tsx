@@ -43,7 +43,7 @@ describe("OverviewPage", () => {
     );
 
     expect(screen.getByText("Loading")).toBeInTheDocument();
-    expect(screen.getByText("Reading the current deployment status and board snapshot from the Go API.")).toBeInTheDocument();
+    expect(screen.getByText("Loading your board summary and app status.")).toBeInTheDocument();
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);
   });
@@ -95,7 +95,7 @@ describe("OverviewPage", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Deployment ready")).toBeInTheDocument();
+    expect(screen.getByText("Ready to use")).toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();

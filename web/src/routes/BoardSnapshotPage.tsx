@@ -26,9 +26,9 @@ export function BoardSnapshotPage() {
   return (
     <QueryState
       error={snapshot.error}
-      errorTitle="Failed to load board snapshot"
+      errorTitle="Unable to load the board"
       isPending={snapshot.isPending}
-      loadingMessage="Loading the current lane breakdown from the Go API."
+      loadingMessage="Loading your board."
     >
       {snapshot.data ? <BoardSnapshotContent data={snapshot.data} mutations={mutations} /> : null}
     </QueryState>
@@ -455,7 +455,7 @@ function BoardSnapshotContent({
         <section className="panel panel-secondary board-side-panel">
           <div className="panel panel-secondary board-search-panel">
             <h2>Search & shortcuts</h2>
-            <p className="meta">Press <kbd>/</kbd> to search and <kbd>N</kbd> to jump back to the create form.</p>
+            <p className="meta">Press <kbd>/</kbd> to search and <kbd>N</kbd> to jump back to the new task form.</p>
             <label className="form-field" htmlFor="board-search">
               Search tasks
             </label>
@@ -496,7 +496,7 @@ function BoardSnapshotContent({
           {editTaskID && editingTaskAvailable ? (
             <section className="panel panel-secondary">
               <h2>Edit task</h2>
-              <p className="meta">Adjust the selected card without changing its lane or ordering.</p>
+              <p className="meta">Update the selected task without moving it to another lane.</p>
               <form className="board-form" onSubmit={handleUpdateTask} noValidate>
                 <label className="form-field" htmlFor="board-task-edit-title">
                   Title
