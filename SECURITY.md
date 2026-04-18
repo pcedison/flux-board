@@ -10,19 +10,14 @@ Include:
 - suggested mitigation if available
 
 ## Current Security Posture
-The current main branch is still in transition from MVP to hardened baseline.
-
-Known active gaps being addressed by the master plan:
-- bootstrap-password setup still leads to a single-admin auth model
-- DB-backed sessions, auth audit logging, and database-backed auth/session verification now exist, but broader auth evolution is still incomplete
-- HTTP hardening is implemented but still needs stronger verification and clearer abuse-control trust assumptions
-- no formal migration framework yet
+- Flux Board now ships a hardened single-user baseline with bootstrap-only password seeding, PostgreSQL-backed sessions, auth audit logging, request limits, operator status endpoints, and repo-owned restore guidance.
+- The security model is intentionally scoped to one operator per instance rather than shared multi-user collaboration.
+- Deployment and release verification should rely on the repo-owned CI, hosted checks, and operator runbooks rather than ad hoc manual steps.
 
 ## Deployment Guidance
-Until the later-wave gates in [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md), especially `W5+`, are completed:
-- do not treat this project as production-ready for open public internet exposure
-- prefer private or development-only deployment
-- apply your own infrastructure protections if you deploy it externally
+- Treat the official Docker image and root binary as the supported deployment contracts.
+- Use PostgreSQL, HTTPS termination, and a reverse proxy that you control if you expose the app externally.
+- Run the repo-owned post-deploy checks in [docs/OPERATIONS_RUNBOOK.md](docs/OPERATIONS_RUNBOOK.md) before calling a new hosted release healthy.
 
 ## Security Principles For This Repo
 - security and data integrity take priority over feature speed

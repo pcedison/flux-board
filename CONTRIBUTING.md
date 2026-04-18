@@ -6,9 +6,8 @@
 - Security, data integrity, and CI changes are high-risk and should stay narrowly scoped.
 
 ## Before You Change Code
-- Read the relevant wave and work package first.
-- Check current progress in the `Execution Log`.
-- Confirm whether your change affects auth, schema, reorder logic, CI, or release flow.
+- Read the relevant wave first.
+- Confirm whether your change affects auth, schema, reorder logic, CI, release flow, or operator docs.
 
 ## Local Checks
 ```powershell
@@ -26,7 +25,6 @@ npm run smoke:login
 
 ## Documentation Rule
 - Update docs when behavior, setup, or architecture changes.
-- Append progress to [docs/MASTER_PLAN.md](docs/MASTER_PLAN.md); do not overwrite older log entries unless fixing factual mistakes.
 
 ## Pull Request Expectations
 - Keep changes scoped to one wave or one tightly related package.
@@ -34,4 +32,4 @@ npm run smoke:login
 - Do not introduce hidden setup assumptions.
 
 ## Current Transition Note
-Flux Board is still moving from MVP to enterprise-grade structure. Some cleanup work is intentionally staged by wave; if a dependency is not ready yet, record it rather than improvising around it.
+Flux Board is still tightening its single-user self-hosted release baseline. If a dependency is not ready yet, document the gap instead of improvising around it.
