@@ -200,15 +200,16 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
   assertStatus(sourceBox != null, "Drag source should be visible.");
 
   const requiresExtendedPointerPath = browserName === "webkit";
+  const useSyntheticMouseEvents = browserName === "firefox" || browserName === "webkit";
   const source = centerPoint(sourceBox);
 
   await sourceHandle.hover();
-  if (browserName === "firefox") {
+  if (browserName === "firefox" || browserName === "webkit") {
     await installTemporaryFirefoxSelectionGuard(page);
   }
 
   try {
-    if (browserName === "firefox") {
+    if (useSyntheticMouseEvents) {
       await dragWithDispatchedMouseEvents(page, sourceHandle, targetCard, source, requiresExtendedPointerPath);
       return;
     }
@@ -241,7 +242,7 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
     }
     await page.mouse.up();
   } finally {
-    if (browserName === "firefox") {
+    if (browserName === "firefox" || browserName === "webkit") {
       await removeTemporaryFirefoxSelectionGuard(page);
     }
   }
