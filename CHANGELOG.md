@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Future work can build on the current observability, release, and extension seams
+without reopening the initial public-fork baseline.
+
+## [0.1.3] - 2026-04-18
+
 ### Added
 
 - Added first-run `/setup`, `/settings`, password rotation, session revocation,
