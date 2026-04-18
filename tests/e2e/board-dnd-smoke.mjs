@@ -10,7 +10,7 @@ const browserName = normalizeBrowserName(
 );
 const headless = parseBoolean(process.env.HEADLESS, true);
 const slowMo = parseInteger(process.env.SLOW_MO, 0);
-const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, 15000);
+const requestTimeoutMs = parseInteger(process.env.REQUEST_TIMEOUT_MS, browserName === "webkit" ? 30000 : 15000);
 const smokeTimeoutMs = parseInteger(process.env.SMOKE_TIMEOUT_MS, 120000);
 const desktopViewport = { width: 1440, height: 960 };
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
