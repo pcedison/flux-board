@@ -80,10 +80,13 @@ function Ensure-WebDist {
   }
 
   if (Test-Path $webDistIndex) {
-    return
+    $webDistContents = Get-Content $webDistIndex -Raw
+    if ($webDistContents -notmatch "Flux Board Runtime Placeholder") {
+      return
+    }
   }
 
-  Write-Host "[prep] web/dist is missing; building the React runtime first"
+  Write-Host "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
   & (Join-Path $PSScriptRoot "verify-web.ps1")
   if ($LASTEXITCODE -ne 0) {
     throw "verify-web.ps1 failed with exit code $LASTEXITCODE"

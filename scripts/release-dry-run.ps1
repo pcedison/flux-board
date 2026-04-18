@@ -34,11 +34,19 @@ $webDistIndex = Join-Path $root "web/dist/index.html"
 
 Write-Host "[1/4] Validate VERSION and CHANGELOG for v$version"
 
-if (($env:RELEASE_WEB_BUILD -ne "0") -and -not (Test-Path $webDistIndex)) {
-  Write-Host "[prep] web/dist is missing; building the React runtime first"
-  & (Join-Path $PSScriptRoot "verify-web.ps1")
-  if ($LASTEXITCODE -ne 0) {
-    throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
+if ($env:RELEASE_WEB_BUILD -ne "0") {
+  $needsWebBuild = -not (Test-Path $webDistIndex)
+  if (-not $needsWebBuild) {
+    $releaseWebContents = Get-Content $webDistIndex -Raw
+    $needsWebBuild = $releaseWebContents -match "Flux Board Runtime Placeholder"
+  }
+
+  if ($needsWebBuild) {
+    Write-Host "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
+    & (Join-Path $PSScriptRoot "verify-web.ps1")
+    if ($LASTEXITCODE -ne 0) {
+      throw "verify-web.ps1 failed with exit code $LASTEXITCODE"
+    }
   }
 }
 

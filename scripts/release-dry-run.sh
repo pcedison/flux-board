@@ -21,8 +21,8 @@ run_smoke=${RELEASE_RUN_SMOKE:-1}
 
 mkdir -p "$output_dir"
 
-if [ "${RELEASE_WEB_BUILD:-1}" != "0" ] && [ ! -f "web/dist/index.html" ]; then
-  echo "[prep] web/dist is missing; building the React runtime first"
+if [ "${RELEASE_WEB_BUILD:-1}" != "0" ] && { [ ! -f "web/dist/index.html" ] || grep -q "Flux Board Runtime Placeholder" "web/dist/index.html"; }; then
+  echo "[prep] web/dist is missing or still using the placeholder runtime; building the React runtime first"
   sh "$script_dir/verify-web.sh"
 fi
 
