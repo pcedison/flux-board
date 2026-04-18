@@ -122,6 +122,25 @@ $env:EXPECT_ENVIRONMENT="production"
 ./scripts/verify-status-contract.ps1
 ```
 
+For a repo-owned hosted deployment verification artifact, prefer an explicit host target:
+
+```sh
+BASE_URL=https://your-host.example \
+EXPECT_NEEDS_SETUP=false \
+EXPECT_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+If you intentionally want the script to discover the live deployment from GitHub deployment metadata, opt in explicitly:
+
+```sh
+ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1 \
+HOSTED_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+Without `BASE_URL` or `ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1`, `verify-hosted-deploy.sh` now exits immediately instead of probing production by default.
+
 For a repo-owned hosted auth artifact on macOS with an already signed-in Chrome session, run:
 
 ```sh

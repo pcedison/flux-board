@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Future work can build on the current observability, release, and extension seams
 without reopening the initial public-fork baseline.
 
+## [0.1.6] - 2026-04-19
+
+### Fixed
+
+- Made hosted deployment verification safe by default so the repo-owned verifier
+  no longer probes production unless an operator provides `BASE_URL` or opts in
+  explicitly with `ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1`.
+
+### Changed
+
+- Updated the README, deployment guide, and operations runbook to document the
+  explicit-host and opt-in discovery paths for hosted proof collection.
+
 ## [0.1.5] - 2026-04-19
 
 ### Added

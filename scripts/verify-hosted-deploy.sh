@@ -9,21 +9,29 @@ deployment_environment=${HOSTED_ENVIRONMENT:-production}
 deployment_sha=${HOSTED_DEPLOY_SHA:-$(git -C "$repo_root" rev-parse HEAD)}
 repository_full_name=${GITHUB_REPOSITORY:-}
 base_url=${BASE_URL-}
+allow_live_deployment_discovery=${ALLOW_LIVE_DEPLOYMENT_DISCOVERY:-}
 smoke_script=${HOSTED_SMOKE_SCRIPT-}
 summary_path="$results_dir/summary.json"
 status_contract_results_dir="$results_dir/status-contract"
 
 mkdir -p "$results_dir"
 
-if ! command -v gh >/dev/null 2>&1; then
-  echo "gh is required for verify-hosted-deploy.sh" >&2
-  exit 1
-fi
-
 if ! command -v curl >/dev/null 2>&1; then
   echo "curl is required for verify-hosted-deploy.sh" >&2
   exit 1
 fi
+
+is_truthy() {
+  value=$1
+  case "$value" in
+    1|true|TRUE|yes|YES|on|ON)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
 
 normalize_repository_full_name() {
   remote_url=$1
@@ -148,6 +156,17 @@ run_optional_auth_smoke() {
 repo_full_name=$(fetch_repo_full_name)
 
 if [ -z "$base_url" ]; then
+  if ! is_truthy "$allow_live_deployment_discovery"; then
+    echo "verify-hosted-deploy.sh is safe by default and will not probe a live deployment without an explicit target." >&2
+    echo "Set BASE_URL=https://your-host.example to verify a specific host, or set ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1 to opt in to GitHub deployment discovery." >&2
+    exit 1
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "gh is required for verify-hosted-deploy.sh when using live deployment discovery" >&2
+    exit 1
+  fi
+
   metadata=$(fetch_deployment_metadata "$repo_full_name")
   deployment_id=$(printf '%s\n' "$metadata" | sed -n '1p')
   base_url=$(printf '%s\n' "$metadata" | sed -n '2p')

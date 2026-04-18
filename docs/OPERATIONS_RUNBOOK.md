@@ -72,6 +72,25 @@ $env:EXPECT_ENVIRONMENT="production"
   - `metrics.txt`
   - `summary.json`
 
+- Repo-owned hosted deployment verification prefers an explicit host target:
+
+```sh
+BASE_URL=https://your-host.example \
+EXPECT_NEEDS_SETUP=false \
+EXPECT_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+- If you intentionally want GitHub deployment discovery to resolve the live target, opt in explicitly:
+
+```sh
+ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1 \
+HOSTED_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+- Without one of those inputs, `verify-hosted-deploy.sh` now fails fast instead of probing production implicitly.
+
 - Signed-in hosted browser proof on macOS:
 
 ```sh

@@ -140,6 +140,26 @@ BASE_URL=https://your-host.example \
 
 Use this on macOS when Chrome already has a valid hosted session and you want a repo-owned artifact proving `/board` and `/settings` open directly.
 
+### Hosted deploy proof
+Preferred: point the verifier at an explicit host.
+
+```sh
+BASE_URL=https://your-host.example \
+EXPECT_NEEDS_SETUP=false \
+EXPECT_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+If you intentionally want the script to discover the live deployment from GitHub metadata, opt in explicitly:
+
+```sh
+ALLOW_LIVE_DEPLOYMENT_DISCOVERY=1 \
+HOSTED_ENVIRONMENT=production \
+./scripts/verify-hosted-deploy.sh
+```
+
+The script is safe by default and will refuse to probe a hosted deployment unless one of those two inputs is set.
+
 ## Hosted Templates
 - local Docker stack: [docker-compose.yml](docker-compose.yml)
 - Render Docker template: [deploy/render.yaml](deploy/render.yaml)
