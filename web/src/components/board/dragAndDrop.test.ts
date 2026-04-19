@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Task } from "../../lib/api";
-import { getDragMove, getLaneDropId } from "./dragAndDrop";
+import { applyMoveToTasks, getDragMove, getLaneDropId } from "./dragAndDrop";
 
 describe("getDragMove", () => {
   it("returns a move request for downward reorder", () => {
@@ -74,6 +74,50 @@ describe("getDragMove", () => {
     const tasks = buildTasks();
 
     expect(getDragMove(tasks, "missing", "a")).toBeNull();
+  });
+});
+
+describe("applyMoveToTasks", () => {
+  it("reorders tasks inside the same lane", () => {
+    const tasks = buildTasks();
+
+    expect(
+      applyMoveToTasks(tasks, {
+        id: "a",
+        status: "queued",
+        anchorTaskId: "c",
+        placeAfter: true,
+      }).map((task) => [task.id, task.status, task.sort_order]),
+    ).toEqual([
+      ["b", "queued", 0],
+      ["c", "queued", 1],
+      ["a", "queued", 2],
+      ["d", "active", 0],
+    ]);
+  });
+
+  it("moves a task across lanes and normalizes sort order", () => {
+    const tasks = buildTasks();
+
+    expect(
+      applyMoveToTasks(tasks, {
+        id: "a",
+        status: "active",
+        anchorTaskId: "d",
+        placeAfter: false,
+      }).map((task) => [task.id, task.status, task.sort_order]),
+    ).toEqual([
+      ["b", "queued", 0],
+      ["c", "queued", 1],
+      ["a", "active", 0],
+      ["d", "active", 1],
+    ]);
+  });
+
+  it("returns the original list when the active task is missing", () => {
+    const tasks = buildTasks();
+
+    expect(applyMoveToTasks(tasks, { id: "missing", status: "done" })).toEqual(tasks);
   });
 });
 
