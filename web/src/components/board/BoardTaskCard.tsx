@@ -10,7 +10,6 @@ type BoardTaskCardProps = {
   isActive: boolean;
   isBusy: boolean;
   isSelected: boolean;
-  laneLabel: string;
   laneStatus: TaskStatus;
   onCardFocus: (taskId: string) => void;
   onCardNavigate: (
@@ -29,7 +28,6 @@ export function BoardTaskCard({
   isActive,
   isBusy,
   isSelected,
-  laneLabel,
   laneStatus,
   onCardFocus,
   onCardNavigate,
@@ -38,7 +36,8 @@ export function BoardTaskCard({
   task,
 }: BoardTaskCardProps) {
   const { copy, formatDate, priorityLabel } = usePreferences();
-  const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef, transform, transition } = useSortable({
+  const { isDragging, listeners, setNodeRef, transform, transition } = useSortable({
+    disabled: isBusy,
     id: task.id,
   });
 
@@ -79,20 +78,10 @@ export function BoardTaskCard({
       }}
       style={cardStyle}
       tabIndex={isActive ? 0 : -1}
+      {...listeners}
     >
       <div className="card-row">
         <strong>{task.title}</strong>
-        <button
-          className="drag-handle"
-          type="button"
-          disabled={isBusy}
-          aria-label={copy.board.dragLabel(task.title, laneLabel)}
-          ref={setActivatorNodeRef}
-          {...attributes}
-          {...listeners}
-        >
-          {copy.board.dragAction}
-        </button>
       </div>
       <div className="card-row card-meta-row">
         <span className={`priority priority-${task.priority}`}>{priorityLabel(task.priority)}</span>

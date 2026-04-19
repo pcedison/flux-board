@@ -49,7 +49,7 @@ describe("BoardLane", () => {
     expect(items[1]).toHaveAttribute("aria-posinset", "2");
     expect(items[2]).toHaveAttribute("aria-posinset", "3");
 
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Drag Queue next/i })).not.toBeInTheDocument();
   });
 });
 
