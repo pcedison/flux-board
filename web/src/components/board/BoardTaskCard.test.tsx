@@ -16,7 +16,6 @@ describe("BoardTaskCard", () => {
       isActive: true,
       isBusy: false,
       isSelected: true,
-      laneLabel: "Queued",
       laneStatus: "queued",
       onCardFocus: () => {},
       onCardNavigate: () => {},
@@ -30,19 +29,18 @@ describe("BoardTaskCard", () => {
     expect(article).toHaveClass("card-selected");
     expect(screen.getByText("High")).toBeInTheDocument();
     expect(screen.getByText("Due 2026-04-21")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /Drag Queue next/i })).not.toBeInTheDocument();
 
     fireEvent.click(article!);
     expect(onSelectTask).toHaveBeenCalledWith(task);
   });
 
-  it("disables the drag handle while the card is pending", () => {
+  it("keeps the full card available while pending without rendering a separate drag button", () => {
     renderCard({
       index: 1,
       isActive: true,
       isBusy: true,
       isSelected: false,
-      laneLabel: "Queued",
       laneStatus: "queued",
       onCardFocus: () => {},
       onCardNavigate: () => {},
@@ -51,8 +49,8 @@ describe("BoardTaskCard", () => {
       task: buildQueuedTasks()[1],
     });
 
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeDisabled();
     expect(screen.getByText("Queue next").closest("article")).toHaveAttribute("tabindex", "0");
+    expect(screen.queryByRole("button", { name: /Drag Queue next/i })).not.toBeInTheDocument();
   });
 });
 

@@ -92,7 +92,6 @@ export function BoardLane({
                     isBusy={isTaskBusy(task.id)}
                     isActive={activeCardId === task.id}
                     isSelected={selectedTaskId === task.id}
-                    laneLabel={lane.label}
                     laneStatus={lane.status}
                     onCardFocus={onCardFocus}
                     onCardNavigate={onCardNavigate}

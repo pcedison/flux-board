@@ -421,7 +421,9 @@ kbd {
   border: 1px solid var(--stroke-soft);
   display: grid;
   gap: 10px;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .card:focus-visible {
@@ -435,6 +437,7 @@ kbd {
 }
 
 .card-dragging {
+  cursor: grabbing;
   box-shadow: 0 18px 34px rgba(10, 25, 47, 0.12);
 }
 
@@ -446,6 +449,7 @@ kbd {
 
 .card-pending,
 .archive-item-pending {
+  cursor: progress;
   border-color: rgba(19, 111, 99, 0.28);
 }
 
@@ -590,35 +594,6 @@ kbd {
 .action-button:disabled {
   cursor: progress;
   opacity: 0.65;
-}
-
-.drag-handle {
-  border: 1px solid rgba(19, 111, 99, 0.22);
-  border-radius: 999px;
-  background: var(--input-bg);
-  color: var(--text-strong);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
-  min-height: 34px;
-  padding: 0 12px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.drag-handle:hover,
-.drag-handle:focus-visible {
-  background: var(--accent-soft);
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-}
-
-.drag-handle:disabled {
-  cursor: progress;
-  opacity: 0.6;
 }
 
 .archive-item {
