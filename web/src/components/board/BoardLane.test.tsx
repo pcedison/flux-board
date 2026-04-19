@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Task } from "../../lib/api";
@@ -21,7 +21,7 @@ describe("BoardLane", () => {
     expect(within(lane).queryByRole("list")).not.toBeInTheDocument();
   });
 
-  it("collapses multi-task lanes until the user expands them", () => {
+  it("always shows all tasks in a multi-task lane", () => {
     render(
       <BoardLane
         isTaskBusy={(id) => id === "b"}
@@ -34,11 +34,6 @@ describe("BoardLane", () => {
     );
 
     const lane = screen.getByRole("region", { name: "Queued" });
-    expect(within(lane).getByRole("button", { name: /3 tasks hidden/i })).toBeInTheDocument();
-    expect(within(lane).queryByRole("list")).not.toBeInTheDocument();
-
-    fireEvent.click(within(lane).getByRole("button", { name: /3 tasks hidden/i }));
-
     expect(within(lane).getByText("Queue me")).toBeInTheDocument();
     expect(within(lane).getByText("Queue next")).toBeInTheDocument();
     expect(within(lane).getByText("Queue later")).toBeInTheDocument();
@@ -48,8 +43,6 @@ describe("BoardLane", () => {
     expect(items[0]).toHaveAttribute("aria-posinset", "1");
     expect(items[1]).toHaveAttribute("aria-posinset", "2");
     expect(items[2]).toHaveAttribute("aria-posinset", "3");
-
-    expect(screen.queryByRole("button", { name: /Drag Queue next/i })).not.toBeInTheDocument();
   });
 });
 

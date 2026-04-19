@@ -79,7 +79,7 @@ describe("BoardSnapshotPage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("api down");
   });
 
-  it("renders collapsed lanes, create controls, and archive totals from the snapshot", () => {
+  it("renders all tasks, create controls, and archive totals from the snapshot", () => {
     mockSnapshot({
       tasks: [
         buildTask("a", "Queue me", "queued", 0, 1),
@@ -91,15 +91,12 @@ describe("BoardSnapshotPage", () => {
     renderPage();
 
     const queuedLane = screen.getByRole("region", { name: "Queued" });
-    expect(within(queuedLane).getByRole("button", { name: /2 tasks hidden/i })).toBeInTheDocument();
-    expect(within(queuedLane).queryByText("Queue me")).not.toBeInTheDocument();
-
-    fireEvent.click(within(queuedLane).getByRole("button", { name: /2 tasks hidden/i }));
-
-    expect(screen.getByText("Queue me")).toBeInTheDocument();
-    expect(screen.getByText("Queue next")).toBeInTheDocument();
+    expect(within(queuedLane).getByText("Queue me")).toBeInTheDocument();
+    expect(within(queuedLane).getByText("Queue next")).toBeInTheDocument();
     expect(screen.getAllByText("Due 2026-04-20").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "封存" }));
     expect(screen.getByText("1 archived task")).toBeInTheDocument();
   });
 
@@ -112,7 +109,6 @@ describe("BoardSnapshotPage", () => {
     });
 
     const { container } = renderPageView();
-    fireEvent.click(screen.getByRole("button", { name: /2 tasks hidden/i }));
 
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);
@@ -171,6 +167,7 @@ describe("BoardSnapshotPage", () => {
 
     renderPage();
 
+    fireEvent.click(screen.getByRole("button", { name: "封存" }));
     fireEvent.click(screen.getByRole("button", { name: "Restore Archived" }));
 
     await waitFor(() => expect(mockedRestoreTask).toHaveBeenCalledWith("c"));
