@@ -63,6 +63,7 @@ function BoardSnapshotContent({
   const [fieldErrors, setFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [editFieldErrors, setEditFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
+  const [activeTab, setActiveTab] = useState<'search' | 'new' | 'edit' | 'archive'>('new');
   const [boardTasks, setBoardTasks] = useState(data.tasks);
   const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
   const filteredTasks = boardTasks.filter((task) => {
@@ -113,10 +114,12 @@ function BoardSnapshotContent({
 
       if (event.key === "/") {
         event.preventDefault();
+        setActiveTab('search');
         searchInputRef.current?.focus();
       }
       if (event.key.toLowerCase() === "n") {
         event.preventDefault();
+        setActiveTab('new');
         titleInputRef.current?.focus();
       }
       if (event.key === "Escape" && search) {
@@ -409,6 +412,7 @@ function BoardSnapshotContent({
     const task = boardTasks.find((entry) => entry.id === taskId);
     if (task) {
       selectTask(task);
+      setActiveTab('edit');
     }
   }
 
@@ -462,7 +466,10 @@ function BoardSnapshotContent({
               lane={lane}
               onCardFocus={handleCardFocus}
               onCardNavigate={handleCardNavigation}
-              onSelectTask={selectTask}
+              onSelectTask={(task) => {
+                selectTask(task);
+                setActiveTab('edit');
+              }}
               selectedTaskId={editTaskID}
               setCardRef={setCardRef}
               tasks={tasks}
@@ -470,165 +477,186 @@ function BoardSnapshotContent({
           );
         })}
 
-        <section className="panel panel-secondary board-side-panel">
-          <div className="panel panel-secondary board-search-panel">
-            <h2>{copy.board.searchTitle}</h2>
-            <p className="meta">{copy.board.searchHint}</p>
-            <label className="form-field" htmlFor="board-search">
-              {copy.board.searchLabel}
-            </label>
-            <input
-              id="board-search"
-              className="text-input"
-              ref={searchInputRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={copy.board.searchPlaceholder}
-            />
+        <aside className="board-side-panel">
+          <div className="panel-tabs">
+            {(['search', 'new', 'edit', 'archive'] as const).map((t) => (
+              <button
+                key={t}
+                className={`panel-tab${activeTab === t ? ' panel-tab-active' : ''}`}
+                onClick={() => setActiveTab(t)}
+              >
+                {{ search: '搜尋', new: '新增', edit: '編輯', archive: '封存' }[t]}
+              </button>
+            ))}
           </div>
-          <BoardComposerPanel
-            due={due}
-            dueInputRef={dueInputRef}
-            fieldErrors={fieldErrors}
-            isPending={mutations.createTask.isPending}
-            note={note}
-            onDueChange={(value) => {
-              setDue(value);
-              if (fieldErrors.due) {
-                setFieldErrors((current) => ({ ...current, due: undefined }));
-              }
-            }}
-            onNoteChange={setNote}
-            onPriorityChange={setPriority}
-            onSubmit={handleCreateTask}
-            onTitleChange={(value) => {
-              setTitle(value);
-              if (fieldErrors.title) {
-                setFieldErrors((current) => ({ ...current, title: undefined }));
-              }
-            }}
-            priority={priority}
-            title={title}
-            titleInputRef={titleInputRef}
-          />
-          {selectedTask ? (
-            <section className="panel panel-secondary">
-              <h2>{copy.board.selectedTaskTitle}</h2>
-              <p className="meta">{copy.board.selectedTaskHint}</p>
-              <form className="board-form" onSubmit={handleUpdateTask} noValidate>
-                <label className="form-field" htmlFor="board-task-edit-title">
-                  {copy.common.title}
+
+          <div className="panel-body">
+            {activeTab === 'search' && (
+              <div className="board-form">
+                <h2>{copy.board.searchTitle}</h2>
+                <p className="meta">{copy.board.searchHint}</p>
+                <label className="form-field" htmlFor="board-search">
+                  {copy.board.searchLabel}
                 </label>
                 <input
-                  id="board-task-edit-title"
+                  id="board-search"
                   className="text-input"
-                  value={editTitle}
-                  onChange={(event) => {
-                    setEditTitle(event.target.value);
-                    if (editFieldErrors.title) {
-                      setEditFieldErrors((current) => ({ ...current, title: undefined }));
-                    }
-                  }}
-                  aria-invalid={Boolean(editFieldErrors.title)}
-                  aria-describedby={editFieldErrors.title ? "board-task-edit-title-error" : undefined}
+                  ref={searchInputRef}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={copy.board.searchPlaceholder}
                 />
-                {editFieldErrors.title ? (
-                  <p id="board-task-edit-title-error" className="form-error" role="alert">
-                    {editFieldErrors.title}
-                  </p>
-                ) : null}
-
-                <div className="field-grid">
-                  <div>
-                    <label className="form-field" htmlFor="board-task-edit-due">
-                      {copy.common.dueDate}
+              </div>
+            )}
+            {activeTab === 'new' && (
+              <BoardComposerPanel
+                due={due}
+                dueInputRef={dueInputRef}
+                fieldErrors={fieldErrors}
+                isPending={mutations.createTask.isPending}
+                note={note}
+                onDueChange={(value) => {
+                  setDue(value);
+                  if (fieldErrors.due) {
+                    setFieldErrors((current) => ({ ...current, due: undefined }));
+                  }
+                }}
+                onNoteChange={setNote}
+                onPriorityChange={setPriority}
+                onSubmit={handleCreateTask}
+                onTitleChange={(value) => {
+                  setTitle(value);
+                  if (fieldErrors.title) {
+                    setFieldErrors((current) => ({ ...current, title: undefined }));
+                  }
+                }}
+                priority={priority}
+                title={title}
+                titleInputRef={titleInputRef}
+              />
+            )}
+            {activeTab === 'edit' && (
+              selectedTask ? (
+                <section>
+                  <h2>{copy.board.selectedTaskTitle}</h2>
+                  <p className="meta">{copy.board.selectedTaskHint}</p>
+                  <form className="board-form" onSubmit={handleUpdateTask} noValidate>
+                    <label className="form-field" htmlFor="board-task-edit-title">
+                      {copy.common.title}
                     </label>
                     <input
-                      id="board-task-edit-due"
+                      id="board-task-edit-title"
                       className="text-input"
-                      type="date"
-                      value={editDue}
+                      value={editTitle}
                       onChange={(event) => {
-                        setEditDue(event.target.value);
-                        if (editFieldErrors.due) {
-                          setEditFieldErrors((current) => ({ ...current, due: undefined }));
+                        setEditTitle(event.target.value);
+                        if (editFieldErrors.title) {
+                          setEditFieldErrors((current) => ({ ...current, title: undefined }));
                         }
                       }}
-                      aria-invalid={Boolean(editFieldErrors.due)}
-                      aria-describedby={editFieldErrors.due ? "board-task-edit-due-error" : undefined}
+                      aria-invalid={Boolean(editFieldErrors.title)}
+                      aria-describedby={editFieldErrors.title ? "board-task-edit-title-error" : undefined}
                     />
-                    {editFieldErrors.due ? (
-                      <p id="board-task-edit-due-error" className="form-error" role="alert">
-                        {editFieldErrors.due}
+                    {editFieldErrors.title ? (
+                      <p id="board-task-edit-title-error" className="form-error" role="alert">
+                        {editFieldErrors.title}
                       </p>
                     ) : null}
-                  </div>
-                  <div>
-                    <label className="form-field" htmlFor="board-task-edit-priority">
-                      {copy.common.priority}
-                    </label>
-                    <select
-                      id="board-task-edit-priority"
-                      className="text-input"
-                      value={editPriority}
-                      onChange={(event) => setEditPriority(event.target.value as TaskPriority)}
-                    >
-                      <option value="medium">{priorityLabel("medium")}</option>
-                      <option value="high">{priorityLabel("high")}</option>
-                      <option value="critical">{priorityLabel("critical")}</option>
-                    </select>
-                  </div>
-                </div>
 
-                <label className="form-field" htmlFor="board-task-edit-note">
-                  {copy.common.note}
-                </label>
-                <textarea
-                  id="board-task-edit-note"
-                  className="text-input text-area"
-                  rows={4}
-                  value={editNote}
-                  onChange={(event) => setEditNote(event.target.value)}
-                />
-                <div className="action-row">
-                  <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={mutations.updateTask.isPending}>
-                    {mutations.updateTask.isPending ? copy.board.saveChangesPending : copy.board.saveChanges}
-                  </button>
-                  <button
-                    className="nav-pill nav-pill-muted nav-button"
-                    type="button"
-                    onClick={() => setEditTaskID(null)}
-                  >
-                    {copy.board.clearSelection}
-                  </button>
-                  <button
-                    className="nav-pill nav-pill-muted nav-button"
-                    type="button"
-                    disabled={mutations.archiveTask.isPending}
-                    onClick={() => {
-                      void handleArchiveTask(selectedTask.id, selectedTask.title);
-                    }}
-                  >
-                    {mutations.archiveTask.isPending ? copy.board.archiveTaskPending : copy.board.archiveTask}
-                  </button>
+                    <div className="field-grid">
+                      <div>
+                        <label className="form-field" htmlFor="board-task-edit-due">
+                          {copy.common.dueDate}
+                        </label>
+                        <input
+                          id="board-task-edit-due"
+                          className="text-input"
+                          type="date"
+                          value={editDue}
+                          onChange={(event) => {
+                            setEditDue(event.target.value);
+                            if (editFieldErrors.due) {
+                              setEditFieldErrors((current) => ({ ...current, due: undefined }));
+                            }
+                          }}
+                          aria-invalid={Boolean(editFieldErrors.due)}
+                          aria-describedby={editFieldErrors.due ? "board-task-edit-due-error" : undefined}
+                        />
+                        {editFieldErrors.due ? (
+                          <p id="board-task-edit-due-error" className="form-error" role="alert">
+                            {editFieldErrors.due}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div>
+                        <label className="form-field" htmlFor="board-task-edit-priority">
+                          {copy.common.priority}
+                        </label>
+                        <select
+                          id="board-task-edit-priority"
+                          className="text-input"
+                          value={editPriority}
+                          onChange={(event) => setEditPriority(event.target.value as TaskPriority)}
+                        >
+                          <option value="medium">{priorityLabel("medium")}</option>
+                          <option value="high">{priorityLabel("high")}</option>
+                          <option value="critical">{priorityLabel("critical")}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <label className="form-field" htmlFor="board-task-edit-note">
+                      {copy.common.note}
+                    </label>
+                    <textarea
+                      id="board-task-edit-note"
+                      className="text-input text-area"
+                      rows={4}
+                      value={editNote}
+                      onChange={(event) => setEditNote(event.target.value)}
+                    />
+                    <div className="action-row">
+                      <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={mutations.updateTask.isPending}>
+                        {mutations.updateTask.isPending ? copy.board.saveChangesPending : copy.board.saveChanges}
+                      </button>
+                      <button
+                        className="nav-pill nav-pill-muted nav-button"
+                        type="button"
+                        onClick={() => setEditTaskID(null)}
+                      >
+                        {copy.board.clearSelection}
+                      </button>
+                      <button
+                        className="nav-pill nav-pill-muted nav-button"
+                        type="button"
+                        disabled={mutations.archiveTask.isPending}
+                        onClick={() => {
+                          void handleArchiveTask(selectedTask.id, selectedTask.title);
+                        }}
+                      >
+                        {mutations.archiveTask.isPending ? copy.board.archiveTaskPending : copy.board.archiveTask}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              ) : (
+                <div className="panel-placeholder">
+                  <p className="meta">{copy.board.selectedTaskEmpty}</p>
                 </div>
-              </form>
-            </section>
-          ) : (
-            <section className="panel panel-secondary panel-placeholder">
-              <h2>{copy.common.selectTask}</h2>
-              <p className="meta">{copy.board.selectedTaskEmpty}</p>
-            </section>
-          )}
-          <BoardArchivePanel
-            archived={data.archived}
-            onDeleteArchivedTask={handleDeleteArchivedTask}
-            onRestoreTask={handleRestoreTask}
-            pendingDeleteArchivedTaskID={pendingDeleteArchivedTaskID}
-            pendingRestoreTaskID={pendingRestoreTaskID}
-            setArchiveButtonRef={setArchiveButtonRef}
-          />
-        </section>
+              )
+            )}
+            {activeTab === 'archive' && (
+              <BoardArchivePanel
+                archived={data.archived}
+                onDeleteArchivedTask={handleDeleteArchivedTask}
+                onRestoreTask={handleRestoreTask}
+                pendingDeleteArchivedTaskID={pendingDeleteArchivedTaskID}
+                pendingRestoreTaskID={pendingRestoreTaskID}
+                setArchiveButtonRef={setArchiveButtonRef}
+              />
+            )}
+          </div>
+        </aside>
       </div>
       <DragOverlay
         dropAnimation={{

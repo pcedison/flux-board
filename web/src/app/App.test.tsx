@@ -156,7 +156,7 @@ describe("App auth-aware routing", () => {
 
     renderApp("/login");
 
-    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新增" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Sign in to view the board" })).not.toBeInTheDocument();
   });
 

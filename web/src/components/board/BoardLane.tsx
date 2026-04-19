@@ -1,6 +1,5 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useEffect, useState } from "react";
 
 import type { Task } from "../../lib/api";
 import { usePreferences } from "../../lib/preferences";
@@ -25,6 +24,12 @@ type BoardLaneProps = {
   tasks: Task[];
 };
 
+const statusDotColor: Record<BoardLaneDescriptor["status"], string> = {
+  queued: 'oklch(60% 0.10 248)',
+  active: 'oklch(58% 0.14 145)',
+  done:   'oklch(56% 0.10 168)',
+};
+
 export function BoardLane({
   activeCardId = null,
   isTaskBusy,
@@ -40,22 +45,15 @@ export function BoardLane({
   const { isOver, setNodeRef } = useDroppable({
     id: getLaneDropId(lane.status),
   });
-  const [isCollapsed, setIsCollapsed] = useState(tasks.length > 1);
-  const canCollapse = tasks.length > 1;
-
-  useEffect(() => {
-    if (tasks.length <= 1) {
-      setIsCollapsed(false);
-    }
-  }, [tasks.length]);
 
   return (
     <section
-      className={`lane${isOver ? " lane-over" : ""}${canCollapse && isCollapsed ? " lane-collapsed" : ""}`}
+      className={`lane${isOver ? " lane-over" : ""}`}
       ref={setNodeRef}
       aria-labelledby={`lane-${lane.status}`}
     >
       <div className="lane-head">
+        <span className="lane-status-dot" style={{ background: statusDotColor[lane.status] }} />
         <h2 id={`lane-${lane.status}`}>{lane.label}</h2>
         <span>{tasks.length}</span>
       </div>
@@ -67,44 +65,29 @@ export function BoardLane({
           <p id={`lane-${lane.status}-nav`} className="visually-hidden">
             {copy.board.laneNavigationHint}
           </p>
-          {canCollapse ? (
-            <button
-              className={`lane-toggle${isCollapsed ? " lane-toggle-collapsed" : ""}`}
-              type="button"
-              aria-expanded={!isCollapsed}
-              onClick={() => setIsCollapsed((current) => !current)}
-            >
-              <span className="lane-toggle-title">{copy.board.laneHiddenSummary(tasks.length)}</span>
-              <span className="lane-toggle-hint">
-                {isCollapsed ? copy.board.laneExpandHint : copy.board.laneCollapseHint}
-              </span>
-            </button>
-          ) : null}
-          {!isCollapsed ? (
-            <ol className="lane-list" aria-describedby={`lane-${lane.status}-nav`}>
-              {tasks.map((task, index) => (
-                <li
-                  key={task.id}
-                  className="lane-list-item"
-                  aria-posinset={index + 1}
-                  aria-setsize={tasks.length}
-                >
-                  <BoardTaskCard
-                    index={index}
-                    isBusy={isTaskBusy(task.id)}
-                    isActive={activeCardId === task.id}
-                    isSelected={selectedTaskId === task.id}
-                    laneStatus={lane.status}
-                    onCardFocus={onCardFocus}
-                    onCardNavigate={onCardNavigate}
-                    onSelectTask={onSelectTask}
-                    setRef={(element) => setCardRef(task.id, element)}
-                    task={task}
-                  />
-                </li>
-              ))}
-            </ol>
-          ) : null}
+          <ol className="lane-list" aria-describedby={`lane-${lane.status}-nav`}>
+            {tasks.map((task, index) => (
+              <li
+                key={task.id}
+                className="lane-list-item"
+                aria-posinset={index + 1}
+                aria-setsize={tasks.length}
+              >
+                <BoardTaskCard
+                  index={index}
+                  isBusy={isTaskBusy(task.id)}
+                  isActive={activeCardId === task.id}
+                  isSelected={selectedTaskId === task.id}
+                  laneStatus={lane.status}
+                  onCardFocus={onCardFocus}
+                  onCardNavigate={onCardNavigate}
+                  onSelectTask={onSelectTask}
+                  setRef={(element) => setCardRef(task.id, element)}
+                  task={task}
+                />
+              </li>
+            ))}
+          </ol>
         </SortableContext>
       )}
     </section>

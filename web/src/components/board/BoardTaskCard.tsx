@@ -29,9 +29,14 @@ type TaskCardBodyProps = {
   priority: Task["priority"];
   priorityText: string;
   title: string;
+  isOverdue: boolean;
 };
 
 const cardTransition = "box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease, opacity 160ms ease";
+
+function computeIsOverdue(due: string): boolean {
+  return due ? new Date(due + 'T00:00:00') < new Date(new Date().toDateString()) : false;
+}
 
 export function BoardTaskCard({
   index,
@@ -65,6 +70,8 @@ export function BoardTaskCard({
     setRef(element);
   };
 
+  const isOverdue = computeIsOverdue(task.due);
+
   return (
     <article
       className={`card${isBusy ? " card-pending" : ""}${isDragging ? " card-dragging" : ""}${isSelected ? " card-selected" : ""}`}
@@ -96,6 +103,7 @@ export function BoardTaskCard({
     >
       <TaskCardBody
         dueLabel={copy.board.due(formatDate(task.due))}
+        isOverdue={isOverdue}
         note={task.note}
         priority={task.priority}
         priorityText={priorityLabel(task.priority)}
@@ -107,11 +115,13 @@ export function BoardTaskCard({
 
 export function BoardTaskCardPreview({ task }: { task: Task }) {
   const { copy, formatDate, priorityLabel } = usePreferences();
+  const isOverdue = computeIsOverdue(task.due);
 
   return (
     <article className="card card-overlay" aria-hidden="true">
       <TaskCardBody
         dueLabel={copy.board.due(formatDate(task.due))}
+        isOverdue={isOverdue}
         note={task.note}
         priority={task.priority}
         priorityText={priorityLabel(task.priority)}
@@ -121,7 +131,7 @@ export function BoardTaskCardPreview({ task }: { task: Task }) {
   );
 }
 
-function TaskCardBody({ dueLabel, note, priority, priorityText, title }: TaskCardBodyProps) {
+function TaskCardBody({ dueLabel, note, priority, priorityText, title, isOverdue }: TaskCardBodyProps) {
   return (
     <>
       <div className="card-row">
@@ -129,7 +139,7 @@ function TaskCardBody({ dueLabel, note, priority, priorityText, title }: TaskCar
       </div>
       <div className="card-row card-meta-row">
         <span className={`priority priority-${priority}`}>{priorityText}</span>
-        <p className="meta">{dueLabel}</p>
+        <p className={`meta${isOverdue ? ' overdue' : ''}`}>{dueLabel}</p>
       </div>
       {note ? <p className="card-note">{note}</p> : null}
     </>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
@@ -51,8 +51,8 @@ describe("AppShell", () => {
     expect(screen.getByRole("navigation", { name: "Primary routes" })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
 
-    const nav = screen.getByRole("navigation", { name: "Primary routes" });
-    expect(within(nav).getByRole("link", { name: "Sign In" })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Primary routes" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign In" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
 
     const results = await axe(container);

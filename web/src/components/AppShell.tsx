@@ -44,8 +44,27 @@ export function AppShell({ children }: PropsWithChildren) {
       <div className="app-shell">
         <header className="hero">
           <div className="hero-brand">
+            <div className="hero-brand-mark" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="white">
+                <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H2zM8 8h4v4H8z"/>
+              </svg>
+            </div>
             <h1>{copy.common.appName}</h1>
           </div>
+
+          <nav className="hero-nav" aria-label={copy.shell.navLabel}>
+            {navItems.map((item) => (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
+                end={item.href === "/"}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
           <div className="hero-actions">
             <button
               className="nav-pill nav-pill-muted nav-button theme-toggle"
@@ -55,46 +74,34 @@ export function AppShell({ children }: PropsWithChildren) {
             >
               {isDarkTheme ? copy.common.light : copy.common.dark}
             </button>
-            <nav className="hero-nav" aria-label={copy.shell.navLabel}>
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.href}
-                  to={item.href}
-                  className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
-                  end={item.href === "/"}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-              {session.isPending || bootstrap.isPending ? (
-                <span className="nav-pill nav-pill-muted" aria-live="polite">
-                  {copy.common.checkingAccess}
-                </span>
-              ) : session.data ? (
-                <button
-                  className="nav-pill nav-pill-muted nav-button"
-                  type="button"
-                  onClick={() => logoutMutation.mutate()}
-                  disabled={logoutMutation.isPending}
-                >
-                  {logoutMutation.isPending ? copy.common.signingOut : copy.common.signOut}
-                </button>
-              ) : bootstrap.data?.needsSetup ? (
-                <NavLink
-                  to="/setup"
-                  className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
-                >
-                  {copy.common.setup}
-                </NavLink>
-              ) : (
-                <NavLink
-                  to="/login"
-                  className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
-                >
-                  {copy.common.signIn}
-                </NavLink>
-              )}
-            </nav>
+            {session.isPending || bootstrap.isPending ? (
+              <span className="nav-pill nav-pill-muted" aria-live="polite">
+                {copy.common.checkingAccess}
+              </span>
+            ) : session.data ? (
+              <button
+                className="nav-pill nav-pill-muted nav-button"
+                type="button"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+              >
+                {logoutMutation.isPending ? copy.common.signingOut : copy.common.signOut}
+              </button>
+            ) : bootstrap.data?.needsSetup ? (
+              <NavLink
+                to="/setup"
+                className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
+              >
+                {copy.common.setup}
+              </NavLink>
+            ) : (
+              <NavLink
+                to="/login"
+                className={({ isActive }) => (isActive ? "nav-pill nav-pill-active" : "nav-pill")}
+              >
+                {copy.common.signIn}
+              </NavLink>
+            )}
           </div>
         </header>
 
