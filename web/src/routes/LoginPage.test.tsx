@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 
 import { LoginPage } from "./LoginPage";
+import { PreferencesProvider } from "../lib/preferences";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
@@ -85,9 +86,11 @@ function renderLoginPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <LoginPage />
-      </MemoryRouter>
+      <PreferencesProvider>
+        <MemoryRouter>
+          <LoginPage />
+        </MemoryRouter>
+      </PreferencesProvider>
     </QueryClientProvider>,
   );
 }

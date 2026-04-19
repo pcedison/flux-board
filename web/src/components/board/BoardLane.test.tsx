@@ -2,18 +2,21 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Task } from "../../lib/api";
+import { PreferencesProvider } from "../../lib/preferences";
 import { BoardLane } from "./BoardLane";
 
 describe("BoardLane", () => {
   it("renders an empty state when the lane has no tasks", () => {
     render(
-      <BoardLane
-        isTaskBusy={() => false}
-        lane={{ label: "Queued", status: "queued" }}
-        onSelectTask={vi.fn()}
-        setCardRef={vi.fn()}
-        tasks={[]}
-      />,
+      <PreferencesProvider>
+        <BoardLane
+          isTaskBusy={() => false}
+          lane={{ label: "Queued", status: "queued" }}
+          onSelectTask={vi.fn()}
+          setCardRef={vi.fn()}
+          tasks={[]}
+        />
+      </PreferencesProvider>,
     );
 
     const lane = screen.getByRole("region", { name: "Queued" });
@@ -23,14 +26,16 @@ describe("BoardLane", () => {
 
   it("always shows all tasks in a multi-task lane", () => {
     render(
-      <BoardLane
-        isTaskBusy={(id) => id === "b"}
-        lane={{ label: "Queued", status: "queued" }}
-        onSelectTask={vi.fn()}
-        selectedTaskId="a"
-        setCardRef={vi.fn()}
-        tasks={buildQueuedTasks()}
-      />,
+      <PreferencesProvider>
+        <BoardLane
+          isTaskBusy={(id) => id === "b"}
+          lane={{ label: "Queued", status: "queued" }}
+          onSelectTask={vi.fn()}
+          selectedTaskId="a"
+          setCardRef={vi.fn()}
+          tasks={buildQueuedTasks()}
+        />
+      </PreferencesProvider>,
     );
 
     const lane = screen.getByRole("region", { name: "Queued" });

@@ -5,6 +5,7 @@ import { axe } from "vitest-axe";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
 import { ApiError, archiveTask, createTask, restoreTask } from "../lib/api";
+import { PreferencesProvider } from "../lib/preferences";
 import { authSessionQueryKey } from "../lib/useAuthSession";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
@@ -207,7 +208,9 @@ function renderPageView(options?: { authSession?: { authenticated: boolean; expi
 
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <BoardSnapshotPage />
+      <PreferencesProvider>
+        <BoardSnapshotPage />
+      </PreferencesProvider>
     </QueryClientProvider>,
   );
 

@@ -1,5 +1,5 @@
 import type { ArchivedTask } from "../../lib/api";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/usePreferences";
 
 type BoardArchivePanelProps = {
   archived: ArchivedTask[];

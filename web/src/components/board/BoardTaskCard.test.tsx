@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Task } from "../../lib/api";
+import { PreferencesProvider } from "../../lib/preferences";
 import { BoardTaskCard } from "./BoardTaskCard";
 
 describe("BoardTaskCard", () => {
@@ -91,10 +92,12 @@ function buildQueuedTasks(): Task[] {
 
 function renderCard(props: Parameters<typeof BoardTaskCard>[0]) {
   render(
-    <DndContext>
-      <SortableContext items={[props.task.id]} strategy={verticalListSortingStrategy}>
-        <BoardTaskCard {...props} />
-      </SortableContext>
-    </DndContext>,
+    <PreferencesProvider>
+      <DndContext>
+        <SortableContext items={[props.task.id]} strategy={verticalListSortingStrategy}>
+          <BoardTaskCard {...props} />
+        </SortableContext>
+      </DndContext>
+    </PreferencesProvider>,
   );
 }

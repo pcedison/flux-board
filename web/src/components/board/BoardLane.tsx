@@ -2,7 +2,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import type { Task } from "../../lib/api";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/usePreferences";
 import { getLaneDropId } from "./dragAndDrop";
 import type { BoardLaneDescriptor } from "./types";
 import { BoardTaskCard } from "./BoardTaskCard";

@@ -1,7 +1,7 @@
 import type { FormEvent, RefObject } from "react";
 
 import type { TaskPriority } from "../../lib/api";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/usePreferences";
 
 type BoardComposerPanelProps = {
   due: string;

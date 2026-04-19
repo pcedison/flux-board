@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { usePreferences } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 
 type QueryStateProps = {
   children: ReactNode;

@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { logout } from "../lib/api";
-import { usePreferences } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 import { boardSnapshotQueryKey } from "../lib/useBoardSnapshot";
 import { clearAuthSessionData, useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";

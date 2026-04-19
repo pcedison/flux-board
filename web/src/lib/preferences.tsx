@@ -1,6 +1,6 @@
-import { startTransition, type PropsWithChildren, createContext, useContext, useEffect, useMemo, useState } from "react";
+import { startTransition, type PropsWithChildren, useEffect, useMemo, useState } from "react";
 
-import type { TaskPriority, TaskStatus } from "./api";
+import { PreferencesContext, type PreferencesContextValue } from "./preferences-context";
 
 export type AppLocale = "en" | "zh-TW";
 export type AppTheme = "light" | "dark";
@@ -453,49 +453,19 @@ const messages = {
   },
 } as const;
 
-type Messages = (typeof messages)[keyof typeof messages];
-
-type PreferencesContextValue = {
-  copy: Messages;
-  formatDate: (value: string) => string;
-  formatDateTime: (value: number) => string;
-  isDarkTheme: boolean;
-  locale: AppLocale;
-  priorityLabel: (value: TaskPriority) => string;
-  setLocale: (locale: AppLocale) => void;
-  setTheme: (theme: AppTheme) => void;
-  statusLabel: (value: TaskStatus) => string;
-  theme: AppTheme;
-  toggleTheme: () => void;
-};
-
-const defaultContextValue: PreferencesContextValue = {
-  copy: messages.en,
-  formatDate: formatDateForLocale("en"),
-  formatDateTime: formatDateTimeForLocale("en"),
-  isDarkTheme: false,
-  locale: "en",
-  priorityLabel: (value) => messages.en.priorityLabels[value],
-  setLocale: () => {},
-  setTheme: () => {},
-  statusLabel: (value) => messages.en.laneLabels[value],
-  theme: "light",
-  toggleTheme: () => {},
-};
-
-const PreferencesContext = createContext<PreferencesContextValue>(defaultContextValue);
+export type Messages = (typeof messages)[keyof typeof messages];
 
 export function PreferencesProvider({ children }: PropsWithChildren) {
   const [locale, setLocaleState] = useState<AppLocale>(() => readInitialLocale());
   const [theme, setThemeState] = useState<AppTheme>(() => readInitialTheme());
 
   useEffect(() => {
-    window.localStorage.setItem(localeStorageKey, locale);
+    window.localStorage?.setItem?.(localeStorageKey, locale);
     document.documentElement.lang = locale;
   }, [locale]);
 
   useEffect(() => {
-    window.localStorage.setItem(themeStorageKey, theme);
+    window.localStorage?.setItem?.(themeStorageKey, theme);
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   }, [theme]);
@@ -526,16 +496,12 @@ export function PreferencesProvider({ children }: PropsWithChildren) {
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
 }
 
-export function usePreferences() {
-  return useContext(PreferencesContext);
-}
-
 function readInitialLocale(): AppLocale {
   if (typeof window === "undefined") {
     return "en";
   }
 
-  const stored = window.localStorage.getItem(localeStorageKey);
+  const stored = window.localStorage?.getItem?.(localeStorageKey);
   if (stored === "en" || stored === "zh-TW") {
     return stored;
   }
@@ -553,7 +519,7 @@ function readInitialTheme(): AppTheme {
     return "light";
   }
 
-  const stored = window.localStorage.getItem(themeStorageKey);
+  const stored = window.localStorage?.getItem?.(themeStorageKey);
   if (stored === "light" || stored === "dark") {
     return stored;
   }

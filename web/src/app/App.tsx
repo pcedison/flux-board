@@ -2,7 +2,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { QueryState } from "../components/QueryState";
-import { usePreferences } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 import { BoardSnapshotPage } from "../routes/BoardSnapshotPage";

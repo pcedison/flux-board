@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { logout } from "../lib/api";
 import type { BoardSnapshot, AuthSession } from "../lib/api";
+import { PreferencesProvider } from "../lib/preferences";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
@@ -58,9 +59,11 @@ function renderApp(initialEntry: string) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <App />
-      </MemoryRouter>
+      <PreferencesProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <App />
+        </MemoryRouter>
+      </PreferencesProvider>
     </QueryClientProvider>,
   );
 }
