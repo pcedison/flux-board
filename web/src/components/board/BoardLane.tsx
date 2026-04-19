@@ -44,7 +44,9 @@ export function BoardLane({
   const canCollapse = tasks.length > 1;
 
   useEffect(() => {
-    setIsCollapsed(tasks.length > 1);
+    if (tasks.length <= 1) {
+      setIsCollapsed(false);
+    }
   }, [tasks.length]);
 
   return (

@@ -3,6 +3,7 @@ import type { TaskStatus } from "../../lib/api";
 import type { MoveTaskRequest } from "./types";
 
 const laneDropPrefix = "lane:";
+const laneOrder: TaskStatus[] = ["queued", "active", "done"];
 
 export function getLaneDropId(status: TaskStatus) {
   return `${laneDropPrefix}${status}`;
@@ -63,6 +64,49 @@ export function getDragMove(tasks: Task[], activeId: string, overId: string | nu
     anchorTaskId: overTask.id,
     placeAfter: activeIndex < overIndex,
   };
+}
+
+export function applyMoveToTasks(tasks: Task[], move: MoveTaskRequest): Task[] {
+  const activeTask = tasks.find((task) => task.id === move.id);
+  if (!activeTask) {
+    return tasks;
+  }
+
+  const tasksByLane = {
+    active: [] as Task[],
+    done: [] as Task[],
+    queued: [] as Task[],
+  };
+
+  for (const task of tasks) {
+    if (task.id === move.id) {
+      continue;
+    }
+    tasksByLane[task.status].push(task);
+  }
+
+  const nextTask: Task = {
+    ...activeTask,
+    status: move.status,
+  };
+  const targetLane = tasksByLane[move.status];
+  let insertIndex = targetLane.length;
+
+  if (move.anchorTaskId) {
+    const anchorIndex = targetLane.findIndex((task) => task.id === move.anchorTaskId);
+    if (anchorIndex !== -1) {
+      insertIndex = move.placeAfter ? anchorIndex + 1 : anchorIndex;
+    }
+  }
+
+  targetLane.splice(insertIndex, 0, nextTask);
+
+  return laneOrder.flatMap((status) =>
+    tasksByLane[status].map((task, index) => ({
+      ...task,
+      sort_order: index,
+    })),
+  );
 }
 
 function getLaneDropMove(tasks: Task[], activeTask: Task, targetStatus: TaskStatus): MoveTaskRequest | null {

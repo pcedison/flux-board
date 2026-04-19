@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
-import { DndContext, MouseSensor, TouchSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, PointerSensor, closestCenter, type DragEndEvent, type DragStartEvent, useSensor, useSensors } from "@dnd-kit/core";
 
 import { QueryState } from "../components/QueryState";
-import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner } from "../components/board";
+import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner, BoardTaskCardPreview } from "../components/board";
 import type { BoardLaneDescriptor, FocusTarget, MoveTaskRequest } from "../components/board";
-import { getDragMove } from "../components/board/dragAndDrop";
+import { applyMoveToTasks, getDragMove } from "../components/board/dragAndDrop";
 import type { Task, TaskPriority } from "../lib/api";
 import { usePreferences } from "../lib/preferences";
 import { useBoardMutations } from "../lib/useBoardMutations";
@@ -42,10 +42,7 @@ function BoardSnapshotContent({
 }) {
   const { copy, priorityLabel, statusLabel } = usePreferences();
   const lanes = laneStatuses.map((status) => ({ label: statusLabel(status), status }));
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 125, tolerance: 8 } }),
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const titleInputRef = useRef<HTMLInputElement>(null);
   const dueInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -66,7 +63,9 @@ function BoardSnapshotContent({
   const [fieldErrors, setFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [editFieldErrors, setEditFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
-  const filteredTasks = data.tasks.filter((task) => {
+  const [boardTasks, setBoardTasks] = useState(data.tasks);
+  const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
+  const filteredTasks = boardTasks.filter((task) => {
     const query = search.trim().toLowerCase();
     if (!query) {
       return true;
@@ -92,7 +91,12 @@ function BoardSnapshotContent({
     activeCardId && filteredTasks.some((task) => task.id === activeCardId)
       ? activeCardId
       : getFirstVisibleTaskId(filteredTasks, lanes);
-  const selectedTask = editTaskID ? data.tasks.find((task) => task.id === editTaskID) ?? null : null;
+  const selectedTask = editTaskID ? boardTasks.find((task) => task.id === editTaskID) ?? null : null;
+  const activeDragTask = activeDragTaskId ? boardTasks.find((task) => task.id === activeDragTaskId) ?? null : null;
+
+  useEffect(() => {
+    setBoardTasks(data.tasks);
+  }, [data.tasks]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -140,7 +144,7 @@ function BoardSnapshotContent({
     }
 
     if (focusTarget.kind === "task") {
-      const taskSnapshot = filteredTasks.find((task) => task.id === focusTarget.id) ?? data.tasks.find((task) => task.id === focusTarget.id);
+      const taskSnapshot = filteredTasks.find((task) => task.id === focusTarget.id) ?? boardTasks.find((task) => task.id === focusTarget.id);
       if (!taskSnapshot) {
         return;
       }
@@ -166,7 +170,7 @@ function BoardSnapshotContent({
       archiveButton.focus();
       clearPendingFocus();
     }
-  }, [data.archived, data.tasks, filteredTasks, focusTarget]);
+  }, [boardTasks, data.archived, filteredTasks, focusTarget]);
 
   function setCardRef(id: string, element: HTMLElement | null) {
     if (element) {
@@ -243,11 +247,12 @@ function BoardSnapshotContent({
     }
   }
 
-  async function handleMoveTask(move: MoveTaskRequest, announcement: string) {
+  async function handleMoveTask(move: MoveTaskRequest, announcement: string, previousTasks: Task[]) {
     setActionError(null);
     setActionStatus(null);
     try {
       const movedTask = await mutations.moveTask.mutateAsync(move);
+      setBoardTasks((current) => current.map((task) => (task.id === movedTask.id ? { ...task, ...movedTask } : task)));
       setActionStatus(announcement);
       setFocusTarget({
         kind: "task",
@@ -256,6 +261,7 @@ function BoardSnapshotContent({
         lastUpdated: movedTask.lastUpdated,
       });
     } catch (error) {
+      setBoardTasks(previousTasks);
       setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
@@ -400,21 +406,26 @@ function BoardSnapshotContent({
 
   function handleCardFocus(taskId: string) {
     setActiveCardId(taskId);
-    const task = data.tasks.find((entry) => entry.id === taskId);
+    const task = boardTasks.find((entry) => entry.id === taskId);
     if (task) {
       selectTask(task);
     }
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragTaskId(String(event.active.id));
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setActiveDragTaskId(null);
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
-    const move = getDragMove(filteredTasks, activeId, overId);
+    const move = getDragMove(boardTasks, activeId, overId);
     if (!move) {
       return;
     }
 
-    const movedTask = filteredTasks.find((task) => task.id === activeId) ?? data.tasks.find((task) => task.id === activeId);
+    const movedTask = boardTasks.find((task) => task.id === activeId);
     if (!movedTask) {
       return;
     }
@@ -424,11 +435,19 @@ function BoardSnapshotContent({
         ? copy.board.movedWithinStatus(movedTask.title, statusLabel(move.status))
         : copy.board.movedToStatus(movedTask.title, statusLabel(move.status));
 
-    void handleMoveTask(move, announcement);
+    const previousTasks = boardTasks;
+    setBoardTasks((current) => applyMoveToTasks(current, move));
+    void handleMoveTask(move, announcement, previousTasks);
   }
 
   return (
-    <DndContext collisionDetection={closestCenter} sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      collisionDetection={closestCenter}
+      sensors={sensors}
+      onDragEnd={handleDragEnd}
+      onDragStart={handleDragStart}
+      onDragCancel={() => setActiveDragTaskId(null)}
+    >
       <div className="board-grid" aria-busy={isBusy}>
         <BoardStatusBanner error={actionError} status={actionStatus} />
 
@@ -611,6 +630,14 @@ function BoardSnapshotContent({
           />
         </section>
       </div>
+      <DragOverlay
+        dropAnimation={{
+          duration: 180,
+          easing: "cubic-bezier(0.2, 0, 0, 1)",
+        }}
+      >
+        {activeDragTask ? <BoardTaskCardPreview task={activeDragTask} /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
