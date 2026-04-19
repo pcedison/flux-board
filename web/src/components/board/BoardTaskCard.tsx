@@ -23,6 +23,16 @@ type BoardTaskCardProps = {
   task: Task;
 };
 
+type TaskCardBodyProps = {
+  dueLabel: string;
+  note: string;
+  priority: Task["priority"];
+  priorityText: string;
+  title: string;
+};
+
+const cardTransition = "box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease, opacity 160ms ease";
+
 export function BoardTaskCard({
   index,
   isActive,
@@ -39,11 +49,15 @@ export function BoardTaskCard({
   const { isDragging, listeners, setNodeRef, transform, transition } = useSortable({
     disabled: isBusy,
     id: task.id,
+    transition: {
+      duration: 180,
+      easing: "cubic-bezier(0.2, 0, 0, 1)",
+    },
   });
 
   const cardStyle = {
     transform: CSS.Transform.toString(transform),
-    transition,
+    transition: transition ? `${transition}, ${cardTransition}` : cardTransition,
   };
 
   const setCardNodeRef: RefCallback<HTMLElement> = (element) => {
@@ -80,14 +94,44 @@ export function BoardTaskCard({
       tabIndex={isActive ? 0 : -1}
       {...listeners}
     >
+      <TaskCardBody
+        dueLabel={copy.board.due(formatDate(task.due))}
+        note={task.note}
+        priority={task.priority}
+        priorityText={priorityLabel(task.priority)}
+        title={task.title}
+      />
+    </article>
+  );
+}
+
+export function BoardTaskCardPreview({ task }: { task: Task }) {
+  const { copy, formatDate, priorityLabel } = usePreferences();
+
+  return (
+    <article className="card card-overlay" aria-hidden="true">
+      <TaskCardBody
+        dueLabel={copy.board.due(formatDate(task.due))}
+        note={task.note}
+        priority={task.priority}
+        priorityText={priorityLabel(task.priority)}
+        title={task.title}
+      />
+    </article>
+  );
+}
+
+function TaskCardBody({ dueLabel, note, priority, priorityText, title }: TaskCardBodyProps) {
+  return (
+    <>
       <div className="card-row">
-        <strong>{task.title}</strong>
+        <strong>{title}</strong>
       </div>
       <div className="card-row card-meta-row">
-        <span className={`priority priority-${task.priority}`}>{priorityLabel(task.priority)}</span>
-        <p className="meta">{copy.board.due(formatDate(task.due))}</p>
+        <span className={`priority priority-${priority}`}>{priorityText}</span>
+        <p className="meta">{dueLabel}</p>
       </div>
-      {task.note ? <p className="card-note">{task.note}</p> : null}
-    </article>
+      {note ? <p className="card-note">{note}</p> : null}
+    </>
   );
 }
