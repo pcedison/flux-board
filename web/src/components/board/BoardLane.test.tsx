@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Task } from "../../lib/api";
@@ -10,9 +10,7 @@ describe("BoardLane", () => {
       <BoardLane
         isTaskBusy={() => false}
         lane={{ label: "Queued", status: "queued" }}
-        onArchiveTask={vi.fn()}
-        onEditTask={vi.fn()}
-        onMoveTask={vi.fn()}
+        onSelectTask={vi.fn()}
         setCardRef={vi.fn()}
         tasks={[]}
       />,
@@ -23,21 +21,24 @@ describe("BoardLane", () => {
     expect(within(lane).queryByRole("list")).not.toBeInTheDocument();
   });
 
-  it("renders lane semantics and card content for non-empty lanes", () => {
+  it("collapses multi-task lanes until the user expands them", () => {
     render(
       <BoardLane
         isTaskBusy={(id) => id === "b"}
         lane={{ label: "Queued", status: "queued" }}
-        onArchiveTask={vi.fn()}
-        onEditTask={vi.fn()}
-        onMoveTask={vi.fn()}
+        onSelectTask={vi.fn()}
+        selectedTaskId="a"
         setCardRef={vi.fn()}
         tasks={buildQueuedTasks()}
       />,
     );
 
     const lane = screen.getByRole("region", { name: "Queued" });
-    expect(within(lane).getByText("Use Move up or Move down to reorder cards within the Queued lane.")).toBeInTheDocument();
+    expect(within(lane).getByRole("button", { name: /3 tasks hidden/i })).toBeInTheDocument();
+    expect(within(lane).queryByRole("list")).not.toBeInTheDocument();
+
+    fireEvent.click(within(lane).getByRole("button", { name: /3 tasks hidden/i }));
+
     expect(within(lane).getByText("Queue me")).toBeInTheDocument();
     expect(within(lane).getByText("Queue next")).toBeInTheDocument();
     expect(within(lane).getByText("Queue later")).toBeInTheDocument();
@@ -47,12 +48,8 @@ describe("BoardLane", () => {
     expect(items[0]).toHaveAttribute("aria-posinset", "1");
     expect(items[1]).toHaveAttribute("aria-posinset", "2");
     expect(items[2]).toHaveAttribute("aria-posinset", "3");
-    expect(items[0]).toHaveAttribute("aria-setsize", "3");
-    expect(items[1]).toHaveAttribute("aria-setsize", "3");
-    expect(items[2]).toHaveAttribute("aria-setsize", "3");
 
-    expect(screen.getByRole("button", { name: "Move Queue next up within Queued" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Archive Queue me" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeDisabled();
   });
 });
 

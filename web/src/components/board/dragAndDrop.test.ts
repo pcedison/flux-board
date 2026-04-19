@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { Task } from "../../lib/api";
-import { getSameLaneDragMove } from "./dragAndDrop";
+import { getDragMove, getLaneDropId } from "./dragAndDrop";
 
-describe("getSameLaneDragMove", () => {
+describe("getDragMove", () => {
   it("returns a move request for downward reorder", () => {
     const tasks = buildTasks();
 
-    expect(getSameLaneDragMove(tasks, "a", "c")).toEqual({
+    expect(getDragMove(tasks, "a", "c")).toEqual({
       id: "a",
       status: "queued",
       anchorTaskId: "c",
@@ -18,7 +18,7 @@ describe("getSameLaneDragMove", () => {
   it("returns a move request for upward reorder", () => {
     const tasks = buildTasks();
 
-    expect(getSameLaneDragMove(tasks, "c", "a")).toEqual({
+    expect(getDragMove(tasks, "c", "a")).toEqual({
       id: "c",
       status: "queued",
       anchorTaskId: "a",
@@ -26,29 +26,54 @@ describe("getSameLaneDragMove", () => {
     });
   });
 
+  it("returns a cross-lane move when dropping on another task", () => {
+    const tasks = buildTasks();
+
+    expect(getDragMove(tasks, "a", "d")).toEqual({
+      id: "a",
+      status: "active",
+      anchorTaskId: "d",
+      placeAfter: false,
+    });
+  });
+
+  it("returns a lane move when dropping on an empty lane", () => {
+    const tasks = buildTasks();
+
+    expect(getDragMove(tasks, "a", getLaneDropId("done"))).toEqual({
+      id: "a",
+      status: "done",
+    });
+  });
+
+  it("returns a lane move to the end of a populated lane", () => {
+    const tasks = buildTasks();
+
+    expect(getDragMove(tasks, "a", getLaneDropId("active"))).toEqual({
+      id: "a",
+      status: "active",
+      anchorTaskId: "d",
+      placeAfter: true,
+    });
+  });
+
   it("returns null for a self-drop", () => {
     const tasks = buildTasks();
 
-    expect(getSameLaneDragMove(tasks, "b", "b")).toBeNull();
+    expect(getDragMove(tasks, "b", "b")).toBeNull();
   });
 
   it("returns null when the over target is missing", () => {
     const tasks = buildTasks();
 
-    expect(getSameLaneDragMove(tasks, "b", null)).toBeNull();
-    expect(getSameLaneDragMove(tasks, "b", "missing")).toBeNull();
+    expect(getDragMove(tasks, "b", null)).toBeNull();
+    expect(getDragMove(tasks, "b", "missing")).toBeNull();
   });
 
   it("returns null when the active task is missing", () => {
     const tasks = buildTasks();
 
-    expect(getSameLaneDragMove(tasks, "missing", "a")).toBeNull();
-  });
-
-  it("returns null for cross-lane moves", () => {
-    const tasks = buildTasks();
-
-    expect(getSameLaneDragMove(tasks, "a", "d")).toBeNull();
+    expect(getDragMove(tasks, "missing", "a")).toBeNull();
   });
 });
 

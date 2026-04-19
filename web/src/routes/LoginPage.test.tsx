@@ -49,7 +49,7 @@ describe("LoginPage", () => {
 
     expect(screen.getByRole("heading", { name: "Sign in to view the board" })).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Sign In" })).toBeEnabled();
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);
   });

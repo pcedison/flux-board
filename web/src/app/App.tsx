@@ -2,21 +2,21 @@ import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "../components/AppShell";
 import { QueryState } from "../components/QueryState";
+import { usePreferences } from "../lib/preferences";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 import { BoardSnapshotPage } from "../routes/BoardSnapshotPage";
 import { LoginPage } from "../routes/LoginPage";
 import { SettingsPage } from "../routes/SettingsPage";
 import { SetupPage } from "../routes/SetupPage";
-import { OverviewPage } from "../routes/OverviewPage";
 
 export function App() {
   return (
     <AppShell>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/status" element={<OverviewPage />} />
-        <Route path="/about" element={<Navigate replace to="/status" />} />
+        <Route path="/status" element={<Navigate replace to="/settings" />} />
+        <Route path="/about" element={<Navigate replace to="/settings" />} />
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route element={<RequireAuthRoute />}>
@@ -32,13 +32,14 @@ export function App() {
 function HomePage() {
   const bootstrap = useBootstrapStatus();
   const session = useAuthSession();
+  const { copy } = usePreferences();
 
   return (
     <QueryState
       error={bootstrap.error ?? session.error}
-      errorTitle="Unable to open Flux Board"
+      errorTitle={copy.auth.unableToOpenApp(copy.common.appName)}
       isPending={bootstrap.isPending || session.isPending}
-      loadingMessage="Checking whether to send you to setup, sign in, or your board."
+      loadingMessage={copy.auth.decidingRoute}
     >
       {bootstrap.data ? (
         bootstrap.data.needsSetup ? (
@@ -56,13 +57,14 @@ function HomePage() {
 function RequireAuthRoute() {
   const location = useLocation();
   const session = useAuthSession();
+  const { copy } = usePreferences();
 
   return (
     <QueryState
       error={session.error}
-      errorTitle="Unable to verify your session"
+      errorTitle={copy.auth.verifySessionTitle}
       isPending={session.isPending}
-      loadingMessage="Checking your sign-in before opening the board."
+      loadingMessage={copy.auth.verifySessionMessage}
     >
       {session.data ? (
         <Outlet />

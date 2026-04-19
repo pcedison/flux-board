@@ -1,4 +1,5 @@
 import type { ArchivedTask } from "../../lib/api";
+import { usePreferences } from "../../lib/preferences";
 
 type BoardArchivePanelProps = {
   archived: ArchivedTask[];
@@ -17,15 +18,16 @@ export function BoardArchivePanel({
   pendingRestoreTaskID,
   setArchiveButtonRef,
 }: BoardArchivePanelProps) {
-  const archivedLabel = `${archived.length} archived ${archived.length === 1 ? "task" : "tasks"}`;
+  const { copy, statusLabel } = usePreferences();
+  const archivedLabel = copy.board.archiveCount(archived.length);
 
   return (
     <div>
-      <h2>Archive</h2>
-      <p className="meta">Restore archived tasks or remove them for good.</p>
+      <h2>{copy.board.archiveTitle}</h2>
+      <p className="meta">{copy.board.archiveHint}</p>
       <p className="archive-total">{archivedLabel}</p>
       {archived.length === 0 ? (
-        <p className="empty">Nothing is archived right now.</p>
+        <p className="empty">{copy.board.archiveEmpty}</p>
       ) : (
         <div className="archive-list">
           {archived.map((task) => (
@@ -37,7 +39,7 @@ export function BoardArchivePanel({
             >
               <div>
                 <strong>{task.title}</strong>
-                <p className="meta">Return to {task.status}</p>
+                <p className="meta">{copy.board.restoreTo(statusLabel(task.status))}</p>
               </div>
               <div className="archive-actions">
                 <button
@@ -45,23 +47,23 @@ export function BoardArchivePanel({
                   type="button"
                   disabled={pendingRestoreTaskID === task.id || pendingDeleteArchivedTaskID === task.id}
                   ref={(element) => setArchiveButtonRef(task.id, element)}
-                  aria-label={`Restore ${task.title}`}
+                  aria-label={copy.board.restoreAria(task.title)}
                   onClick={() => {
                     void onRestoreTask(task.id, task.title, task.status);
                   }}
                 >
-                  Restore
+                  {copy.board.restore}
                 </button>
                 <button
                   className="action-button action-button-secondary"
                   type="button"
                   disabled={pendingRestoreTaskID === task.id || pendingDeleteArchivedTaskID === task.id}
-                  aria-label={`Delete ${task.title} permanently`}
+                  aria-label={copy.board.deleteAria(task.title)}
                   onClick={() => {
                     void onDeleteArchivedTask(task.id, task.title);
                   }}
                 >
-                  Delete permanently
+                  {copy.board.deletePermanently}
                 </button>
               </div>
             </div>
