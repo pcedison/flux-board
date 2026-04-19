@@ -1,6 +1,7 @@
 import type { FormEvent, RefObject } from "react";
 
 import type { TaskPriority } from "../../lib/api";
+import { usePreferences } from "../../lib/preferences";
 
 type BoardComposerPanelProps = {
   due: string;
@@ -35,16 +36,14 @@ export function BoardComposerPanel({
   title,
   titleInputRef,
 }: BoardComposerPanelProps) {
+  const { copy, priorityLabel } = usePreferences();
+
   return (
     <div>
-      <h2>New task</h2>
-      <p className="meta">
-        Add a task without leaving the board. Keyboard-friendly controls stay available whenever
-        drag and drop is not the easiest option.
-      </p>
+      <h2>{copy.common.newTask}</h2>
       <form className={`board-form${isPending ? " board-form-pending" : ""}`} onSubmit={onSubmit} noValidate>
         <label className="form-field" htmlFor="board-task-title">
-          Title
+          {copy.common.title}
         </label>
         <input
           id="board-task-title"
@@ -54,7 +53,7 @@ export function BoardComposerPanel({
           onChange={(event) => {
             onTitleChange(event.target.value);
           }}
-          placeholder="Follow up with design review"
+          placeholder={copy.board.titlePlaceholder}
           required
           aria-invalid={Boolean(fieldErrors.title)}
           aria-describedby={fieldErrors.title ? "board-task-title-error" : undefined}
@@ -68,7 +67,7 @@ export function BoardComposerPanel({
         <div className="field-grid">
           <div>
             <label className="form-field" htmlFor="board-task-due">
-              Due date
+              {copy.common.dueDate}
             </label>
             <input
               id="board-task-due"
@@ -91,7 +90,7 @@ export function BoardComposerPanel({
           </div>
           <div>
             <label className="form-field" htmlFor="board-task-priority">
-              Priority
+              {copy.common.priority}
             </label>
             <select
               id="board-task-priority"
@@ -101,7 +100,7 @@ export function BoardComposerPanel({
             >
               {priorityOptions.map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {priorityLabel(option)}
                 </option>
               ))}
             </select>
@@ -109,7 +108,7 @@ export function BoardComposerPanel({
         </div>
 
         <label className="form-field" htmlFor="board-task-note">
-          Note
+          {copy.common.note}
         </label>
         <textarea
           id="board-task-note"
@@ -118,11 +117,11 @@ export function BoardComposerPanel({
           onChange={(event) => {
             onNoteChange(event.target.value);
           }}
-          placeholder="Add context, links, or handoff notes"
+          placeholder={copy.board.notePlaceholder}
           rows={4}
         />
         <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={isPending}>
-          {isPending ? "Creating..." : "Create task"}
+          {isPending ? copy.board.creatingButton : copy.board.createButton}
         </button>
       </form>
     </div>

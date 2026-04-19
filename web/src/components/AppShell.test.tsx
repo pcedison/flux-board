@@ -52,8 +52,8 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
 
     const nav = screen.getByRole("navigation", { name: "Primary routes" });
-    expect(within(nav).getByRole("link", { name: "Status" })).toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Sign In" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Switch to dark mode" })).toBeInTheDocument();
 
     const results = await axe(container);
     expect(results.violations).toHaveLength(0);

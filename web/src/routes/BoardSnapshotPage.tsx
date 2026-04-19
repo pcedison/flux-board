@@ -3,32 +3,30 @@ import type { FormEvent } from "react";
 
 import { DndContext, MouseSensor, TouchSensor, closestCenter, type DragEndEvent, useSensor, useSensors } from "@dnd-kit/core";
 
-import type { TaskPriority } from "../lib/api";
 import { QueryState } from "../components/QueryState";
+import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner } from "../components/board";
+import type { BoardLaneDescriptor, FocusTarget, MoveTaskRequest } from "../components/board";
+import { getDragMove } from "../components/board/dragAndDrop";
+import type { Task, TaskPriority } from "../lib/api";
+import { usePreferences } from "../lib/preferences";
 import { useBoardMutations } from "../lib/useBoardMutations";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
-import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner } from "../components/board";
-import type { FocusTarget, MoveTaskRequest, BoardLaneDescriptor } from "../components/board";
-import { getSameLaneDragMove } from "../components/board/dragAndDrop";
 
-const lanes: BoardLaneDescriptor[] = [
-  { label: "Queued", status: "queued" },
-  { label: "Active", status: "active" },
-  { label: "Done", status: "done" },
-];
+const laneStatuses: BoardLaneDescriptor["status"][] = ["queued", "active", "done"];
 
 type BoardSnapshotData = NonNullable<ReturnType<typeof useBoardSnapshot>["data"]>;
 
 export function BoardSnapshotPage() {
   const snapshot = useBoardSnapshot();
   const mutations = useBoardMutations();
+  const { copy } = usePreferences();
 
   return (
     <QueryState
       error={snapshot.error}
-      errorTitle="Unable to load the board"
+      errorTitle={copy.board.errorTitle}
       isPending={snapshot.isPending}
-      loadingMessage="Loading your board."
+      loadingMessage={copy.board.loadingMessage}
     >
       {snapshot.data ? <BoardSnapshotContent data={snapshot.data} mutations={mutations} /> : null}
     </QueryState>
@@ -42,6 +40,8 @@ function BoardSnapshotContent({
   data: BoardSnapshotData;
   mutations: ReturnType<typeof useBoardMutations>;
 }) {
+  const { copy, priorityLabel, statusLabel } = usePreferences();
+  const lanes = laneStatuses.map((status) => ({ label: statusLabel(status), status }));
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 125, tolerance: 8 } }),
@@ -73,7 +73,7 @@ function BoardSnapshotContent({
     }
     return `${task.title} ${task.note}`.toLowerCase().includes(query);
   });
-  const [activeCardId, setActiveCardId] = useState<string | null>(() => getFirstVisibleTaskId(filteredTasks));
+  const [activeCardId, setActiveCardId] = useState<string | null>(() => getFirstVisibleTaskId(filteredTasks, lanes));
 
   const isBusy =
     mutations.createTask.isPending ||
@@ -91,8 +91,8 @@ function BoardSnapshotContent({
   const visibleActiveCardId =
     activeCardId && filteredTasks.some((task) => task.id === activeCardId)
       ? activeCardId
-      : getFirstVisibleTaskId(filteredTasks);
-  const editingTaskAvailable = editTaskID ? data.tasks.some((task) => task.id === editTaskID) : false;
+      : getFirstVisibleTaskId(filteredTasks, lanes);
+  const selectedTask = editTaskID ? data.tasks.find((task) => task.id === editTaskID) ?? null : null;
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -184,6 +184,15 @@ function BoardSnapshotContent({
     archiveButtonRefs.current.delete(id);
   }
 
+  function selectTask(task: Task) {
+    setEditTaskID(task.id);
+    setEditTitle(task.title);
+    setEditDue(task.due);
+    setEditNote(task.note);
+    setEditPriority(task.priority);
+    setEditFieldErrors({});
+  }
+
   function isTaskBusy(id: string) {
     return pendingMoveTaskID === id || pendingArchiveTaskID === id || pendingUpdateTaskID === id;
   }
@@ -195,10 +204,10 @@ function BoardSnapshotContent({
     if (!trimmedTitle || !due) {
       const nextFieldErrors: { due?: string; title?: string } = {};
       if (!trimmedTitle) {
-        nextFieldErrors.title = "Enter a task title before creating a card.";
+        nextFieldErrors.title = copy.board.createTitleError;
       }
       if (!due) {
-        nextFieldErrors.due = "Choose a due date before creating a card.";
+        nextFieldErrors.due = copy.board.createDueError;
       }
       setFieldErrors(nextFieldErrors);
       setActionError(null);
@@ -226,10 +235,10 @@ function BoardSnapshotContent({
       setDue("");
       setNote("");
       setPriority("medium");
-      setActionStatus(`Created ${trimmedTitle} in the queued lane.`);
+      setActionStatus(copy.board.createdStatus(trimmedTitle, statusLabel("queued")));
       setFocusTarget({ kind: "title" });
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -247,7 +256,7 @@ function BoardSnapshotContent({
         lastUpdated: movedTask.lastUpdated,
       });
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -260,10 +269,10 @@ function BoardSnapshotContent({
     }
     try {
       await mutations.archiveTask.mutateAsync(id);
-      setActionStatus(`Archived ${taskTitle}.`);
+      setActionStatus(copy.board.archivedStatus(taskTitle));
       setFocusTarget({ kind: "archived", id });
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -273,7 +282,7 @@ function BoardSnapshotContent({
     setActionStatus(null);
     try {
       const restoredTask = await mutations.restoreTask.mutateAsync(id);
-      setActionStatus(`Restored ${taskTitle} to ${status}.`);
+      setActionStatus(copy.board.restoredStatus(taskTitle, statusLabel(status)));
       setFocusTarget({
         kind: "task",
         id: restoredTask.id,
@@ -281,7 +290,7 @@ function BoardSnapshotContent({
         lastUpdated: restoredTask.lastUpdated,
       });
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -291,9 +300,9 @@ function BoardSnapshotContent({
     setActionStatus(null);
     try {
       await mutations.deleteArchivedTask.mutateAsync(id);
-      setActionStatus(`Deleted ${taskTitle} permanently.`);
+      setActionStatus(copy.board.deletedStatus(taskTitle));
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -308,10 +317,10 @@ function BoardSnapshotContent({
     if (!trimmedTitle || !editDue) {
       const nextFieldErrors: { due?: string; title?: string } = {};
       if (!trimmedTitle) {
-        nextFieldErrors.title = "Enter a task title before saving.";
+        nextFieldErrors.title = copy.board.updateTitleError;
       }
       if (!editDue) {
-        nextFieldErrors.due = "Choose a due date before saving.";
+        nextFieldErrors.due = copy.board.updateDueError;
       }
       setEditFieldErrors(nextFieldErrors);
       return;
@@ -330,7 +339,8 @@ function BoardSnapshotContent({
           priority: editPriority,
         },
       });
-      setActionStatus(`Updated ${trimmedTitle}.`);
+      setActionStatus(copy.board.updatedStatus(trimmedTitle));
+      selectTask(updatedTask);
       setFocusTarget({
         kind: "task",
         id: updatedTask.id,
@@ -338,7 +348,7 @@ function BoardSnapshotContent({
         lastUpdated: updatedTask.lastUpdated,
       });
     } catch (error) {
-      setActionError(readErrorMessage(error));
+      setActionError(readErrorMessage(error, copy.board.defaultActionError));
       setActionStatus(null);
     }
   }
@@ -390,35 +400,31 @@ function BoardSnapshotContent({
 
   function handleCardFocus(taskId: string) {
     setActiveCardId(taskId);
+    const task = data.tasks.find((entry) => entry.id === taskId);
+    if (task) {
+      selectTask(task);
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const activeId = String(event.active.id);
     const overId = event.over?.id ? String(event.over.id) : null;
-
-    if (!overId || activeId === overId) {
+    const move = getDragMove(filteredTasks, activeId, overId);
+    if (!move) {
       return;
     }
 
-    for (const lane of lanes) {
-      const laneTasks = filteredTasks.filter((task) => task.status === lane.status);
-      if (!laneTasks.some((task) => task.id === activeId) || !laneTasks.some((task) => task.id === overId)) {
-        continue;
-      }
-
-      const move = getSameLaneDragMove(laneTasks, activeId, overId);
-      if (!move) {
-        return;
-      }
-
-      const movedTask = laneTasks.find((task) => task.id === activeId);
-      if (!movedTask) {
-        return;
-      }
-
-      void handleMoveTask(move, `Moved ${movedTask.title} within ${lane.label}.`);
+    const movedTask = filteredTasks.find((task) => task.id === activeId) ?? data.tasks.find((task) => task.id === activeId);
+    if (!movedTask) {
       return;
     }
+
+    const announcement =
+      move.status === movedTask.status
+        ? copy.board.movedWithinStatus(movedTask.title, statusLabel(move.status))
+        : copy.board.movedToStatus(movedTask.title, statusLabel(move.status));
+
+    void handleMoveTask(move, announcement);
   }
 
   return (
@@ -432,20 +438,13 @@ function BoardSnapshotContent({
           return (
             <BoardLane
               key={lane.status}
+              activeCardId={visibleActiveCardId}
               isTaskBusy={isTaskBusy}
               lane={lane}
-              activeCardId={visibleActiveCardId}
               onCardFocus={handleCardFocus}
               onCardNavigate={handleCardNavigation}
-              onArchiveTask={handleArchiveTask}
-              onEditTask={(task) => {
-                setEditTaskID(task.id);
-                setEditTitle(task.title);
-                setEditDue(task.due);
-                setEditNote(task.note);
-                setEditPriority(task.priority);
-              }}
-              onMoveTask={handleMoveTask}
+              onSelectTask={selectTask}
+              selectedTaskId={editTaskID}
               setCardRef={setCardRef}
               tasks={tasks}
             />
@@ -454,10 +453,10 @@ function BoardSnapshotContent({
 
         <section className="panel panel-secondary board-side-panel">
           <div className="panel panel-secondary board-search-panel">
-            <h2>Search & shortcuts</h2>
-            <p className="meta">Press <kbd>/</kbd> to search and <kbd>N</kbd> to jump back to the new task form.</p>
+            <h2>{copy.board.searchTitle}</h2>
+            <p className="meta">{copy.board.searchHint}</p>
             <label className="form-field" htmlFor="board-search">
-              Search tasks
+              {copy.board.searchLabel}
             </label>
             <input
               id="board-search"
@@ -465,7 +464,7 @@ function BoardSnapshotContent({
               ref={searchInputRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Filter by title or note"
+              placeholder={copy.board.searchPlaceholder}
             />
           </div>
           <BoardComposerPanel
@@ -493,13 +492,13 @@ function BoardSnapshotContent({
             title={title}
             titleInputRef={titleInputRef}
           />
-          {editTaskID && editingTaskAvailable ? (
+          {selectedTask ? (
             <section className="panel panel-secondary">
-              <h2>Edit task</h2>
-              <p className="meta">Update the selected task without moving it to another lane.</p>
+              <h2>{copy.board.selectedTaskTitle}</h2>
+              <p className="meta">{copy.board.selectedTaskHint}</p>
               <form className="board-form" onSubmit={handleUpdateTask} noValidate>
                 <label className="form-field" htmlFor="board-task-edit-title">
-                  Title
+                  {copy.common.title}
                 </label>
                 <input
                   id="board-task-edit-title"
@@ -523,7 +522,7 @@ function BoardSnapshotContent({
                 <div className="field-grid">
                   <div>
                     <label className="form-field" htmlFor="board-task-edit-due">
-                      Due date
+                      {copy.common.dueDate}
                     </label>
                     <input
                       id="board-task-edit-due"
@@ -547,7 +546,7 @@ function BoardSnapshotContent({
                   </div>
                   <div>
                     <label className="form-field" htmlFor="board-task-edit-priority">
-                      Priority
+                      {copy.common.priority}
                     </label>
                     <select
                       id="board-task-edit-priority"
@@ -555,15 +554,15 @@ function BoardSnapshotContent({
                       value={editPriority}
                       onChange={(event) => setEditPriority(event.target.value as TaskPriority)}
                     >
-                      <option value="medium">medium</option>
-                      <option value="high">high</option>
-                      <option value="critical">critical</option>
+                      <option value="medium">{priorityLabel("medium")}</option>
+                      <option value="high">{priorityLabel("high")}</option>
+                      <option value="critical">{priorityLabel("critical")}</option>
                     </select>
                   </div>
                 </div>
 
                 <label className="form-field" htmlFor="board-task-edit-note">
-                  Note
+                  {copy.common.note}
                 </label>
                 <textarea
                   id="board-task-edit-note"
@@ -574,19 +573,34 @@ function BoardSnapshotContent({
                 />
                 <div className="action-row">
                   <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={mutations.updateTask.isPending}>
-                    {mutations.updateTask.isPending ? "Saving..." : "Save changes"}
+                    {mutations.updateTask.isPending ? copy.board.saveChangesPending : copy.board.saveChanges}
                   </button>
                   <button
                     className="nav-pill nav-pill-muted nav-button"
                     type="button"
                     onClick={() => setEditTaskID(null)}
                   >
-                    Close editor
+                    {copy.board.clearSelection}
+                  </button>
+                  <button
+                    className="nav-pill nav-pill-muted nav-button"
+                    type="button"
+                    disabled={mutations.archiveTask.isPending}
+                    onClick={() => {
+                      void handleArchiveTask(selectedTask.id, selectedTask.title);
+                    }}
+                  >
+                    {mutations.archiveTask.isPending ? copy.board.archiveTaskPending : copy.board.archiveTask}
                   </button>
                 </div>
               </form>
             </section>
-          ) : null}
+          ) : (
+            <section className="panel panel-secondary panel-placeholder">
+              <h2>{copy.common.selectTask}</h2>
+              <p className="meta">{copy.board.selectedTaskEmpty}</p>
+            </section>
+          )}
           <BoardArchivePanel
             archived={data.archived}
             onDeleteArchivedTask={handleDeleteArchivedTask}
@@ -601,14 +615,14 @@ function BoardSnapshotContent({
   );
 }
 
-function readErrorMessage(error: unknown) {
+function readErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error) {
     return error.message;
   }
-  return "The board action failed.";
+  return fallback;
 }
 
-function getFirstVisibleTaskId(tasks: BoardSnapshotData["tasks"]) {
+function getFirstVisibleTaskId(tasks: BoardSnapshotData["tasks"], lanes: BoardLaneDescriptor[]) {
   for (const lane of lanes) {
     const task = tasks.find((entry) => entry.status === lane.status);
     if (task) {

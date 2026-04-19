@@ -3,6 +3,8 @@ import { type ChangeEvent, type FormEvent, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { QueryState } from "../components/QueryState";
+import { useAppStatus } from "../lib/useAppStatus";
+import { useBoardSnapshot, boardSnapshotQueryKey } from "../lib/useBoardSnapshot";
 import {
   changePassword,
   exportBoardData,
@@ -14,8 +16,8 @@ import {
   type AppSettings,
   type ExportBundle,
 } from "../lib/api";
-import { boardSnapshotQueryKey } from "../lib/useBoardSnapshot";
 import { clearAuthSessionData } from "../lib/useAuthSession";
+import { type AppLocale, type AppTheme, usePreferences } from "../lib/preferences";
 
 const settingsQueryKey = ["settings"] as const;
 const sessionsQueryKey = ["settings-sessions"] as const;
@@ -23,8 +25,11 @@ const sessionsQueryKey = ["settings-sessions"] as const;
 export function SettingsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { copy, formatDateTime, locale, setLocale, setTheme, theme, statusLabel } = usePreferences();
   const settings = useQuery({ queryKey: settingsQueryKey, queryFn: fetchSettings });
   const sessions = useQuery({ queryKey: sessionsQueryKey, queryFn: fetchSessions });
+  const appStatus = useAppStatus();
+  const snapshot = useBoardSnapshot();
 
   const [draftArchiveRetentionEnabled, setDraftArchiveRetentionEnabled] = useState<boolean | null>(null);
   const [draftArchiveRetentionDays, setDraftArchiveRetentionDays] = useState<string | null>(null);
@@ -49,13 +54,13 @@ export function SettingsPage() {
       setSettingsError(null);
       setSettingsStatus(
         nextSettings.archiveRetentionDays === null
-          ? "Archived cards will now stay indefinitely."
-          : `Archived cards will auto-delete after ${nextSettings.archiveRetentionDays} days.`,
+          ? copy.settings.archiveSavedForever
+          : copy.settings.archiveSavedDays(nextSettings.archiveRetentionDays),
       );
     },
     onError: (error) => {
       setSettingsStatus(null);
-      setSettingsError(error instanceof Error ? error.message : "Unable to save settings.");
+      setSettingsError(error instanceof Error ? error.message : copy.settings.settingsSaveFailed);
     },
   });
 
@@ -65,11 +70,11 @@ export function SettingsPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: sessionsQueryKey });
       setPasswordError(null);
-      setPasswordStatus("Password updated. Other sessions were signed out.");
+      setPasswordStatus(copy.settings.passwordUpdated);
     },
     onError: (error) => {
       setPasswordStatus(null);
-      setPasswordError(error instanceof Error ? error.message : "Unable to update password.");
+      setPasswordError(error instanceof Error ? error.message : copy.settings.passwordUpdateFailed);
     },
   });
 
@@ -89,11 +94,11 @@ export function SettingsPage() {
     onSuccess: (bundle) => {
       downloadExport(bundle);
       setImportError(null);
-      setImportStatus("Backup downloaded.");
+      setImportStatus(copy.settings.importDownloaded);
     },
     onError: (error) => {
       setImportStatus(null);
-      setImportError(error instanceof Error ? error.message : "Unable to download backup.");
+      setImportError(error instanceof Error ? error.message : copy.settings.importDownloadFailed);
     },
   });
 
@@ -105,39 +110,47 @@ export function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: settingsQueryKey }),
       ]);
       setImportError(null);
-      setImportStatus("Board restored from backup.");
+      setImportStatus(copy.settings.importRestored);
     },
     onError: (error) => {
       setImportStatus(null);
-      setImportError(error instanceof Error ? error.message : "Unable to restore backup.");
+      setImportError(error instanceof Error ? error.message : copy.settings.importRestoreFailed);
     },
   });
 
   return (
     <QueryState
       error={settings.error ?? sessions.error}
-      errorTitle="Unable to load settings"
+      errorTitle={copy.settings.errorTitle}
       isPending={settings.isPending || sessions.isPending}
-      loadingMessage="Loading security, retention, and backup controls."
+      loadingMessage={copy.settings.loadingMessage}
     >
       {settings.data && sessions.data ? (
         <SettingsContent
+          appStatus={appStatus}
           archiveRetentionDays={archiveRetentionDays}
           archiveRetentionEnabled={archiveRetentionEnabled}
           changePasswordMutation={changePasswordMutation}
           exportMutation={exportMutation}
+          formatDateTime={formatDateTime}
           importError={importError}
           importMutation={importMutation}
           importStatus={importStatus}
+          locale={locale}
           passwordError={passwordError}
           passwordStatus={passwordStatus}
           revokeSessionMutation={revokeSessionMutation}
           sessions={sessions.data}
           setArchiveRetentionDays={setDraftArchiveRetentionDays}
           setArchiveRetentionEnabled={setDraftArchiveRetentionEnabled}
+          setLocale={setLocale}
+          setTheme={setTheme}
           settingsError={settingsError}
           settingsMutation={updateSettingsMutation}
           settingsStatus={settingsStatus}
+          snapshot={snapshot}
+          statusLabel={statusLabel}
+          theme={theme}
         />
       ) : null}
     </QueryState>
@@ -145,47 +158,64 @@ export function SettingsPage() {
 }
 
 function SettingsContent({
+  appStatus,
   archiveRetentionDays,
   archiveRetentionEnabled,
   changePasswordMutation,
   exportMutation,
+  formatDateTime,
   importError,
   importMutation,
   importStatus,
+  locale,
   passwordError,
   passwordStatus,
   revokeSessionMutation,
   sessions,
   setArchiveRetentionDays,
   setArchiveRetentionEnabled,
+  setLocale,
+  setTheme,
   settingsError,
   settingsMutation,
   settingsStatus,
+  snapshot,
+  statusLabel,
+  theme,
 }: {
+  appStatus: ReturnType<typeof useAppStatus>;
   archiveRetentionDays: string;
   archiveRetentionEnabled: boolean;
   changePasswordMutation: ReturnType<typeof useMutation<void, Error, { currentPassword: string; newPassword: string }>>;
   exportMutation: ReturnType<typeof useMutation<ExportBundle, Error, void>>;
+  formatDateTime: (value: number) => string;
   importError: string | null;
   importMutation: ReturnType<typeof useMutation<void, Error, ExportBundle>>;
   importStatus: string | null;
+  locale: AppLocale;
   passwordError: string | null;
   passwordStatus: string | null;
   revokeSessionMutation: ReturnType<typeof useMutation<void, Error, string>>;
   sessions: Awaited<ReturnType<typeof fetchSessions>>;
   setArchiveRetentionDays: (value: string) => void;
   setArchiveRetentionEnabled: (value: boolean) => void;
+  setLocale: (locale: AppLocale) => void;
+  setTheme: (theme: AppTheme) => void;
   settingsError: string | null;
   settingsMutation: ReturnType<typeof useMutation<AppSettings, Error, AppSettings>>;
   settingsStatus: string | null;
+  snapshot: ReturnType<typeof useBoardSnapshot>;
+  statusLabel: (value: "queued" | "active" | "done") => string;
+  theme: AppTheme;
 }) {
+  const { copy } = usePreferences();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const activeSessionsSummary = useMemo(
-    () => `${sessions.length} active ${sessions.length === 1 ? "session" : "sessions"}`,
-    [sessions.length],
+    () => copy.settings.sessionsSummary(sessions.length),
+    [copy.settings, sessions.length],
   );
 
   async function handleSettingsSubmit(event: FormEvent<HTMLFormElement>) {
@@ -221,11 +251,115 @@ function SettingsContent({
     }
   }
 
+  const boardCounts = snapshot.data
+    ? [
+        { label: statusLabel("queued"), value: snapshot.data.tasks.filter((task) => task.status === "queued").length },
+        { label: statusLabel("active"), value: snapshot.data.tasks.filter((task) => task.status === "active").length },
+        { label: statusLabel("done"), value: snapshot.data.tasks.filter((task) => task.status === "done").length },
+        { label: copy.settings.overviewArchivedCountLabel, value: snapshot.data.archived.length },
+      ]
+    : [];
+
   return (
     <div className="page-grid settings-grid">
       <section className="panel">
-        <h2>Archive policy</h2>
-        <p className="meta">Choose whether archived cards stay forever or expire automatically.</p>
+        <h2>{copy.settings.appearanceTitle}</h2>
+        <p className="meta">{copy.settings.appearanceHint}</p>
+        <div className="board-form">
+          <div className="field-grid">
+            <div>
+              <label className="form-field" htmlFor="settings-locale">
+                {copy.common.language}
+              </label>
+              <select
+                id="settings-locale"
+                className="text-input"
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as AppLocale)}
+              >
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div>
+              <label className="form-field" htmlFor="settings-theme">
+                {copy.common.theme}
+              </label>
+              <select
+                id="settings-theme"
+                className="text-input"
+                value={theme}
+                onChange={(event) => setTheme(event.target.value as AppTheme)}
+              >
+                <option value="light">{copy.common.light}</option>
+                <option value="dark">{copy.common.dark}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="panel">
+        <h2>{copy.common.systemStatus}</h2>
+        {appStatus.isPending ? (
+          <p className="meta">{copy.common.loading}</p>
+        ) : appStatus.error ? (
+          <p className="form-error">{appStatus.error.message}</p>
+        ) : appStatus.data ? (
+          <>
+            <p>
+              {appStatus.data.status === "ready" ? copy.settings.overviewStateReady : copy.settings.overviewStateAttention}
+            </p>
+            <p className="meta">
+              {copy.settings.overviewRuntime(
+                copy.common.version(appStatus.data.version),
+                copy.common.environment(appStatus.data.environment),
+              )}
+            </p>
+            <p className="meta">{copy.settings.overviewStatusUpdated(formatDateTime(appStatus.data.generatedAt))}</p>
+            <ul className="checklist">
+              {appStatus.data.checks.map((check) => (
+                <li key={check.name}>{check.message}</li>
+              ))}
+              <li>
+                {appStatus.data.archiveRetentionDays === null
+                  ? copy.common.archiveRetentionIndefinite
+                  : copy.common.archiveRetentionDays(appStatus.data.archiveRetentionDays)}
+              </li>
+              <li>{copy.settings.overviewInstalledAt(appStatus.data.runtimeOwnershipPath)}</li>
+            </ul>
+          </>
+        ) : null}
+      </section>
+
+      <section className="panel">
+        <h2>{copy.common.boardSummary}</h2>
+        {snapshot.isPending ? (
+          <p className="meta">{copy.common.loading}</p>
+        ) : snapshot.error ? (
+          <p className="form-error">{snapshot.error.message}</p>
+        ) : snapshot.data ? (
+          <>
+            <div className="stats-grid">
+              {boardCounts.map((item) => (
+                <div key={item.label} className="stat-card">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+            <p className="meta">
+              {snapshot.data.session
+                ? copy.common.sessionExpiresAt(formatDateTime(snapshot.data.session.expiresAt))
+                : copy.common.sessionSignedOut}
+            </p>
+          </>
+        ) : null}
+      </section>
+
+      <section className="panel">
+        <h2>{copy.settings.archiveTitle}</h2>
+        <p className="meta">{copy.settings.archiveHint}</p>
         <form className="board-form" onSubmit={handleSettingsSubmit}>
           <label className="checkbox-row">
             <input
@@ -233,11 +367,11 @@ function SettingsContent({
               checked={archiveRetentionEnabled}
               onChange={(event) => setArchiveRetentionEnabled(event.target.checked)}
             />
-            Auto-delete archived cards
+            {copy.settings.archiveAutoDelete}
           </label>
           {archiveRetentionEnabled ? (
             <label className="form-field" htmlFor="archive-retention-days">
-              Retention (days)
+              {copy.settings.archiveRetentionLabel}
             </label>
           ) : null}
           {archiveRetentionEnabled ? (
@@ -258,17 +392,17 @@ function SettingsContent({
           ) : null}
           {settingsStatus ? <p className="form-status">{settingsStatus}</p> : null}
           <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={settingsMutation.isPending}>
-            {settingsMutation.isPending ? "Saving..." : "Save archive policy"}
+            {settingsMutation.isPending ? copy.settings.archiveSaving : copy.settings.archiveSave}
           </button>
         </form>
       </section>
 
       <section className="panel">
-        <h2>Password</h2>
-        <p className="meta">Change the board password without running setup again.</p>
+        <h2>{copy.settings.passwordTitle}</h2>
+        <p className="meta">{copy.settings.passwordHint}</p>
         <form className="board-form" onSubmit={handlePasswordSubmit}>
           <label className="form-field" htmlFor="current-password">
-            Current password
+            {copy.common.currentPassword}
           </label>
           <input
             id="current-password"
@@ -280,7 +414,7 @@ function SettingsContent({
           />
 
           <label className="form-field" htmlFor="new-password">
-            New password
+            {copy.common.newPassword}
           </label>
           <input
             id="new-password"
@@ -292,7 +426,7 @@ function SettingsContent({
           />
 
           <label className="form-field" htmlFor="confirm-password">
-            Confirm new password
+            {copy.settings.passwordConfirmLabel}
           </label>
           <input
             id="confirm-password"
@@ -305,7 +439,7 @@ function SettingsContent({
 
           {confirmPassword && confirmPassword !== newPassword ? (
             <p className="form-error" role="alert">
-              New passwords must match.
+              {copy.settings.passwordMismatch}
             </p>
           ) : null}
           {passwordError ? (
@@ -319,24 +453,23 @@ function SettingsContent({
             type="submit"
             disabled={changePasswordMutation.isPending || newPassword !== confirmPassword}
           >
-            {changePasswordMutation.isPending ? "Updating..." : "Update password"}
+            {changePasswordMutation.isPending ? copy.settings.passwordUpdating : copy.settings.passwordUpdate}
           </button>
         </form>
       </section>
 
-      <section className="panel">
-        <h2>Sessions</h2>
+      <section className="panel panel-wide">
+        <h2>{copy.settings.sessionsTitle}</h2>
         <p className="meta">{activeSessionsSummary}</p>
         <div className="archive-list">
           {sessions.map((session) => (
             <div key={session.token} className="archive-item">
               <div>
-                <strong>{session.current ? "This browser" : "Another signed-in browser"}</strong>
+                <strong>{session.current ? copy.common.thisBrowser : copy.common.anotherBrowser}</strong>
                 <p className="meta">
-                  Last active {new Date(session.lastSeenAt).toLocaleString()} • expires{" "}
-                  {new Date(session.expiresAt).toLocaleString()}
+                  {copy.settings.sessionMeta(formatDateTime(session.lastSeenAt), formatDateTime(session.expiresAt))}
                 </p>
-                <p className="meta">IP address {session.clientIP || "unknown"}</p>
+                <p className="meta">{copy.settings.sessionIP(session.clientIP || copy.common.unknown)}</p>
               </div>
               <button
                 className="action-button action-button-secondary"
@@ -346,22 +479,22 @@ function SettingsContent({
                   void revokeSessionMutation.mutateAsync(session.token);
                 }}
               >
-                {session.current ? "Sign out here" : "Revoke"}
+                {session.current ? copy.settings.signOutHere : copy.settings.revoke}
               </button>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="panel">
-        <h2>Backup & restore</h2>
-        <p className="meta">Download a full backup or restore the board from an earlier export.</p>
+      <section className="panel panel-wide">
+        <h2>{copy.settings.backupTitle}</h2>
+        <p className="meta">{copy.settings.backupHint}</p>
         <div className="board-form">
           <button className="nav-pill nav-pill-active auth-submit" type="button" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>
-            {exportMutation.isPending ? "Preparing backup..." : "Download backup"}
+            {exportMutation.isPending ? copy.settings.exportPreparing : copy.settings.exportButton}
           </button>
           <label className="form-field" htmlFor="import-file">
-            Restore from export
+            {copy.settings.importLabel}
           </label>
           <input id="import-file" className="text-input" type="file" accept="application/json" onChange={handleImportFile} />
           {importError ? (

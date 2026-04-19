@@ -3,6 +3,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { ApiError, isSetupRequiredApiError, loginWithPassword } from "../lib/api";
+import { usePreferences } from "../lib/preferences";
 import { setAuthSessionData, useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
@@ -16,6 +17,7 @@ export function LoginPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
+  const { copy } = usePreferences();
   const [password, setPassword] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,8 +30,8 @@ export function LoginPage() {
   if (session.isPending || bootstrap.isPending) {
     return (
       <section className="panel" aria-live="polite">
-        <h2>Checking sign-in state</h2>
-        <p className="meta">Checking whether this board is ready for sign-in.</p>
+        <h2>{copy.auth.checkingSignInTitle}</h2>
+        <p className="meta">{copy.auth.checkingSignInMessage}</p>
       </section>
     );
   }
@@ -37,7 +39,7 @@ export function LoginPage() {
   if (session.error || bootstrap.error) {
     return (
       <section className="panel panel-error" role="alert">
-        <h2>Unable to open the sign-in route</h2>
+        <h2>{copy.auth.signInErrorTitle}</h2>
         <p>{session.error?.message ?? bootstrap.error?.message}</p>
       </section>
     );
@@ -55,7 +57,7 @@ export function LoginPage() {
     event.preventDefault();
 
     if (!password.trim()) {
-      setSubmitError("Enter the current Flux Board password to continue.");
+      setSubmitError(copy.auth.signInRequired);
       return;
     }
 
@@ -77,7 +79,7 @@ export function LoginPage() {
       } else if (error instanceof Error) {
         setSubmitError(error.message);
       } else {
-        setSubmitError("Sign-in failed.");
+        setSubmitError(copy.auth.signInFailed);
       }
     } finally {
       setIsSubmitting(false);
@@ -87,15 +89,12 @@ export function LoginPage() {
   return (
     <div className="auth-layout">
       <section className="panel">
-        <h2>Sign in to view the board</h2>
-        <p className="meta">
-          Use the board password to continue. If you were sent here from another page, you will go
-          right back after sign-in.
-        </p>
+        <h2>{copy.auth.signInHeading}</h2>
+        <p className="meta">{copy.auth.signInMessage}</p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="form-field" htmlFor="login-password">
-            Password
+            {copy.common.password}
           </label>
           <input
             id="login-password"
@@ -109,7 +108,7 @@ export function LoginPage() {
                 setSubmitError(null);
               }
             }}
-            placeholder="Enter the current Flux Board password"
+            placeholder={copy.auth.signInPlaceholder}
           />
           {submitError ? (
             <p className="form-error" role="alert">
@@ -117,17 +116,17 @@ export function LoginPage() {
             </p>
           ) : null}
           <button className="nav-pill nav-pill-active auth-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in..." : "Sign in"}
+            {isSubmitting ? copy.auth.signInSubmitting : copy.common.signIn}
           </button>
         </form>
       </section>
 
       <section className="panel panel-secondary">
-        <h2>After sign-in</h2>
+        <h2>{copy.auth.afterSignIn}</h2>
         <ul className="checklist">
-          <li>Returns you to <code>{nextPath}</code> as soon as access is confirmed.</li>
-          <li>Keeps password changes and session controls in Settings.</li>
-          <li>Sends you to setup first if the board has not been configured yet.</li>
+          <li>{copy.auth.afterSignInReturnTo(nextPath)}</li>
+          <li>{copy.auth.afterSignInSettings}</li>
+          <li>{copy.auth.afterSignInSetup}</li>
         </ul>
       </section>
     </div>

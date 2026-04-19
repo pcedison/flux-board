@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { usePreferences } from "../lib/preferences";
+
 type QueryStateProps = {
   children: ReactNode;
   error: Error | null;
@@ -15,10 +17,12 @@ export function QueryState({
   isPending,
   loadingMessage,
 }: QueryStateProps) {
+  const { copy } = usePreferences();
+
   if (isPending) {
     return (
       <section className="panel" aria-live="polite">
-        <h2>Loading</h2>
+        <h2>{copy.query.loadingTitle}</h2>
         <p className="meta">{loadingMessage}</p>
       </section>
     );

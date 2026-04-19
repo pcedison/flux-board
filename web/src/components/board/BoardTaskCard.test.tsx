@@ -7,93 +7,52 @@ import type { Task } from "../../lib/api";
 import { BoardTaskCard } from "./BoardTaskCard";
 
 describe("BoardTaskCard", () => {
-  it("renders queued task actions and dispatches lane reorder, lane move, and archive callbacks", () => {
-    const onMoveTask = vi.fn();
-    const onArchiveTask = vi.fn();
-    const tasks = buildQueuedTasks();
+  it("renders compact task content and lets the user select the card", () => {
+    const onSelectTask = vi.fn();
+    const task = buildQueuedTasks()[1];
 
     renderCard({
       index: 1,
       isActive: true,
       isBusy: false,
+      isSelected: true,
       laneLabel: "Queued",
       laneStatus: "queued",
       onCardFocus: () => {},
       onCardNavigate: () => {},
-      onArchiveTask,
-      onEditTask: vi.fn(),
-      onMoveTask,
+      onSelectTask,
       setRef: () => {},
-      task: tasks[1],
-      tasks,
+      task,
     });
 
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder within Queued" })).toBeEnabled();
-    expect(screen.getByText("Queue next").closest("article")).toHaveAttribute("tabindex", "0");
-    fireEvent.click(screen.getByRole("button", { name: "Move Queue next up within Queued" }));
-    expect(onMoveTask).toHaveBeenNthCalledWith(
-      1,
-      {
-        id: "b",
-        status: "queued",
-        anchorTaskId: "a",
-        placeAfter: false,
-      },
-      "Moved Queue next up within Queued.",
-    );
+    const article = screen.getByText("Queue next").closest("article");
+    expect(article).toHaveAttribute("tabindex", "0");
+    expect(article).toHaveClass("card-selected");
+    expect(screen.getByText("High")).toBeInTheDocument();
+    expect(screen.getByText("Due 2026-04-21")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeEnabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Move Queue next down within Queued" }));
-    expect(onMoveTask).toHaveBeenNthCalledWith(
-      2,
-      {
-        id: "b",
-        status: "queued",
-        anchorTaskId: "c",
-        placeAfter: true,
-      },
-      "Moved Queue next down within Queued.",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Move to Active (Queue next)" }));
-    expect(onMoveTask).toHaveBeenNthCalledWith(
-      3,
-      {
-        id: "b",
-        status: "active",
-      },
-      "Moved Queue next to Active.",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Archive Queue next" }));
-    expect(onArchiveTask).toHaveBeenCalledWith("b", "Queue next");
+    fireEvent.click(article!);
+    expect(onSelectTask).toHaveBeenCalledWith(task);
   });
 
-  it("disables all actions while the card is pending", () => {
-    const tasks = buildQueuedTasks();
-
+  it("disables the drag handle while the card is pending", () => {
     renderCard({
       index: 1,
       isActive: true,
       isBusy: true,
+      isSelected: false,
       laneLabel: "Queued",
       laneStatus: "queued",
       onCardFocus: () => {},
       onCardNavigate: () => {},
-      onArchiveTask: vi.fn(),
-      onEditTask: vi.fn(),
-      onMoveTask: vi.fn(),
+      onSelectTask: vi.fn(),
       setRef: () => {},
-      task: tasks[1],
-      tasks,
+      task: buildQueuedTasks()[1],
     });
 
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder within Queued" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Drag Queue next to reorder within Queued" })).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("button", { name: "Drag Queue next to reorder or move it from Queued" })).toBeDisabled();
     expect(screen.getByText("Queue next").closest("article")).toHaveAttribute("tabindex", "0");
-    expect(screen.getByRole("button", { name: "Move Queue next up within Queued" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move Queue next down within Queued" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Move to Active (Queue next)" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Archive Queue next" })).toBeDisabled();
   });
 });
 
@@ -135,7 +94,7 @@ function buildQueuedTasks(): Task[] {
 function renderCard(props: Parameters<typeof BoardTaskCard>[0]) {
   render(
     <DndContext>
-      <SortableContext items={props.tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={[props.task.id]} strategy={verticalListSortingStrategy}>
         <BoardTaskCard {...props} />
       </SortableContext>
     </DndContext>,
