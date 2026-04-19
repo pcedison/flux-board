@@ -3,7 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import type { RefCallback } from "react";
 
 import type { Task, TaskStatus } from "../../lib/api";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/usePreferences";
 
 type BoardTaskCardProps = {
   index: number;

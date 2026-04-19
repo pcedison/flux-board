@@ -1,4 +1,4 @@
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences } from "../../lib/usePreferences";
 
 type BoardStatusBannerProps = {
   error: string | null;

@@ -17,7 +17,8 @@ import {
   type ExportBundle,
 } from "../lib/api";
 import { clearAuthSessionData } from "../lib/useAuthSession";
-import { type AppLocale, type AppTheme, usePreferences } from "../lib/preferences";
+import { type AppLocale, type AppTheme } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 
 const settingsQueryKey = ["settings"] as const;
 const sessionsQueryKey = ["settings-sessions"] as const;

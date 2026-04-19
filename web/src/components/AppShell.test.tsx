@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 
 import { AppShell } from "./AppShell";
+import { PreferencesProvider } from "../lib/preferences";
 import { useAuthSession } from "../lib/useAuthSession";
 import { useBootstrapStatus } from "../lib/useBootstrapStatus";
 
@@ -71,11 +72,13 @@ function renderShell() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/"]}>
-        <AppShell>
-          <div>Shell content</div>
-        </AppShell>
-      </MemoryRouter>
+      <PreferencesProvider>
+        <MemoryRouter initialEntries={["/"]}>
+          <AppShell>
+            <div>Shell content</div>
+          </AppShell>
+        </MemoryRouter>
+      </PreferencesProvider>
     </QueryClientProvider>,
   );
 }

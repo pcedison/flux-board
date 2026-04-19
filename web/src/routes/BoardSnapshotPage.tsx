@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useOptimistic, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { DndContext, DragOverlay, PointerSensor, closestCenter, type DragEndEvent, type DragStartEvent, useSensor, useSensors } from "@dnd-kit/core";
@@ -8,9 +8,9 @@ import { BoardArchivePanel, BoardComposerPanel, BoardLane, BoardStatusBanner, Bo
 import type { BoardLaneDescriptor, FocusTarget, MoveTaskRequest } from "../components/board";
 import { applyMoveToTasks, getDragMove } from "../components/board/dragAndDrop";
 import type { Task, TaskPriority } from "../lib/api";
-import { usePreferences } from "../lib/preferences";
 import { useBoardMutations } from "../lib/useBoardMutations";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
+import { usePreferences } from "../lib/usePreferences";
 
 const laneStatuses: BoardLaneDescriptor["status"][] = ["queued", "active", "done"];
 
@@ -64,7 +64,7 @@ function BoardSnapshotContent({
   const [editFieldErrors, setEditFieldErrors] = useState<{ due?: string; title?: string }>({});
   const [focusTarget, setFocusTarget] = useState<FocusTarget | null>(null);
   const [activeTab, setActiveTab] = useState<'search' | 'new' | 'edit' | 'archive'>('new');
-  const [boardTasks, setBoardTasks] = useState(data.tasks);
+  const [boardTasks, setBoardTasks] = useOptimistic(data.tasks, (_currentTasks: Task[], nextTasks: Task[]) => nextTasks);
   const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
   const filteredTasks = boardTasks.filter((task) => {
     const query = search.trim().toLowerCase();
@@ -94,10 +94,6 @@ function BoardSnapshotContent({
       : getFirstVisibleTaskId(filteredTasks, lanes);
   const selectedTask = editTaskID ? boardTasks.find((task) => task.id === editTaskID) ?? null : null;
   const activeDragTask = activeDragTaskId ? boardTasks.find((task) => task.id === activeDragTaskId) ?? null : null;
-
-  useEffect(() => {
-    setBoardTasks(data.tasks);
-  }, [data.tasks]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -250,12 +246,17 @@ function BoardSnapshotContent({
     }
   }
 
-  async function handleMoveTask(move: MoveTaskRequest, announcement: string, previousTasks: Task[]) {
+  async function handleMoveTask(
+    move: MoveTaskRequest,
+    announcement: string,
+    previousTasks: Task[],
+    optimisticTasks: Task[],
+  ) {
     setActionError(null);
     setActionStatus(null);
     try {
       const movedTask = await mutations.moveTask.mutateAsync(move);
-      setBoardTasks((current) => current.map((task) => (task.id === movedTask.id ? { ...task, ...movedTask } : task)));
+      setBoardTasks(optimisticTasks.map((task) => (task.id === movedTask.id ? { ...task, ...movedTask } : task)));
       setActionStatus(announcement);
       setFocusTarget({
         kind: "task",
@@ -278,6 +279,7 @@ function BoardSnapshotContent({
     }
     try {
       await mutations.archiveTask.mutateAsync(id);
+      setActiveTab("archive");
       setActionStatus(copy.board.archivedStatus(taskTitle));
       setFocusTarget({ kind: "archived", id });
     } catch (error) {
@@ -440,8 +442,9 @@ function BoardSnapshotContent({
         : copy.board.movedToStatus(movedTask.title, statusLabel(move.status));
 
     const previousTasks = boardTasks;
-    setBoardTasks((current) => applyMoveToTasks(current, move));
-    void handleMoveTask(move, announcement, previousTasks);
+    const optimisticTasks = applyMoveToTasks(boardTasks, move);
+    setBoardTasks(optimisticTasks);
+    void handleMoveTask(move, announcement, previousTasks, optimisticTasks);
   }
 
   return (
@@ -483,9 +486,15 @@ function BoardSnapshotContent({
               <button
                 key={t}
                 className={`panel-tab${activeTab === t ? ' panel-tab-active' : ''}`}
+                type="button"
                 onClick={() => setActiveTab(t)}
               >
-                {{ search: '搜尋', new: '新增', edit: '編輯', archive: '封存' }[t]}
+                {{
+                  search: copy.common.search,
+                  new: copy.common.newTask,
+                  edit: copy.board.selectedTaskTitle,
+                  archive: copy.common.archive,
+                }[t]}
               </button>
             ))}
           </div>

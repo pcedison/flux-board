@@ -3,7 +3,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { ApiError, bootstrapWithPassword } from "../lib/api";
-import { usePreferences } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 import { setAuthSessionData, useAuthSession } from "../lib/useAuthSession";
 import { bootstrapStatusQueryKey, useBootstrapStatus } from "../lib/useBootstrapStatus";
 

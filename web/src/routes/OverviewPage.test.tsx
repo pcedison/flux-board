@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
 
 import { OverviewPage } from "./OverviewPage";
+import { PreferencesProvider } from "../lib/preferences";
 import { useAppStatus } from "../lib/useAppStatus";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
@@ -37,9 +38,11 @@ describe("OverviewPage", () => {
     } as ReturnType<typeof useBoardSnapshot>);
 
     const { container } = render(
-      <MemoryRouter>
-        <OverviewPage />
-      </MemoryRouter>,
+      <PreferencesProvider>
+        <MemoryRouter>
+          <OverviewPage />
+        </MemoryRouter>
+      </PreferencesProvider>,
     );
 
     expect(screen.getByText("Loading")).toBeInTheDocument();
@@ -90,9 +93,11 @@ describe("OverviewPage", () => {
     } as ReturnType<typeof useBoardSnapshot>);
 
     const { container } = render(
-      <MemoryRouter>
-        <OverviewPage />
-      </MemoryRouter>,
+      <PreferencesProvider>
+        <MemoryRouter>
+          <OverviewPage />
+        </MemoryRouter>
+      </PreferencesProvider>,
     );
 
     expect(screen.getByText("Ready to use")).toBeInTheDocument();

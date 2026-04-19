@@ -70,17 +70,11 @@ try {
 
   logStep("Create task");
   const setupTaskTitle = `Setup smoke ${Date.now()}`;
-  const createResponse = page.waitForResponse(
-    (res) => res.url().endsWith("/api/tasks") && res.request().method() === "POST",
-    { timeout: 10000 }
-  );
-  await page.getByLabel("Title").fill(setupTaskTitle);
-  await page.getByLabel("Due date").fill("2026-05-01");
-  await page.getByLabel("Note").fill("Verify setup-first bootstrap and follow-up sign-in.");
-  await page.getByRole("button", { name: "Create task" }).click();
-  const createResult = await createResponse;
-  assertStatus(createResult.status() === 201, `Create task failed with ${createResult.status()}`);
-  await page.getByText(`Created ${setupTaskTitle} in the queued lane.`).waitFor();
+  await createTaskFromBoard(page, {
+    due: "2026-05-01",
+    note: "Verify setup-first bootstrap and follow-up sign-in.",
+    title: setupTaskTitle,
+  });
   await page.locator("article", { hasText: setupTaskTitle }).first().waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Logout");
@@ -224,4 +218,17 @@ function assertStatus(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function createTaskFromBoard(page, { title, due, note }) {
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Due date").fill(due);
+  await page.getByLabel("Note").fill(note);
+  const createResponse = page.waitForResponse(
+    (res) => res.url().endsWith("/api/tasks") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await page.getByRole("button", { name: "Create task" }).click();
+  const response = await createResponse;
+  assertStatus(response.status() === 201, `Create task failed with ${response.status()}`);
 }

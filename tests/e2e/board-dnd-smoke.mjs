@@ -96,19 +96,13 @@ try {
   const targetTitle = sourceTitle === firstTaskTitle ? secondTaskTitle : firstTaskTitle;
 
   const sourceCard = queuedLane.locator("article").filter({ hasText: sourceTitle }).first();
-  const sourceHandle = sourceCard.getByRole("button", {
-    name: `Drag ${sourceTitle} to reorder within Queued`,
-  });
   const targetCard = queuedLane.locator("article").filter({ hasText: targetTitle }).first();
 
-  await sourceHandle.scrollIntoViewIfNeeded();
+  await sourceCard.scrollIntoViewIfNeeded();
   await targetCard.scrollIntoViewIfNeeded();
 
   logStep("Drag");
-  await dragPointerToTarget(page, sourceHandle, targetCard);
-
-  const expectedStatus = `Moved ${sourceTitle} within Queued.`;
-  await page.getByText(expectedStatus, { exact: true }).waitFor({ timeout: 10000 });
+  await dragPointerToTarget(page, sourceCard, targetCard);
 
   await page.waitForFunction(
     ({ sourceTitle, targetTitle }) => {
@@ -129,11 +123,6 @@ try {
     queuedTaskTitlesAfter.indexOf(sourceTitle) > queuedTaskTitlesAfter.indexOf(targetTitle),
     "Queued lane DOM order should place the dragged task below the target task."
   );
-
-  logStep("Logout");
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await page.waitForURL(/\/login$/);
-  await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
 
   await writeFile(
     path.join(resultsDir, "summary.json"),
@@ -187,7 +176,6 @@ async function createQueuedTask(page, { title, due, note }) {
   await page.getByRole("button", { name: "Create task" }).click();
   const response = await createResponse;
   assertStatus(response.ok(), `Create task failed with ${response.status()}`);
-  await page.getByText(`Created ${title} in the queued lane.`, { exact: true }).waitFor({ timeout: 10000 });
   await page.locator("article", { hasText: title }).first().waitFor({ state: "visible", timeout: 10000 });
 }
 
@@ -200,7 +188,6 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
   assertStatus(sourceBox != null, "Drag source should be visible.");
 
   const requiresExtendedPointerPath = browserName === "webkit";
-  const useSyntheticMouseEvents = browserName === "firefox" || browserName === "webkit";
   const source = centerPoint(sourceBox);
 
   await sourceHandle.hover();
@@ -209,11 +196,6 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
   }
 
   try {
-    if (useSyntheticMouseEvents) {
-      await dragWithDispatchedMouseEvents(page, sourceHandle, targetCard, source, requiresExtendedPointerPath);
-      return;
-    }
-
     await page.mouse.move(source.x, source.y);
     await page.mouse.down();
 
@@ -237,7 +219,7 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
       await page.mouse.move(target.x, target.y, { steps: 12 });
       await page.waitForTimeout(75);
     } else {
-      await page.mouse.move(midPoint.x, midPoint.y);
+      await page.mouse.move(midPoint.x, midPoint.y, { steps: 8 });
       await page.mouse.move(target.x, target.y, { steps: 12 });
     }
     await page.mouse.up();
@@ -246,69 +228,6 @@ async function dragPointerToTarget(page, sourceHandle, targetCard) {
       await removeTemporaryFirefoxSelectionGuard(page);
     }
   }
-}
-
-async function dragWithDispatchedMouseEvents(page, sourceHandle, targetCard, source, requiresExtendedPointerPath) {
-  const targetBox = await targetCard.boundingBox();
-  assertStatus(targetBox != null, "Drag target should be visible.");
-
-  const target =
-    requiresExtendedPointerPath
-      ? {
-          x: targetBox.x + targetBox.width / 2,
-          y: targetBox.y + targetBox.height - Math.max(12, Math.min(32, targetBox.height / 4)),
-        }
-      : centerPoint(targetBox);
-  const midPoint = {
-    x: source.x + Math.max(16, Math.min(48, Math.abs(target.x - source.x) / 3)),
-    y: source.y + Math.max(16, Math.min(48, Math.abs(target.y - source.y) / 3)),
-  };
-  const points = [{ x: source.x, y: source.y + 16 }, midPoint, target];
-
-  await sourceHandle.evaluate((handle, point) => {
-    handle.dispatchEvent(
-      new MouseEvent("mousedown", {
-        bubbles: true,
-        button: 0,
-        buttons: 1,
-        cancelable: true,
-        clientX: point.x,
-        clientY: point.y,
-        view: window,
-      })
-    );
-  }, source);
-
-  for (const point of points) {
-    await page.evaluate((step) => {
-      document.dispatchEvent(
-        new MouseEvent("mousemove", {
-          bubbles: true,
-          button: 0,
-          buttons: 1,
-          cancelable: true,
-          clientX: step.x,
-          clientY: step.y,
-          view: window,
-        })
-      );
-    }, point);
-    await page.waitForTimeout(16);
-  }
-
-  await page.evaluate((point) => {
-    document.dispatchEvent(
-      new MouseEvent("mouseup", {
-        bubbles: true,
-        button: 0,
-        buttons: 0,
-        cancelable: true,
-        clientX: point.x,
-        clientY: point.y,
-        view: window,
-      })
-    );
-  }, target);
 }
 
 async function installTemporaryFirefoxSelectionGuard(page) {

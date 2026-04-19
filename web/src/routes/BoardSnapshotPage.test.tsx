@@ -5,6 +5,7 @@ import { axe } from "vitest-axe";
 
 import { BoardSnapshotPage } from "./BoardSnapshotPage";
 import { ApiError, archiveTask, createTask, restoreTask } from "../lib/api";
+import { PreferencesProvider } from "../lib/preferences";
 import { authSessionQueryKey } from "../lib/useAuthSession";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
 
@@ -96,7 +97,7 @@ describe("BoardSnapshotPage", () => {
     expect(screen.getAllByText("Due 2026-04-20").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "封存" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(screen.getByText("1 archived task")).toBeInTheDocument();
   });
 
@@ -167,7 +168,7 @@ describe("BoardSnapshotPage", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "封存" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     fireEvent.click(screen.getByRole("button", { name: "Restore Archived" }));
 
     await waitFor(() => expect(mockedRestoreTask).toHaveBeenCalledWith("c"));
@@ -207,7 +208,9 @@ function renderPageView(options?: { authSession?: { authenticated: boolean; expi
 
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <BoardSnapshotPage />
+      <PreferencesProvider>
+        <BoardSnapshotPage />
+      </PreferencesProvider>
     </QueryClientProvider>,
   );
 

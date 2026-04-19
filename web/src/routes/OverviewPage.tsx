@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { QueryState } from "../components/QueryState";
 import { useAppStatus } from "../lib/useAppStatus";
 import { useBoardSnapshot } from "../lib/useBoardSnapshot";
-import { usePreferences } from "../lib/preferences";
+import { usePreferences } from "../lib/usePreferences";
 
 export function OverviewPage() {
   const snapshot = useBoardSnapshot();
