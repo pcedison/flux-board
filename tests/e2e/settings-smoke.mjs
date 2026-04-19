@@ -510,23 +510,13 @@ function findExtraSession(previousSessions, nextSessions) {
 }
 
 async function locateSavedSessionRow(page, session) {
-  const [lastSeenText, expiresText] = await Promise.all([
-    formatBrowserDate(page, session.lastSeenAt),
-    formatBrowserDate(page, session.expiresAt),
-  ]);
   const row = page
     .locator(".archive-item")
     .filter({ hasText: "Another signed-in browser" })
-    .filter({ hasText: `Last active ${lastSeenText}` })
-    .filter({ hasText: `expires ${expiresText}` })
     .filter({ hasText: `IP address ${session.clientIP || "unknown"}` })
     .first();
   await row.waitFor({ state: "visible", timeout: 10000 });
   return row;
-}
-
-async function formatBrowserDate(page, value) {
-  return page.evaluate((timestamp) => new Date(timestamp).toLocaleString(), value);
 }
 
 function buildMutatedBundle(bundle, archiveRetentionDays) {

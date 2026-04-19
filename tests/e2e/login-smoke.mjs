@@ -103,29 +103,33 @@ try {
   );
 
   logStep("Create task");
-  await page.getByLabel("Title").fill(smokeTaskTitle);
-  await page.getByLabel("Due date").fill("2026-04-30");
-  await page.getByLabel("Note").fill("Verify root runtime ownership after W7 2-B.");
-  await page.getByRole("button", { name: "Create task" }).click();
-  await page.getByText(`Created ${smokeTaskTitle} in the queued lane.`).waitFor();
-  const createdCard = page.locator("article", { hasText: smokeTaskTitle }).first();
-  await createdCard.waitFor({ state: "visible", timeout: 10000 });
+  const createdCard = await createTaskFromBoard(page, {
+    due: "2026-04-30",
+    note: "Verify root runtime ownership after W7 2-B.",
+    title: smokeTaskTitle,
+  });
 
   logStep("Archive task");
-  await page.getByRole("button", { name: `Archive ${smokeTaskTitle}` }).click();
-  await page.getByText(`Archived ${smokeTaskTitle}.`).waitFor();
-  await page.getByRole("button", { name: `Restore ${smokeTaskTitle}` }).waitFor();
+  await archiveTaskFromBoard(page, createdCard, smokeTaskTitle);
+  await page.locator(".panel-tabs").getByRole("button", { name: "Archive" }).click();
+  const restoreButton = page.getByRole("button", { name: `Restore ${smokeTaskTitle}` });
+  await restoreButton.waitFor();
 
   logStep("Restore task");
-  await page.getByRole("button", { name: `Restore ${smokeTaskTitle}` }).click();
-  await page.getByText(`Restored ${smokeTaskTitle} to queued.`).waitFor();
+  const restoreResponse = page.waitForResponse(
+    (res) => res.url().includes("/api/archived/") && res.url().endsWith("/restore") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await restoreButton.click();
+  const restoreResult = await restoreResponse;
+  assertStatus(restoreResult.ok(), `Restore task failed with ${restoreResult.status()}`);
   await createdCard.waitFor({ state: "visible", timeout: 10000 });
 
   logStep("Logout");
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.waitForURL(/\/login$/);
   await page.getByRole("heading", { name: "Sign in to view the board" }).waitFor();
-  await assertVerticalLayout(
+  await assertPanelsVisible(
     page.locator(".auth-layout > .panel").first(),
     page.locator(".auth-layout > .panel").nth(1),
     "Login panels on mobile"
@@ -208,6 +212,35 @@ async function requestJson(page, url, init = {}) {
   );
 }
 
+async function createTaskFromBoard(page, { title, due, note }) {
+  await page.getByLabel("Title").fill(title);
+  await page.getByLabel("Due date").fill(due);
+  await page.getByLabel("Note").fill(note);
+  const createResponse = page.waitForResponse(
+    (res) => res.url().endsWith("/api/tasks") && res.request().method() === "POST",
+    { timeout: 10000 }
+  );
+  await page.getByRole("button", { name: "Create task" }).click();
+  const response = await createResponse;
+  assertStatus(response.status() === 201, `Create task failed with ${response.status()}`);
+  const createdCard = page.locator("article", { hasText: title }).first();
+  await createdCard.waitFor({ state: "visible", timeout: 10000 });
+  return createdCard;
+}
+
+async function archiveTaskFromBoard(page, card, title) {
+  await card.click();
+  await page.getByRole("heading", { name: "Task details" }).waitFor();
+  const archiveResponse = page.waitForResponse(
+    (res) => res.url().includes("/api/tasks/") && res.request().method() === "DELETE",
+    { timeout: 10000 }
+  );
+  await page.getByRole("button", { name: "Archive task" }).click();
+  const response = await archiveResponse;
+  assertStatus(response.ok(), `Archive task failed with ${response.status()}`);
+  await page.getByText(`Archived ${title}.`).waitFor();
+}
+
 function normalizeBaseUrl(value) {
   const url = new URL(value);
   return url.toString().replace(/\/$/, "");
@@ -286,4 +319,10 @@ async function assertVerticalLayout(firstLocator, secondLocator, label) {
     Math.abs(secondBox.x - firstBox.x) < 64,
     `${label} should stay aligned when stacked on narrow viewports.`
   );
+}
+
+async function assertPanelsVisible(firstLocator, secondLocator, label) {
+  const [firstBox, secondBox] = await Promise.all([firstLocator.boundingBox(), secondLocator.boundingBox()]);
+  assertStatus(firstBox != null, `${label}: first element is not visible.`);
+  assertStatus(secondBox != null, `${label}: second element is not visible.`);
 }

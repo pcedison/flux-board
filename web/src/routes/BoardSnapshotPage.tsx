@@ -279,6 +279,7 @@ function BoardSnapshotContent({
     }
     try {
       await mutations.archiveTask.mutateAsync(id);
+      setActiveTab("archive");
       setActionStatus(copy.board.archivedStatus(taskTitle));
       setFocusTarget({ kind: "archived", id });
     } catch (error) {
@@ -485,9 +486,15 @@ function BoardSnapshotContent({
               <button
                 key={t}
                 className={`panel-tab${activeTab === t ? ' panel-tab-active' : ''}`}
+                type="button"
                 onClick={() => setActiveTab(t)}
               >
-                {{ search: '搜尋', new: '新增', edit: '編輯', archive: '封存' }[t]}
+                {{
+                  search: copy.common.search,
+                  new: copy.common.newTask,
+                  edit: copy.board.selectedTaskTitle,
+                  archive: copy.common.archive,
+                }[t]}
               </button>
             ))}
           </div>
